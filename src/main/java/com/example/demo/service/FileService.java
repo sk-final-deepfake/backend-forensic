@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.FileUploadResponse;
+import com.example.demo.dto.MediaMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -17,9 +18,11 @@ import java.util.UUID;
 public class FileService {
 
     private final Path root;
+    private final MediaService mediaService;
 
-    public FileService(@Value("${file.upload-dir:uploads}") String uploadDir) {
+    public FileService(@Value("${file.upload-dir:uploads}") String uploadDir, MediaService mediaService) {
         this.root = Paths.get(uploadDir);
+        this.mediaService = mediaService;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
@@ -34,19 +37,46 @@ public class FileService {
 
         try {
             String originalFilename = file.getOriginalFilename();
-            // 실제 저장 시에는 중복 방지를 위해 UUID를 유지하는 것이 안전하므로 유지하되, 응답은 요구사항에 맞춰 작성 가능
             String storedFileName = UUID.randomUUID().toString() + "_" + originalFilename;
-            Files.copy(file.getInputStream(), this.root.resolve(storedFileName));
+            Path targetPath = this.root.resolve(storedFileName);
+            Files.copy(file.getInputStream(), targetPath);
+
+            MediaMetadata metadata = null;
+            // 미디어 파일인 경우에만 메타데이터 추출 시도 (확장자 체크 등 추가 가능)
+            if (isMediaFile(originalFilename)) {
+                try {
+                    metadata = mediaService.extractMetadata(targetPath);
+                } catch (Exception e) {
+                    log.error("Metadata extraction failed for {}: {}", originalFilename, e.getMessage());
+                    // 손상된 파일인 경우 예외를 던짐 (사용자 요구사항)
+                    throw new RuntimeException("CORRUPTED_MEDIA_FILE");
+                }
+            }
 
             return FileUploadResponse.builder()
                     .success(true)
                     .message("파일 업로드 완료")
                     .fileName(originalFilename)
                     .fileSize(file.getSize())
+                    .metadata(metadata)
                     .build();
+        } catch (RuntimeException e) {
+            if ("CORRUPTED_MEDIA_FILE".equals(e.getMessage())) {
+                throw e;
+            }
+            log.error("FileUpload Error: ", e);
+            throw new RuntimeException("FILE_UPLOAD_FAILED");
         } catch (Exception e) {
             log.error("FileUpload Error: ", e);
             throw new RuntimeException("FILE_UPLOAD_FAILED");
         }
+    }
+
+    private boolean isMediaFile(String fileName) {
+        if (fileName == null) return false;
+        String ext = fileName.toLowerCase();
+        return ext.endsWith(".mp4") || ext.endsWith(".avi") || ext.endsWith(".mkv") ||
+               ext.endsWith(".mp3") || ext.endsWith(".wav") || ext.endsWith(".flac") ||
+               ext.endsWith(".mov") || ext.endsWith(".wmv") || ext.endsWith(".aac");
     }
 }

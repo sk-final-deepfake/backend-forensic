@@ -39,6 +39,21 @@ public class EvidenceController {
                             .errorCode("FILE_NOT_FOUND")
                             .message("업로드된 파일이 없습니다.")
                             .build());
+        } catch (RuntimeException e) {
+            if ("CORRUPTED_MEDIA_FILE".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ErrorResponse.builder()
+                                .success(false)
+                                .errorCode("CORRUPTED_MEDIA_FILE")
+                                .message("손상된 미디어 파일입니다.")
+                                .build());
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ErrorResponse.builder()
+                            .success(false)
+                            .errorCode("FILE_UPLOAD_FAILED")
+                            .message("파일 업로드에 실패했습니다.")
+                            .build());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ErrorResponse.builder()

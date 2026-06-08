@@ -1,17 +1,28 @@
 spring:
   application:
     name: demo
+
   datasource:
     url: jdbc:h2:file:./data/demo;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
+
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
+
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+
   autoconfigure:
     exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
 
 file:
   upload-dir: uploads/original
+
+ffmpeg:
+  path: C:\ffmpeg\ffmpeg-8.1.1-essentials_build\bin
