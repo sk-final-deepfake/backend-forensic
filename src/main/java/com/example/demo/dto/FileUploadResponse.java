@@ -6,9 +6,13 @@ import lombok.Getter;
 @Getter
 @Builder
 public class FileUploadResponse {
+
     private boolean success;
     private String message;
+    private Long evidenceId;
     private String fileName;
     private Long fileSize;
+    private String hashAlgorithm;
+    private String hashValue;
     private Object metadata;
 }

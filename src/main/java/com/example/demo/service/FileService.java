@@ -1,16 +1,20 @@
 package com.example.demo.service;
 
+import com.example.demo.domain.Evidence;
 import com.example.demo.dto.FileUploadResponse;
-import com.example.demo.dto.MediaMetadata;
+import com.example.demo.exception.HashGenerationException;
+import com.example.demo.repository.EvidenceRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Slf4j
@@ -19,10 +23,19 @@ public class FileService {
 
     private final Path root;
     private final MediaService mediaService;
+    private final HashService hashService;
+    private final EvidenceRepository evidenceRepository;
 
-    public FileService(@Value("${file.upload-dir:uploads}") String uploadDir, MediaService mediaService) {
+    public FileService(
+            @Value("${file.upload-dir:uploads}") String uploadDir,
+            MediaService mediaService,
+            HashService hashService,
+            EvidenceRepository evidenceRepository
+    ) {
         this.root = Paths.get(uploadDir);
         this.mediaService = mediaService;
+        this.hashService = hashService;
+        this.evidenceRepository = evidenceRepository;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
@@ -30,6 +43,7 @@ public class FileService {
         }
     }
 
+    @Transactional
     public FileUploadResponse upload(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("FILE_NOT_FOUND");
@@ -38,29 +52,44 @@ public class FileService {
         try {
             Files.createDirectories(this.root);
             String originalFilename = file.getOriginalFilename();
-            String storedFileName = UUID.randomUUID().toString() + "_" + originalFilename;
-            Path targetPath = this.root.resolve(storedFileName);
-            Files.copy(file.getInputStream(), targetPath);
+            String storedFileName = UUID.randomUUID() + "_" + originalFilename;
+            Path savedPath = this.root.resolve(storedFileName);
+            Files.copy(file.getInputStream(), savedPath);
+
+            String hashValue = hashService.generateSha256(savedPath);
 
             Object metadata = null;
-            // 미디어 파일인 경우에만 메타데이터 추출 시도
             if (isMediaFile(originalFilename)) {
                 try {
-                    metadata = mediaService.extractMetadata(targetPath);
+                    metadata = mediaService.extractMetadata(savedPath);
                 } catch (Exception e) {
                     log.error("Metadata extraction failed for {}: {}", originalFilename, e.getMessage());
-                    // 손상된 파일인 경우 "깨짐"으로 표시
                     metadata = "깨짐";
                 }
             }
 
+            Evidence evidence = Evidence.builder()
+                    .fileName(originalFilename)
+                    .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                    .hashValue(hashValue)
+                    .originalStoragePath(savedPath.toString())
+                    .uploadedAt(LocalDateTime.now())
+                    .build();
+
+            Evidence savedEvidence = evidenceRepository.save(evidence);
+
             return FileUploadResponse.builder()
                     .success(true)
                     .message("파일 업로드 완료")
+                    .evidenceId(savedEvidence.getEvidenceId())
                     .fileName(originalFilename)
                     .fileSize(file.getSize())
+                    .hashAlgorithm(savedEvidence.getHashAlgorithm())
+                    .hashValue(savedEvidence.getHashValue())
                     .metadata(metadata)
                     .build();
+        } catch (HashGenerationException e) {
+            throw e;
         } catch (Exception e) {
             log.error("FileUpload Error: ", e);
             throw new RuntimeException("FILE_UPLOAD_FAILED");
@@ -68,10 +97,12 @@ public class FileService {
     }
 
     private boolean isMediaFile(String fileName) {
-        if (fileName == null) return false;
+        if (fileName == null) {
+            return false;
+        }
         String ext = fileName.toLowerCase();
-        return ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".png") ||
-               ext.endsWith(".mp4") || ext.endsWith(".mov") ||
-               ext.endsWith(".wav") || ext.endsWith(".mp3");
+        return ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".png")
+                || ext.endsWith(".mp4") || ext.endsWith(".mov")
+                || ext.endsWith(".wav") || ext.endsWith(".mp3");
     }
 }
