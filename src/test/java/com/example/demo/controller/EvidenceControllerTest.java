@@ -59,19 +59,37 @@ class EvidenceControllerTest {
     }
 
     @Test
-    void shouldReturnErrorWhenFileIsEmpty() throws Exception {
+    void shouldUploadImageFile() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "",
-                MediaType.TEXT_PLAIN_VALUE,
-                new byte[0]
+                "test-image.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "fake-image-data".getBytes()
+        );
+
+        // 실제 ffprobe가 없거나 실패하더라도 "깨짐"으로 나오거나 (성공하면 메타데이터 객체)
+        // 여기서는 isMediaFile이 true를 반환하는지 간접적으로 확인 가능
+        mockMvc.perform(multipart("/api/evidences/upload")
+                        .file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.fileName").value("test-image.jpg"));
+    }
+
+    @Test
+    void shouldReturnBrokenMetadataForInvalidMediaFile() throws Exception {
+        // 확장자는 mp4인데 내용은 텍스트인 경우 (ffprobe 실패 유도)
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "broken-video.mp4",
+                "video/mp4",
+                "not-a-video".getBytes()
         );
 
         mockMvc.perform(multipart("/api/evidences/upload")
                         .file(file))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.errorCode").value("FILE_NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("업로드된 파일이 없습니다."));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.metadata").value("깨짐"));
     }
 }

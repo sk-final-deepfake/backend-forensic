@@ -68,8 +68,14 @@ public class MediaService {
 
         MediaMetadata.MediaMetadataBuilder builder = MediaMetadata.builder();
         
-        if (formatNode != null && formatNode.has("duration")) {
-            builder.duration(formatNode.get("duration").asDouble());
+        String formatName = "";
+        if (formatNode != null) {
+            if (formatNode.has("duration")) {
+                builder.duration(formatNode.get("duration").asDouble());
+            }
+            if (formatNode.has("format_name")) {
+                formatName = formatNode.get("format_name").asText();
+            }
         }
 
         boolean hasVideo = false;
@@ -80,17 +86,26 @@ public class MediaService {
                 String codecType = stream.get("codec_type").asText();
                 if ("video".equals(codecType) && !hasVideo) {
                     hasVideo = true;
-                    builder.type("video");
+                    // image2, png_pipe etc are image formats in ffprobe
+                    if (formatName.contains("image") || formatName.contains("png") || formatName.contains("jpeg") || formatName.contains("jpg")) {
+                        builder.type("image");
+                    } else {
+                        builder.type("video");
+                    }
                     builder.codec(stream.get("codec_name").asText());
                     builder.width(stream.get("width").asInt());
                     builder.height(stream.get("height").asInt());
                     
-                    String avgFrameRate = stream.get("avg_frame_rate").asText();
-                    if (avgFrameRate.contains("/")) {
-                        String[] parts = avgFrameRate.split("/");
-                        double num = Double.parseDouble(parts[0]);
-                        double den = Double.parseDouble(parts[1]);
-                        builder.fps(den != 0 ? num / den : 0);
+                    if (stream.has("avg_frame_rate")) {
+                        String avgFrameRate = stream.get("avg_frame_rate").asText();
+                        if (avgFrameRate.contains("/")) {
+                            String[] parts = avgFrameRate.split("/");
+                            try {
+                                double num = Double.parseDouble(parts[0]);
+                                double den = Double.parseDouble(parts[1]);
+                                builder.fps(den != 0 ? num / den : 0);
+                            } catch (NumberFormatException ignored) {}
+                        }
                     }
                 } else if ("audio".equals(codecType) && !hasAudio) {
                     hasAudio = true;
@@ -98,8 +113,12 @@ public class MediaService {
                         builder.type("audio");
                         builder.codec(stream.get("codec_name").asText());
                     }
-                    builder.sampleRate(stream.get("sample_rate").asInt());
-                    builder.channels(stream.get("channels").asInt());
+                    if (stream.has("sample_rate")) {
+                        builder.sampleRate(stream.get("sample_rate").asInt());
+                    }
+                    if (stream.has("channels")) {
+                        builder.channels(stream.get("channels").asInt());
+                    }
                     
                     if (!hasVideo && builder.build().getDuration() == null && stream.has("duration")) {
                         builder.duration(stream.get("duration").asDouble());

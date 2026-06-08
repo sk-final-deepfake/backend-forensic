@@ -10,5 +10,5 @@ public class FileUploadResponse {
     private String message;
     private String fileName;
     private Long fileSize;
-    private MediaMetadata metadata;
+    private Object metadata;
 }

@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 @Builder
 public class MediaMetadata {
-    private String type; // "video" or "audio"
+    private String type; // "video", "audio", or "image"
     private Double duration;
     private String codec;
     

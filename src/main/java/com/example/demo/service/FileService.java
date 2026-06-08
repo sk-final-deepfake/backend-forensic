@@ -36,20 +36,21 @@ public class FileService {
         }
 
         try {
+            Files.createDirectories(this.root);
             String originalFilename = file.getOriginalFilename();
             String storedFileName = UUID.randomUUID().toString() + "_" + originalFilename;
             Path targetPath = this.root.resolve(storedFileName);
             Files.copy(file.getInputStream(), targetPath);
 
-            MediaMetadata metadata = null;
-            // 미디어 파일인 경우에만 메타데이터 추출 시도 (확장자 체크 등 추가 가능)
+            Object metadata = null;
+            // 미디어 파일인 경우에만 메타데이터 추출 시도
             if (isMediaFile(originalFilename)) {
                 try {
                     metadata = mediaService.extractMetadata(targetPath);
                 } catch (Exception e) {
                     log.error("Metadata extraction failed for {}: {}", originalFilename, e.getMessage());
-                    // 손상된 파일인 경우 예외를 던짐 (사용자 요구사항)
-                    throw new RuntimeException("CORRUPTED_MEDIA_FILE");
+                    // 손상된 파일인 경우 "깨짐"으로 표시
+                    metadata = "깨짐";
                 }
             }
 
@@ -60,12 +61,6 @@ public class FileService {
                     .fileSize(file.getSize())
                     .metadata(metadata)
                     .build();
-        } catch (RuntimeException e) {
-            if ("CORRUPTED_MEDIA_FILE".equals(e.getMessage())) {
-                throw e;
-            }
-            log.error("FileUpload Error: ", e);
-            throw new RuntimeException("FILE_UPLOAD_FAILED");
         } catch (Exception e) {
             log.error("FileUpload Error: ", e);
             throw new RuntimeException("FILE_UPLOAD_FAILED");
@@ -75,8 +70,8 @@ public class FileService {
     private boolean isMediaFile(String fileName) {
         if (fileName == null) return false;
         String ext = fileName.toLowerCase();
-        return ext.endsWith(".mp4") || ext.endsWith(".avi") || ext.endsWith(".mkv") ||
-               ext.endsWith(".mp3") || ext.endsWith(".wav") || ext.endsWith(".flac") ||
-               ext.endsWith(".mov") || ext.endsWith(".wmv") || ext.endsWith(".aac");
+        return ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".png") ||
+               ext.endsWith(".mp4") || ext.endsWith(".mov") ||
+               ext.endsWith(".wav") || ext.endsWith(".mp3");
     }
 }
