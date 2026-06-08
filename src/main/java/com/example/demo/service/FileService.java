@@ -102,7 +102,7 @@ public class FileService {
         }
         String ext = fileName.toLowerCase();
         return ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".png")
-                || ext.endsWith(".mp4") || ext.endsWith(".mov")
+                || ext.endsWith(".mp4") || ext.endsWith(".mov") || ext.endsWith(".m4a")
                 || ext.endsWith(".wav") || ext.endsWith(".mp3");
     }
 }
