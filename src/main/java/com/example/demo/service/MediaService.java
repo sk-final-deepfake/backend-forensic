@@ -9,7 +9,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,9 +22,29 @@ public class MediaService {
     private final String ffprobePath;
     private final ObjectMapper objectMapper;
 
-    public MediaService(@Value("${ffmpeg.path}") String ffmpegPath, ObjectMapper objectMapper) {
-        this.ffprobePath = ffmpegPath + (ffmpegPath.endsWith("/") || ffmpegPath.endsWith("\\") ? "" : "\\") + "ffprobe.exe";
+    public MediaService(@Value("${ffmpeg.path:}") String ffmpegPath, ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+        this.ffprobePath = resolveFfprobePath(ffmpegPath);
+        log.info("ffprobe path resolved to: {}", this.ffprobePath);
+    }
+
+    /**
+     * OS에 맞춰 ffprobe 실행 경로를 결정한다.
+     * - ffmpeg.path가 지정되고 그 안에 실행 파일이 실제로 있으면 절대 경로 사용 (Windows 설치 폴더 등)
+     * - 그렇지 않으면 실행 파일 이름만 반환해 시스템 PATH에서 찾도록 함 (Mac/Linux Homebrew 등)
+     */
+    private String resolveFfprobePath(String ffmpegPath) {
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        String executable = isWindows ? "ffprobe.exe" : "ffprobe";
+
+        if (ffmpegPath != null && !ffmpegPath.isBlank()) {
+            Path candidate = Paths.get(ffmpegPath, executable);
+            if (Files.exists(candidate)) {
+                return candidate.toAbsolutePath().toString();
+            }
+            log.warn("Configured ffmpeg.path does not contain {} ({}). Falling back to system PATH.", executable, candidate);
+        }
+        return executable;
     }
 
     public MediaMetadata extractMetadata(Path filePath) {
