@@ -1,0 +1,181 @@
+package com.example.demo.controller;
+
+import com.example.demo.repository.EvidenceRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.util.FileSystemUtils;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = {
+		"spring.autoconfigure.exclude=org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
+})
+@AutoConfigureMockMvc
+class EvidenceControllerTest {
+
+	@Autowired
+	private MockMvc mockMvc;
+
+	@Autowired
+	private EvidenceRepository evidenceRepository;
+
+	@Value("${file.upload-dir}")
+	private String uploadDir;
+
+	@AfterEach
+	void cleanUp() throws Exception {
+		evidenceRepository.deleteAll();
+		Path root = Paths.get(uploadDir);
+		if (Files.exists(root)) {
+			FileSystemUtils.deleteRecursively(root);
+		}
+	}
+
+	@Test
+	void shouldUploadFile() throws Exception {
+		MockMultipartFile file = new MockMultipartFile(
+				"file",
+				"test-file.txt",
+				MediaType.TEXT_PLAIN_VALUE,
+				"Hello, World!".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/evidences/upload").file(file))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.message").value("파일 업로드 완료"))
+				.andExpect(jsonPath("$.fileName").value("test-file.txt"))
+				.andExpect(jsonPath("$.fileSize").value(file.getSize()))
+				.andExpect(jsonPath("$.evidenceId").exists())
+				.andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
+				.andExpect(jsonPath("$.hashValue").isString());
+	}
+
+	@Test
+	void shouldReturnErrorWhenFileIsEmpty() throws Exception {
+		MockMultipartFile file = new MockMultipartFile(
+				"file",
+				"",
+				MediaType.TEXT_PLAIN_VALUE,
+				new byte[0]
+		);
+
+		mockMvc.perform(multipart("/api/evidences/upload").file(file))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.errorCode").value("FILE_NOT_FOUND"))
+				.andExpect(jsonPath("$.message").value("업로드된 파일이 없습니다."));
+	}
+
+	@Test
+	@DisplayName("동일 파일 2회 업로드 시 동일한 SHA-256 해시값을 반환한다")
+	void upload_sameFileTwice_returnsSameHash() throws Exception {
+		byte[] content = "sample mp4 content for integrity test".getBytes(StandardCharsets.UTF_8);
+		MockMultipartFile sampleFile = new MockMultipartFile(
+				"file",
+				"sample.mp4",
+				"video/mp4",
+				content
+		);
+
+		String firstResponse = mockMvc.perform(multipart("/api/evidences/upload").file(sampleFile))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		String firstHash = extractHashValue(firstResponse);
+
+		MockMultipartFile sameFileAgain = new MockMultipartFile(
+				"file",
+				"sample.mp4",
+				"video/mp4",
+				content
+		);
+
+		mockMvc.perform(multipart("/api/evidences/upload").file(sameFileAgain))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.hashValue").value(firstHash));
+	}
+
+	@Test
+	@DisplayName("수정된 파일 업로드 시 다른 SHA-256 해시값을 반환한다")
+	void upload_modifiedFile_returnsDifferentHash() throws Exception {
+		byte[] originalContent = "original sample mp4 content".getBytes(StandardCharsets.UTF_8);
+		byte[] modifiedContent = "original sample mp4 content-modified".getBytes(StandardCharsets.UTF_8);
+
+		MockMultipartFile originalFile = new MockMultipartFile(
+				"file",
+				"sample.mp4",
+				"video/mp4",
+				originalContent
+		);
+
+		String originalResponse = mockMvc.perform(multipart("/api/evidences/upload").file(originalFile))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		MockMultipartFile modifiedFile = new MockMultipartFile(
+				"file",
+				"sample_modified.mp4",
+				"video/mp4",
+				modifiedContent
+		);
+
+		mockMvc.perform(multipart("/api/evidences/upload").file(modifiedFile))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.hashValue", not(extractHashValue(originalResponse))));
+	}
+
+	@Test
+	@DisplayName("업로드 응답의 해시값이 DB에 저장된다")
+	void upload_success_persistsEvidenceWithHash() throws Exception {
+		long beforeCount = evidenceRepository.count();
+
+		MockMultipartFile file = new MockMultipartFile(
+				"file",
+				"sample.wav",
+				"audio/wav",
+				"sample wav bytes".getBytes(StandardCharsets.UTF_8)
+		);
+
+		mockMvc.perform(multipart("/api/evidences/upload").file(file))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.hashValue").value(org.hamcrest.Matchers.matchesRegex("[0-9a-f]{64}")));
+
+		assertThat(evidenceRepository.count()).isEqualTo(beforeCount + 1);
+		assertThat(evidenceRepository.findAll())
+				.allMatch(evidence -> evidence.getHashAlgorithm().equals("SHA-256"))
+				.allMatch(evidence -> evidence.getHashValue().length() == 64);
+	}
+
+	private String extractHashValue(String responseBody) {
+		int index = responseBody.indexOf("\"hashValue\":\"");
+		if (index < 0) {
+			throw new IllegalStateException("hashValue not found in response: " + responseBody);
+		}
+		int start = index + "\"hashValue\":\"".length();
+		int end = responseBody.indexOf('"', start);
+		return responseBody.substring(start, end);
+	}
+}
