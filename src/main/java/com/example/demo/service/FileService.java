@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.enums.EvidenceStatus;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.repository.EvidenceRepository;
@@ -73,6 +74,7 @@ public class FileService {
                     .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
                     .hashValue(hashValue)
                     .originalStoragePath(savedPath.toString())
+                    .status(EvidenceStatus.UPLOADED)
                     .uploadedAt(LocalDateTime.now())
                     .build();
 
