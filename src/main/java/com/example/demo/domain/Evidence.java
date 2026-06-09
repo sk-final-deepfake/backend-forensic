@@ -29,6 +29,9 @@ public class Evidence {
 	@Column(name = "file_name", nullable = false)
 	private String fileName;
 
+	@Column(name = "case_name")
+	private String caseName;
+
 	@Column(name = "hash_algorithm", nullable = false, length = 20)
 	private String hashAlgorithm;
 
@@ -43,16 +46,18 @@ public class Evidence {
 
 	@Builder
 	public Evidence(
-			String fileName,
-			String hashAlgorithm,
-			String hashValue,
-			String originalStoragePath,
-			LocalDateTime uploadedAt
+	                String fileName,
+	                String caseName,
+	                String hashAlgorithm,
+	                String hashValue,
+	                String originalStoragePath,
+	                LocalDateTime uploadedAt
 	) {
-		this.fileName = fileName;
-		this.hashAlgorithm = hashAlgorithm;
-		this.hashValue = hashValue;
-		this.originalStoragePath = originalStoragePath;
-		this.uploadedAt = uploadedAt;
+	        this.fileName = fileName;
+	        this.caseName = caseName;
+	        this.hashAlgorithm = hashAlgorithm;
+	        this.hashValue = hashValue;
+	        this.originalStoragePath = originalStoragePath;
+	        this.uploadedAt = uploadedAt;
 	}
 }

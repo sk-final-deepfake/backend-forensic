@@ -69,6 +69,28 @@ class EvidenceControllerTest {
     }
 
     @Test
+    @DisplayName("사건명을 포함하여 파일을 업로드하면 DB에 사건명이 저장되어야 한다")
+    void shouldUploadFileWithCaseName() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "case-test.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "Case Name Test Data".getBytes()
+        );
+        String caseName = "2026-서울-0123 딥페이크 유포 사건";
+
+        mockMvc.perform(multipart("/api/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.caseName").value(caseName));
+
+        assertThat(evidenceRepository.findAll())
+                .anyMatch(evidence -> caseName.equals(evidence.getCaseName()));
+    }
+
+    @Test
     void shouldReturnErrorWhenFileIsEmpty() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
