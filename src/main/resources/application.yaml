@@ -1,15 +1,8 @@
 spring:
   application:
-    name: demo
-  datasource:
-    url: jdbc:h2:file:./data/demo;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
+    name: forenshield-api
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   servlet:
     multipart:
       max-file-size: 2GB
@@ -17,8 +10,36 @@ spring:
   autoconfigure:
     exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
 
+server:
+  port: ${SERVER_PORT:8080}
+
+jwt:
+  secret: ${JWT_SECRET_KEY:${JWT_SECRET:forenshield-dev-jwt-secret-key-min-32-chars}}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
 file:
-  upload-dir: uploads/original
+  upload-dir: ${FILE_UPLOAD_DIR:uploads/original}
 
 ffmpeg:
-  path: C:\ffmpeg\ffmpeg-8.1.1-essentials_build\bin
+  path: ${FFMPEG_PATH:C:\ffmpeg\ffmpeg-8.1.1-essentials_build\bin}
+
+# 인프라팀 env 변수와 1:1 매핑 (추후 S3/Redis/RabbitMQ 연동용)
+forenshield:
+  aws:
+    region: ${AWS_REGION:ap-northeast-2}
+    account-id: ${AWS_ACCOUNT_ID:}
+    role-arn: ${AWS_ROLE_ARN:}
+  s3:
+    evidence-bucket: ${S3_EVIDENCE_BUCKET:}
+    models-bucket: ${S3_MODELS_BUCKET:}
+  ai-gateway-url: ${AI_GATEWAY_URL:}
+  redis:
+    host: ${REDIS_HOST:}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    ssl: ${REDIS_SSL:false}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:}
+    password: ${RABBITMQ_PASSWORD:}

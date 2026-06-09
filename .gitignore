@@ -39,3 +39,10 @@ out/
 ### Local upload & H2 ###
 uploads/
 data/
+
+### Secrets (never commit) ###
+.env
+.env.local
+.env.*.local
+config/secrets.env
+config/infra.env
