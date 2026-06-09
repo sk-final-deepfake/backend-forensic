@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.domain.Evidence;
 import com.example.demo.dto.FileUploadResponse;
+import com.example.demo.dto.ValidatedFile;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.repository.EvidenceRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,9 @@ import java.util.UUID;
 @Slf4j
 @Service
 public class FileService {
+
+    /** 로컬/테스트: LocalDevUserInitializer가 생성하는 기본 업로더(user_id=1) */
+    private static final long DEFAULT_UPLOADER_ID = 1L;
 
     private final Path root;
     private final MediaService mediaService;
@@ -48,11 +52,11 @@ public class FileService {
 
     @Transactional
     public FileUploadResponse upload(MultipartFile file) {
-        fileValidationService.validate(file);
+        ValidatedFile validated = fileValidationService.validate(file);
+        String originalFilename = validated.fileName();
 
         try {
             Files.createDirectories(this.root);
-            String originalFilename = file.getOriginalFilename();
             String storedFileName = UUID.randomUUID() + "_" + originalFilename;
             Path savedPath = this.root.resolve(storedFileName);
             Files.copy(file.getInputStream(), savedPath);
@@ -60,7 +64,6 @@ public class FileService {
             String hashValue = hashService.generateSha256(savedPath);
 
             Object metadata = null;
-            // FileValidationService handles supported types, so we can assume it's one of them
             try {
                 metadata = mediaService.extractMetadata(savedPath);
             } catch (Exception e) {
@@ -69,9 +72,13 @@ public class FileService {
             }
 
             Evidence evidence = Evidence.builder()
+                    .uploaderId(DEFAULT_UPLOADER_ID)
                     .fileName(originalFilename)
+                    .fileType(validated.fileType())
+                    .mimeType(validated.mimeType())
+                    .fileSize(validated.fileSize())
                     .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
-                    .hashValue(hashValue)
+                    .originalHashValue(hashValue)
                     .originalStoragePath(savedPath.toString())
                     .uploadedAt(LocalDateTime.now())
                     .build();
@@ -83,9 +90,9 @@ public class FileService {
                     .message("파일 업로드 완료")
                     .evidenceId(savedEvidence.getEvidenceId())
                     .fileName(originalFilename)
-                    .fileSize(file.getSize())
+                    .fileSize(validated.fileSize())
                     .hashAlgorithm(savedEvidence.getHashAlgorithm())
-                    .hashValue(savedEvidence.getHashValue())
+                    .hashValue(savedEvidence.getOriginalHashValue())
                     .metadata(metadata)
                     .build();
         } catch (HashGenerationException e) {

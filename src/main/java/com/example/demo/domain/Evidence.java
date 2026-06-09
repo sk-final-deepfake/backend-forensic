@@ -1,7 +1,12 @@
 package com.example.demo.domain;
 
+import com.example.demo.domain.enums.CopyStatus;
+import com.example.demo.domain.enums.EvidenceStatus;
+import com.example.demo.domain.enums.FileType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -14,45 +19,101 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "evidence")
+@Table(name = "evidences")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Evidence {
 
-	public static final String HASH_ALGORITHM_SHA256 = "SHA-256";
+    public static final String HASH_ALGORITHM_SHA256 = "SHA-256";
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "evidence_id")
-	private Long evidenceId;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "evidence_id")
+    private Long evidenceId;
 
-	@Column(name = "file_name", nullable = false)
-	private String fileName;
+    @Column(name = "uploader_id", nullable = false)
+    private Long uploaderId;
 
-	@Column(name = "hash_algorithm", nullable = false, length = 20)
-	private String hashAlgorithm;
+    @Column(name = "case_number", length = 100)
+    private String caseNumber;
 
-	@Column(name = "hash_value", nullable = false, length = 64)
-	private String hashValue;
+    @Column(name = "file_name", nullable = false, length = 500)
+    private String fileName;
 
-	@Column(name = "original_storage_path", nullable = false)
-	private String originalStoragePath;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "file_type", nullable = false, length = 20)
+    private FileType fileType;
 
-	@Column(name = "uploaded_at", nullable = false)
-	private LocalDateTime uploadedAt;
+    @Column(name = "mime_type", nullable = false, length = 100)
+    private String mimeType;
 
-	@Builder
-	public Evidence(
-			String fileName,
-			String hashAlgorithm,
-			String hashValue,
-			String originalStoragePath,
-			LocalDateTime uploadedAt
-	) {
-		this.fileName = fileName;
-		this.hashAlgorithm = hashAlgorithm;
-		this.hashValue = hashValue;
-		this.originalStoragePath = originalStoragePath;
-		this.uploadedAt = uploadedAt;
-	}
+    @Column(name = "file_size", nullable = false)
+    private Long fileSize;
+
+    @Column(name = "hash_algorithm", nullable = false, length = 20)
+    private String hashAlgorithm;
+
+    @Column(name = "original_hash_value", nullable = false, length = 64)
+    private String originalHashValue;
+
+    @Column(name = "original_storage_path", nullable = false, columnDefinition = "clob")
+    private String originalStoragePath;
+
+    @Column(name = "copy_hash_value", length = 64)
+    private String copyHashValue;
+
+    @Column(name = "copy_storage_path", columnDefinition = "clob")
+    private String copyStoragePath;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "copy_status", nullable = false, length = 20)
+    private CopyStatus copyStatus;
+
+    @Column(name = "copy_created_at")
+    private LocalDateTime copyCreatedAt;
+
+    @Column(name = "copy_deleted_at")
+    private LocalDateTime copyDeletedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EvidenceStatus status;
+
+    @Column(name = "uploaded_at", nullable = false)
+    private LocalDateTime uploadedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Builder
+    public Evidence(
+            Long uploaderId,
+            String caseNumber,
+            String fileName,
+            FileType fileType,
+            String mimeType,
+            Long fileSize,
+            String hashAlgorithm,
+            String originalHashValue,
+            String originalStoragePath,
+            LocalDateTime uploadedAt
+    ) {
+        this.uploaderId = uploaderId;
+        this.caseNumber = caseNumber;
+        this.fileName = fileName;
+        this.fileType = fileType;
+        this.mimeType = mimeType;
+        this.fileSize = fileSize;
+        this.hashAlgorithm = hashAlgorithm;
+        this.originalHashValue = originalHashValue;
+        this.originalStoragePath = originalStoragePath;
+        this.copyStatus = CopyStatus.NONE;
+        this.status = EvidenceStatus.UPLOADED;
+        this.uploadedAt = uploadedAt;
+    }
+
+    /** API/테스트 호환용 — ERD 컬럼명은 originalHashValue */
+    public String getHashValue() {
+        return originalHashValue;
+    }
 }

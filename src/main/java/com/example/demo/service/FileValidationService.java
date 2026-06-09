@@ -1,5 +1,7 @@
 package com.example.demo.service;
 
+import com.example.demo.domain.enums.FileType;
+import com.example.demo.dto.ValidatedFile;
 import com.example.demo.exception.FileSizeExceededException;
 import com.example.demo.exception.UnsupportedFileTypeException;
 import org.springframework.stereotype.Service;
@@ -30,7 +32,7 @@ public class FileValidationService {
             "AUDIO", 100 * 1024 * 1024L // 100MB
     );
 
-    public void validate(MultipartFile file) {
+    public ValidatedFile validate(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("업로드된 파일이 없습니다.");
         }
@@ -43,12 +45,19 @@ public class FileValidationService {
         String extension = getExtension(fileName);
         String mimeType = file.getContentType();
 
-        String fileType = determineFileType(extension, mimeType);
-        if (fileType == null) {
+        String fileTypeName = determineFileType(extension, mimeType);
+        if (fileTypeName == null) {
             throw new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 이미지, 영상, 음성 파일만 업로드할 수 있습니다.");
         }
 
-        validateSize(file.getSize(), fileType);
+        validateSize(file.getSize(), fileTypeName);
+
+        return new ValidatedFile(
+                fileName,
+                FileType.valueOf(fileTypeName),
+                mimeType,
+                file.getSize()
+        );
     }
 
     private String getExtension(String fileName) {
