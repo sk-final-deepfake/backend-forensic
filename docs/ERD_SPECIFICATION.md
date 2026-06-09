@@ -31,6 +31,7 @@
 | PDF 저장 위치 | S3 저장 권장 |
 | CoC 해시 체인 | `previousLogHash`, `currentLogHash` 사용 |
 | CoC 로그 대상 | 사용자, 증거, 분석 요청/결과, 보고서 중심 |
+| 분석 건수 통계 | 이미지/영상/음성 분석 건수는 DB 컬럼으로 저장하지 않고 집계 조회로 계산 |
 
 ---
 
@@ -48,6 +49,14 @@ AnalysisResults
 AnalysisModuleResults
 Reports
 CustodyLogs
+```
+
+분석 건수 통계는 별도 테이블 없이 `Evidences.fileType`, `AnalysisRequests.status`, `AnalysisResults`를 조인하여 계산합니다.
+
+```text
+이미지 분석 건수 = fileType = IMAGE 이면서 분석 완료된 건수
+영상 분석 건수 = fileType = VIDEO 이면서 분석 완료된 건수
+음성 분석 건수 = fileType = AUDIO 이면서 분석 완료된 건수
 ```
 
 선택적으로 추후 확장 가능한 테이블은 다음과 같습니다.
@@ -571,7 +580,77 @@ modelName, modelVersion, analyzedAt 저장 O
 
 ---
 
-## 8. 발표/문서용 요약 문장
+## 8. 분석 건수 통계
+
+메인 화면 또는 관리자 대시보드에서 보여줄 수 있는 이미지/영상/음성 분석 건수는 별도 컬럼으로 저장하지 않고, 기존 테이블을 기반으로 집계합니다.
+
+### 8.1 통계 항목
+
+| 항목 | 기준 |
+| :--- | :--- |
+| 이미지 분석 건수 | `Evidences.fileType = IMAGE` 이고 분석 완료된 건수 |
+| 영상 분석 건수 | `Evidences.fileType = VIDEO` 이고 분석 완료된 건수 |
+| 음성 분석 건수 | `Evidences.fileType = AUDIO` 이고 분석 완료된 건수 |
+| 전체 분석 건수 | 분석 완료된 전체 건수 |
+
+### 8.2 집계 기준
+
+분석 건수는 단순 업로드 건수가 아니라 **AI 분석이 완료된 건수**를 기준으로 합니다.
+
+```text
+업로드만 된 파일 = 분석 건수에 포함하지 않음
+분석 요청 후 COMPLETED 된 파일 = 분석 건수에 포함
+FAILED 된 분석 요청 = 실패 건수로 별도 집계 가능
+```
+
+### 8.3 SQL 집계 예시
+
+```sql
+SELECT
+    e.file_type,
+    COUNT(*) AS completed_analysis_count
+FROM analysis_requests ar
+JOIN evidences e
+    ON ar.evidence_id = e.evidence_id
+JOIN analysis_results r
+    ON ar.analysis_request_id = r.analysis_request_id
+WHERE ar.status = 'COMPLETED'
+GROUP BY e.file_type;
+```
+
+예상 결과 예시는 다음과 같습니다.
+
+```text
+IMAGE | 12
+VIDEO | 8
+AUDIO | 5
+```
+
+### 8.4 대시보드 표시 예시
+
+```text
+이미지 분석 12건
+영상 분석 8건
+음성 분석 5건
+전체 분석 25건
+```
+
+### 8.5 설계 판단
+
+이미지/영상/음성 분석 건수를 별도 컬럼으로 저장하지 않는 이유는 다음과 같습니다.
+
+```text
+분석 건수는 기존 데이터에서 계산 가능한 값
+별도 저장 시 실제 분석 결과와 통계 값이 불일치할 수 있음
+대시보드 조회 시 COUNT/GROUP BY로 계산하는 것이 더 안전함
+```
+
+따라서 ERD에는 별도 `imageAnalysisCount`, `videoAnalysisCount`, `audioAnalysisCount` 컬럼을 추가하지 않습니다.  
+필요 시 추후 성능 최적화를 위해 `AnalysisStatistics` 또는 캐시 테이블을 추가할 수 있습니다.
+
+---
+
+## 9. 발표/문서용 요약 문장
 
 ForenShield AI는 초대코드 기반 내부 사용자 계정 신청 구조를 사용합니다. 초대코드는 1회용으로 관리되며, 사용자는 가입 신청 후 `PENDING` 상태가 되고 관리자 승인 전까지 로그인이 제한됩니다. 사용자는 가입 시 역할을 선택하지 않으며, 관리자가 승인 시 내부 권한을 부여합니다.
 
