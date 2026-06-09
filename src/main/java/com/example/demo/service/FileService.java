@@ -25,17 +25,20 @@ public class FileService {
     private final MediaService mediaService;
     private final HashService hashService;
     private final EvidenceRepository evidenceRepository;
+    private final FileValidationService fileValidationService;
 
     public FileService(
             @Value("${file.upload-dir:uploads}") String uploadDir,
             MediaService mediaService,
             HashService hashService,
-            EvidenceRepository evidenceRepository
+            EvidenceRepository evidenceRepository,
+            FileValidationService fileValidationService
     ) {
         this.root = Paths.get(uploadDir);
         this.mediaService = mediaService;
         this.hashService = hashService;
         this.evidenceRepository = evidenceRepository;
+        this.fileValidationService = fileValidationService;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
@@ -45,9 +48,7 @@ public class FileService {
 
     @Transactional
     public FileUploadResponse upload(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("FILE_NOT_FOUND");
-        }
+        fileValidationService.validate(file);
 
         try {
             Files.createDirectories(this.root);
@@ -59,13 +60,12 @@ public class FileService {
             String hashValue = hashService.generateSha256(savedPath);
 
             Object metadata = null;
-            if (isMediaFile(originalFilename)) {
-                try {
-                    metadata = mediaService.extractMetadata(savedPath);
-                } catch (Exception e) {
-                    log.error("Metadata extraction failed for {}: {}", originalFilename, e.getMessage());
-                    metadata = "깨짐";
-                }
+            // FileValidationService handles supported types, so we can assume it's one of them
+            try {
+                metadata = mediaService.extractMetadata(savedPath);
+            } catch (Exception e) {
+                log.error("Metadata extraction failed for {}: {}", originalFilename, e.getMessage());
+                metadata = "깨짐";
             }
 
             Evidence evidence = Evidence.builder()
@@ -94,15 +94,5 @@ public class FileService {
             log.error("FileUpload Error: ", e);
             throw new RuntimeException("FILE_UPLOAD_FAILED");
         }
-    }
-
-    private boolean isMediaFile(String fileName) {
-        if (fileName == null) {
-            return false;
-        }
-        String ext = fileName.toLowerCase();
-        return ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".png")
-                || ext.endsWith(".mp4") || ext.endsWith(".mov")
-                || ext.endsWith(".wav") || ext.endsWith(".mp3");
     }
 }
