@@ -52,8 +52,8 @@ class EvidenceControllerTest {
     void shouldUploadFile() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "test-file.txt",
-                MediaType.TEXT_PLAIN_VALUE,
+                "test-file.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
                 "Hello, World!".getBytes()
         );
 
@@ -61,7 +61,7 @@ class EvidenceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("파일 업로드 완료"))
-                .andExpect(jsonPath("$.fileName").value("test-file.txt"))
+                .andExpect(jsonPath("$.fileName").value("test-file.jpg"))
                 .andExpect(jsonPath("$.fileSize").value(file.getSize()))
                 .andExpect(jsonPath("$.evidenceId").exists())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
