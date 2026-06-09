@@ -30,10 +30,11 @@ public class EvidenceController {
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> upload(
-            @Parameter(description = "업로드할 파일") @RequestParam("file") MultipartFile file
+            @Parameter(description = "업로드할 파일") @RequestParam("file") MultipartFile file,
+            @Parameter(description = "사건명") @RequestParam(value = "caseName", required = false) String caseName
     ) {
         try {
-            FileUploadResponse response = fileService.upload(file);
+            FileUploadResponse response = fileService.upload(file, caseName);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             String errorCode = "INVALID_REQUEST";
