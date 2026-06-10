@@ -39,3 +39,4 @@ out/
 ### Local upload & H2 ###
 uploads/
 data/
+.env
