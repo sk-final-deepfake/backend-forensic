@@ -22,9 +22,6 @@ import java.util.UUID;
 @Service
 public class FileService {
 
-    /** 로컬/테스트: LocalDevUserInitializer가 생성하는 기본 업로더(user_id=1) */
-    private static final long DEFAULT_UPLOADER_ID = 1L;
-
     private final Path root;
     private final MediaService mediaService;
     private final HashService hashService;
@@ -51,7 +48,7 @@ public class FileService {
     }
 
     @Transactional
-    public FileUploadResponse upload(MultipartFile file, String caseName) {
+    public FileUploadResponse upload(MultipartFile file, String caseName, Long uploaderId) {
         ValidatedFile validated = fileValidationService.validate(file);
         String originalFilename = validated.fileName();
 
@@ -72,7 +69,7 @@ public class FileService {
             }
 
             Evidence evidence = Evidence.builder()
-                    .uploaderId(DEFAULT_UPLOADER_ID)
+                    .uploaderId(uploaderId)
                     .caseName(caseName)
                     .fileName(originalFilename)
                     .fileType(validated.fileType())
