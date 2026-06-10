@@ -2,7 +2,9 @@ package com.example.demo.controller;
 
 import com.example.demo.exception.FileSizeExceededException;
 import com.example.demo.exception.UnsupportedFileTypeException;
+import com.example.demo.security.JwtAuthenticationFilter;
 import com.example.demo.security.SignupRateLimitService;
+import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +32,13 @@ class FileValidationIntegrationTest {
     private FileService fileService;
 
     @MockBean
+    private EvidenceStatsService evidenceStatsService;
+
+    @MockBean
     private SignupRateLimitService signupRateLimitService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Test
     @DisplayName("지원하지 않는 파일 형식 업로드 시 UNSUPPORTED_FILE_TYPE 오류 반환")

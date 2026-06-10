@@ -1,10 +1,12 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.ErrorResponse;
+import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.exception.FileSizeExceededException;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.exception.UnsupportedFileTypeException;
+import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,6 +29,13 @@ import org.springframework.web.multipart.MultipartFile;
 public class EvidenceController {
 
     private final FileService fileService;
+    private final EvidenceStatsService evidenceStatsService;
+
+    @Operation(summary = "미디어별 분석 건수", description = "이미지·영상·음성 분석(또는 업로드) 건수를 조회합니다.")
+    @GetMapping("/stats")
+    public ResponseEntity<EvidenceStatsResponse> stats() {
+        return ResponseEntity.ok(evidenceStatsService.getMediaStats());
+    }
 
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

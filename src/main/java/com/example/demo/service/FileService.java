@@ -73,7 +73,7 @@ public class FileService {
 
             Evidence evidence = Evidence.builder()
                     .uploaderId(DEFAULT_UPLOADER_ID)
-                    .caseNumber(caseName)
+                    .caseName(caseName)
                     .fileName(originalFilename)
                     .fileType(validated.fileType())
                     .mimeType(validated.mimeType())

@@ -14,7 +14,9 @@ server:
   port: ${SERVER_PORT:8080}
 
 jwt:
-  secret: ${JWT_SECRET_KEY:${JWT_SECRET:forenshield-dev-jwt-secret-key-min-32-chars}}
+  # 운영: JWT_SECRET_KEY 환경 변수 필수 (K8s Secret 등)
+  # 로컬: application-local.yaml 기본값 또는 JWT_SECRET_KEY 직접 설정
+  secret: ${JWT_SECRET_KEY:${JWT_SECRET:}}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 file:
