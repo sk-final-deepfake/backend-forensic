@@ -1,14 +1,20 @@
 package com.example.demo.domain;
 
+import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -23,76 +29,111 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "user_id")
-	private Long userId;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
+    private Long userId;
 
-	@Column(name = "login_id", nullable = false, unique = true)
-	private String loginId;
+    @Column(name = "login_id", nullable = false, unique = true, length = 100)
+    private String loginId;
 
-	@Column(name = "email", nullable = false, unique = true)
-	private String email;
+    @Column(name = "email", nullable = false, unique = true, length = 255)
+    private String email;
 
-	@Column(name = "password", nullable = false)
-	private String password;
+    @Column(name = "password", nullable = false, length = 255)
+    private String password;
 
-	@Column(name = "name", nullable = false)
-	private String name;
+    @Column(name = "name", nullable = false, length = 100)
+    private String name;
 
-	@Column(name = "department", nullable = false)
-	private String department;
+    @Column(name = "phone", length = 30)
+    private String phone;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name = "role", nullable = false)
-	private UserRole role;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "organization_type", nullable = false, length = 30)
+    private OrgType organizationType;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name = "status", nullable = false)
-	private UserStatus status;
+    @Column(name = "department", nullable = false, length = 255)
+    private String department;
 
-	@Column(name = "dark_mode", nullable = false)
-	private boolean darkMode;
+    @Column(name = "position", length = 255)
+    private String position;
 
-	@Column(name = "created_at", nullable = false)
-	private LocalDateTime createdAt;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role;
 
-	@Column(name = "updated_at", nullable = false)
-	private LocalDateTime updatedAt;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private UserStatus status;
 
-	@Builder
-	public User(
-			String loginId,
-			String email,
-			String password,
-			String name,
-			String department,
-			UserRole role,
-			UserStatus status,
-			boolean darkMode,
-			LocalDateTime createdAt,
-			LocalDateTime updatedAt
-	) {
-		this.loginId = loginId;
-		this.email = email;
-		this.password = password;
-		this.name = name;
-		this.department = department;
-		this.role = role;
-		this.status = status;
-		this.darkMode = darkMode;
-		this.createdAt = createdAt;
-		this.updatedAt = updatedAt;
-	}
+    @Column(name = "dark_mode", nullable = false)
+    private Boolean darkMode;
 
-	public void updateProfile(String loginId, String department) {
-		this.loginId = loginId;
-		this.department = department;
-		this.updatedAt = LocalDateTime.now();
-	}
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invite_code_id")
+    private InviteCode inviteCode;
 
-	public void updatePassword(String encodedPassword) {
-		this.password = encodedPassword;
-		this.updatedAt = LocalDateTime.now();
-	}
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Builder
+    public User(
+            String loginId,
+            String email,
+            String password,
+            String name,
+            String phone,
+            OrgType organizationType,
+            String department,
+            String position,
+            InviteCode inviteCode,
+            UserRole role,
+            UserStatus status,
+            Boolean darkMode
+    ) {
+        this.loginId = loginId;
+        this.email = email;
+        this.password = password;
+        this.name = name;
+        this.phone = phone;
+        this.organizationType = organizationType;
+        this.department = department;
+        this.position = position;
+        this.role = role != null ? role : UserRole.ROLE_USER;
+        this.status = status != null ? status : UserStatus.PENDING;
+        this.darkMode = darkMode != null ? darkMode : false;
+        this.inviteCode = inviteCode;
+    }
+
+    public void updateProfile(String loginId, String department) {
+        this.loginId = loginId;
+        this.department = department;
+    }
+
+    public void updatePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
+    @PrePersist
+    void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

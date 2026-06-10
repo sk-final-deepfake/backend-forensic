@@ -21,7 +21,7 @@
 | role 종류 | `ROLE_USER`, `ROLE_ADMIN` 만 존재 |
 | 관리자 계정 | 회원가입으로 생성하지 않음 (별도 생성·부여) |
 | 증거 관리자 승인 | **없음** (업로드 즉시 `UPLOADED`) |
-| 사건 관리 | `caseNumber` 문자열로 유지 |
+| 사건 관리 | `caseNumber`(사건 번호), `caseName`(사건명) 문자열로 유지 |
 | 증거 status | `UPLOADED` / `DELETED` (`deletedAt`과 동기화) |
 | 분석 상태 | `AnalysisRequests.status`에서만 관리 |
 | 분석 실패 재시도 | **새 `AnalysisRequests` row 생성** (기존 row 갱신 안 함) |
@@ -72,7 +72,7 @@ UserSettings
 AnalysisReasons
 ```
 
-이번 MVP에서는 `Cases`를 별도 테이블로 분리하지 않고, `Evidences.caseNumber` 문자열로 관리합니다.
+이번 MVP에서는 `Cases`를 별도 테이블로 분리하지 않고, `Evidences.caseNumber`(사건 번호)와 `Evidences.caseName`(사건명) 문자열로 관리합니다.
 
 ---
 
@@ -229,7 +229,8 @@ FAILED 존재    → 새 AnalysisRequests row 생성 (재시도)
 | :--- | :--- | :--- | :--- |
 | `evidenceId` | Long | PK | 증거 ID |
 | `uploaderId` | Long | FK, Not Null | 업로드 사용자 ID |
-| `caseNumber` | String | Nullable | 사건 번호 문자열 |
+| `caseNumber` | String | Nullable | 사건 번호 문자열 (예: `2026-서울-0123`) |
+| `caseName` | String | Nullable | 사건명 (업로드 시 사용자 입력, 예: `딥페이크 유포 사건`) |
 | `fileName` | String | Not Null | 원본 파일명 |
 | `fileType` | FileType | Not Null | IMAGE, VIDEO, AUDIO |
 | `mimeType` | String | Not Null | MIME 타입 |

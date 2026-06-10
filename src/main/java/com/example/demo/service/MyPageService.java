@@ -40,7 +40,8 @@ public class MyPageService {
 
 	public AnalysisHistoryPageResponse getAnalysisHistory(User user, String sort, int page, int size) {
 		List<Evidence> evidences = evidenceRepository
-				.findByUploaderIdAndStatusOrderByUploadedAtDesc(user.getUserId(), EvidenceStatus.UPLOADED);
+				.findByUploaderIdAndStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
+						user.getUserId(), EvidenceStatus.UPLOADED);
 
 		if (evidences.isEmpty()) {
 			return emptyPage(page, size);
@@ -114,7 +115,7 @@ public class MyPageService {
 
 		return CaseSummaryResponse.builder()
 				.caseId(caseId)
-				.caseName(caseId)
+				.caseName(resolveCaseName(caseId, caseEvidences))
 				.status(aggregateStatus)
 				.createdAt(ISO_FORMATTER.format(createdAt))
 				.evidenceCount(caseEvidences.size())
@@ -155,6 +156,14 @@ public class MyPageService {
 			return evidence.getCaseNumber();
 		}
 		return "evidence-" + evidence.getEvidenceId();
+	}
+
+	private String resolveCaseName(String caseId, List<Evidence> caseEvidences) {
+		return caseEvidences.stream()
+				.map(Evidence::getCaseName)
+				.filter(name -> name != null && !name.isBlank())
+				.findFirst()
+				.orElse(caseId);
 	}
 
 	private Comparator<CaseSummaryResponse> buildComparator(String sort) {

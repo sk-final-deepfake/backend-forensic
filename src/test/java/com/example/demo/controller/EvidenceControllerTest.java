@@ -1,15 +1,23 @@
 package com.example.demo.controller;
 
+import com.example.demo.domain.User;
+import com.example.demo.domain.enums.OrgType;
+import com.example.demo.domain.enums.UserRole;
+import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.support.JwtTestSupport;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.FileSystemUtils;
 
@@ -20,6 +28,7 @@ import java.nio.file.Paths;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,16 +45,58 @@ class EvidenceControllerTest {
     @Autowired
     private EvidenceRepository evidenceRepository;
 
+    @Autowired
+    private com.example.demo.repository.UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Value("${file.upload-dir}")
     private String uploadDir;
+
+    private String accessToken;
+
+    @BeforeEach
+    void obtainAccessToken() throws Exception {
+        userRepository.deleteAll();
+        userRepository.save(User.builder()
+                .loginId("1111")
+                .email("1111@test.local")
+                .password(passwordEncoder.encode("2222"))
+                .name("테스트 사용자")
+                .organizationType(OrgType.ETC)
+                .department("테스트부서")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+
+        accessToken = JwtTestSupport.loginAndGetToken(mockMvc, "1111", "2222");
+    }
 
     @AfterEach
     void cleanUp() throws Exception {
         evidenceRepository.deleteAll();
+        userRepository.deleteAll();
         Path root = Paths.get(uploadDir);
         if (Files.exists(root)) {
             FileSystemUtils.deleteRecursively(root);
         }
+    }
+
+    @Test
+    @DisplayName("인증 없이 증거 API 호출 시 401")
+    void shouldRejectUnauthorizedUpload() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test-file.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "Hello, World!".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/evidences/upload").file(file))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
     }
 
     @Test
@@ -57,7 +108,8 @@ class EvidenceControllerTest {
                 "Hello, World!".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file))
+        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("파일 업로드 완료"))
@@ -69,6 +121,29 @@ class EvidenceControllerTest {
     }
 
     @Test
+    @DisplayName("사건명을 포함하여 파일을 업로드하면 DB에 사건명이 저장되어야 한다")
+    void shouldUploadFileWithCaseName() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "case-test.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "Case Name Test Data".getBytes()
+        );
+        String caseName = "2026-서울-0123 딥페이크 유포 사건";
+
+        mockMvc.perform(multipart("/api/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.caseName").value(caseName));
+
+        assertThat(evidenceRepository.findAll())
+                .anyMatch(evidence -> caseName.equals(evidence.getCaseName()));
+    }
+
+    @Test
     void shouldReturnErrorWhenFileIsEmpty() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -77,7 +152,8 @@ class EvidenceControllerTest {
                 new byte[0]
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file))
+        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("FILE_NOT_FOUND"))
@@ -93,7 +169,8 @@ class EvidenceControllerTest {
                 "fake-image-data".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file))
+        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.fileName").value("test-image.jpg"))
@@ -109,7 +186,8 @@ class EvidenceControllerTest {
                 "not-a-video".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file))
+        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.metadata").value("깨짐"))
@@ -127,7 +205,8 @@ class EvidenceControllerTest {
                 content
         );
 
-        String firstResponse = mockMvc.perform(multipart("/api/evidences/upload").file(sampleFile))
+        String firstResponse = mockMvc.perform(multipart("/api/evidences/upload").file(sampleFile)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
                 .andReturn()
@@ -143,7 +222,8 @@ class EvidenceControllerTest {
                 content
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(sameFileAgain))
+        mockMvc.perform(multipart("/api/evidences/upload").file(sameFileAgain)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue").value(firstHash));
     }
@@ -161,7 +241,8 @@ class EvidenceControllerTest {
                 originalContent
         );
 
-        String originalResponse = mockMvc.perform(multipart("/api/evidences/upload").file(originalFile))
+        String originalResponse = mockMvc.perform(multipart("/api/evidences/upload").file(originalFile)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
@@ -174,9 +255,49 @@ class EvidenceControllerTest {
                 modifiedContent
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(modifiedFile))
+        mockMvc.perform(multipart("/api/evidences/upload").file(modifiedFile)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue", not(extractHashValue(originalResponse))));
+    }
+
+    @Test
+    @DisplayName("미디어별 분석 건수를 조회할 수 있다")
+    void shouldReturnMediaStats() throws Exception {
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "file",
+                "photo.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "image bytes".getBytes()
+        );
+        MockMultipartFile videoFile = new MockMultipartFile(
+                "file",
+                "clip.mp4",
+                "video/mp4",
+                "video bytes".getBytes()
+        );
+        MockMultipartFile audioFile = new MockMultipartFile(
+                "file",
+                "voice.wav",
+                "audio/wav",
+                "audio bytes".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/evidences/upload").file(imageFile)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk());
+        mockMvc.perform(multipart("/api/evidences/upload").file(videoFile)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk());
+        mockMvc.perform(multipart("/api/evidences/upload").file(audioFile)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageCount").value(1))
+                .andExpect(jsonPath("$.videoCount").value(1))
+                .andExpect(jsonPath("$.audioCount").value(1));
     }
 
     @Test
@@ -191,7 +312,8 @@ class EvidenceControllerTest {
                 "sample wav bytes".getBytes(StandardCharsets.UTF_8)
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file))
+        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue").value(org.hamcrest.Matchers.matchesRegex("[0-9a-f]{64}")));
 
@@ -199,6 +321,10 @@ class EvidenceControllerTest {
         assertThat(evidenceRepository.findAll())
                 .allMatch(evidence -> evidence.getHashAlgorithm().equals("SHA-256"))
                 .allMatch(evidence -> evidence.getHashValue().length() == 64);
+    }
+
+    private String bearerToken() {
+        return "Bearer " + accessToken;
     }
 
     private String extractHashValue(String responseBody) {

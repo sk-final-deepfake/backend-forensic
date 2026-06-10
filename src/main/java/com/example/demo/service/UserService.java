@@ -34,7 +34,7 @@ public class UserService {
 			throw new IllegalArgumentException("INVALID_PASSWORD");
 		}
 
-		if (userRepository.existsByLoginIdAndUserIdNot(request.getLoginId(), managedUser.getUserId())) {
+		if (userRepository.existsByLoginIdAndUserIdNotAndDeletedAtIsNull(request.getLoginId(), managedUser.getUserId())) {
 			throw new IllegalArgumentException("DUPLICATE_LOGIN_ID");
 		}
 
@@ -59,7 +59,7 @@ public class UserService {
 				.department(user.getDepartment())
 				.role(user.getRole().name())
 				.status(user.getStatus().name())
-				.darkMode(user.isDarkMode())
+				.darkMode(Boolean.TRUE.equals(user.getDarkMode()))
 				.createdAt(ISO_FORMATTER.format(user.getCreatedAt()))
 				.build();
 	}
