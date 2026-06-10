@@ -1,11 +1,17 @@
 package com.example.demo.controller;
 
+import com.example.demo.domain.User;
 import com.example.demo.exception.FileSizeExceededException;
 import com.example.demo.exception.UnsupportedFileTypeException;
+import com.example.demo.security.AuthUserResolver;
 import com.example.demo.security.JwtAuthenticationFilter;
 import com.example.demo.security.SignupRateLimitService;
+import com.example.demo.service.AnalysisService;
+import com.example.demo.service.EvidenceCancelService;
+import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,10 +41,29 @@ class FileValidationIntegrationTest {
     private EvidenceStatsService evidenceStatsService;
 
     @MockBean
+    private AnalysisService analysisService;
+
+    @MockBean
+    private EvidenceDetailService evidenceDetailService;
+
+    @MockBean
+    private EvidenceCancelService evidenceCancelService;
+
+    @MockBean
+    private AuthUserResolver authUserResolver;
+
+    @MockBean
     private SignupRateLimitService signupRateLimitService;
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @BeforeEach
+    void setUp() {
+        User user = org.mockito.Mockito.mock(User.class);
+        when(user.getUserId()).thenReturn(1L);
+        when(authUserResolver.requireCurrentUser()).thenReturn(user);
+    }
 
     @Test
     @DisplayName("지원하지 않는 파일 형식 업로드 시 UNSUPPORTED_FILE_TYPE 오류 반환")

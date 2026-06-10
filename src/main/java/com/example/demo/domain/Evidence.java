@@ -126,4 +126,9 @@ public class Evidence {
         this.caseName = caseName;
         this.caseNumber = caseName;
     }
+
+    public void softDelete() {
+        this.status = EvidenceStatus.DELETED;
+        this.deletedAt = LocalDateTime.now();
+    }
 }
