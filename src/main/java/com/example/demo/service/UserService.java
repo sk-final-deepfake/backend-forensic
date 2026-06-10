@@ -27,24 +27,27 @@ public class UserService {
 	}
 
 	public UserProfileResponse updateProfile(User user, UpdateUserProfileRequest request) {
-		if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+		User managedUser = userRepository.findById(user.getUserId())
+				.orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND"));
+
+		if (!passwordEncoder.matches(request.getCurrentPassword(), managedUser.getPassword())) {
 			throw new IllegalArgumentException("INVALID_PASSWORD");
 		}
 
-		if (userRepository.existsByLoginIdAndUserIdNot(request.getLoginId(), user.getUserId())) {
+		if (userRepository.existsByLoginIdAndUserIdNot(request.getLoginId(), managedUser.getUserId())) {
 			throw new IllegalArgumentException("DUPLICATE_LOGIN_ID");
 		}
 
-		user.updateProfile(request.getLoginId(), request.getDepartment());
+		managedUser.updateProfile(request.getLoginId(), request.getDepartment());
 
 		if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
 			if (request.getNewPassword().length() < 8) {
 				throw new IllegalArgumentException("PASSWORD_TOO_SHORT");
 			}
-			user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+			managedUser.updatePassword(passwordEncoder.encode(request.getNewPassword()));
 		}
 
-		return toResponse(user);
+		return toResponse(managedUser);
 	}
 
 	private UserProfileResponse toResponse(User user) {

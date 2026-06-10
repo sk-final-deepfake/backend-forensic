@@ -44,6 +44,26 @@ class MyPageControllerTest {
 	}
 
 	@Test
+	void updateMyProfile_withValidRequest_persistsDepartment() throws Exception {
+		mockMvc.perform(patch("/api/v1/users/me")
+						.header("X-User-Id", "1111")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "loginId": "1111",
+								  "department": "변경된부서",
+								  "currentPassword": "2222"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.department").value("변경된부서"));
+
+		mockMvc.perform(get("/api/v1/users/me")
+						.header("X-User-Id", "1111"))
+				.andExpect(jsonPath("$.department").value("변경된부서"));
+	}
+
+	@Test
 	void updateMyProfile_withWrongPassword_returnsBadRequest() throws Exception {
 		mockMvc.perform(patch("/api/v1/users/me")
 						.header("X-User-Id", "1111")
