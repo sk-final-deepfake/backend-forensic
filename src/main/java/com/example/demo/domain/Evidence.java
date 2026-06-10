@@ -37,6 +37,9 @@ public class Evidence {
     @Column(name = "case_number", length = 100)
     private String caseNumber;
 
+    @Column(name = "case_name", length = 255)
+    private String caseName;
+
     @Column(name = "file_name", nullable = false, length = 500)
     private String fileName;
 
@@ -89,6 +92,7 @@ public class Evidence {
     public Evidence(
             Long uploaderId,
             String caseNumber,
+            String caseName,
             String fileName,
             FileType fileType,
             String mimeType,
@@ -100,6 +104,7 @@ public class Evidence {
     ) {
         this.uploaderId = uploaderId;
         this.caseNumber = caseNumber;
+        this.caseName = caseName;
         this.fileName = fileName;
         this.fileType = fileType;
         this.mimeType = mimeType;
@@ -115,10 +120,5 @@ public class Evidence {
     /** API/테스트 호환용 — ERD 컬럼명은 originalHashValue */
     public String getHashValue() {
         return originalHashValue;
-    }
-
-    /** 업로드 API caseName 파라미터와 호환 */
-    public String getCaseName() {
-        return caseNumber;
     }
 }

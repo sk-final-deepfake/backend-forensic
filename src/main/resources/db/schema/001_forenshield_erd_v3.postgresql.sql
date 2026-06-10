@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS evidences (
     evidence_id             BIGSERIAL PRIMARY KEY,
     uploader_id             BIGINT        NOT NULL REFERENCES users (user_id),
     case_number             VARCHAR(100),
+    case_name               VARCHAR(255),
     file_name               VARCHAR(500)  NOT NULL,
     file_type               VARCHAR(20)   NOT NULL,
     mime_type               VARCHAR(100)  NOT NULL,
@@ -110,6 +111,7 @@ CREATE TABLE IF NOT EXISTS evidences (
 
 CREATE INDEX IF NOT EXISTS idx_evidences_uploader_id ON evidences (uploader_id);
 CREATE INDEX IF NOT EXISTS idx_evidences_case_number ON evidences (case_number);
+CREATE INDEX IF NOT EXISTS idx_evidences_case_name ON evidences (case_name);
 CREATE INDEX IF NOT EXISTS idx_evidences_original_hash ON evidences (original_hash_value);
 CREATE INDEX IF NOT EXISTS idx_evidences_status ON evidences (status);
 
