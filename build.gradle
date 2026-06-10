@@ -29,6 +29,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 	implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+
+	// 인프라 연동 (Redis · RabbitMQ · S3)
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-amqp'
+	implementation platform('software.amazon.awssdk:bom:2.31.20')
+	implementation 'software.amazon.awssdk:s3'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
