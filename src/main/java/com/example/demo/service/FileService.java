@@ -51,7 +51,7 @@ public class FileService {
     }
 
     @Transactional
-    public FileUploadResponse upload(MultipartFile file) {
+    public FileUploadResponse upload(MultipartFile file, String caseName) {
         ValidatedFile validated = fileValidationService.validate(file);
         String originalFilename = validated.fileName();
 
@@ -73,6 +73,7 @@ public class FileService {
 
             Evidence evidence = Evidence.builder()
                     .uploaderId(DEFAULT_UPLOADER_ID)
+                    .caseNumber(caseName)
                     .fileName(originalFilename)
                     .fileType(validated.fileType())
                     .mimeType(validated.mimeType())
@@ -90,6 +91,7 @@ public class FileService {
                     .message("파일 업로드 완료")
                     .evidenceId(savedEvidence.getEvidenceId())
                     .fileName(originalFilename)
+                    .caseName(savedEvidence.getCaseName())
                     .fileSize(validated.fileSize())
                     .hashAlgorithm(savedEvidence.getHashAlgorithm())
                     .hashValue(savedEvidence.getOriginalHashValue())

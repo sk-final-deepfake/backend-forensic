@@ -11,6 +11,7 @@ public class FileUploadResponse {
     private String message;
     private Long evidenceId;
     private String fileName;
+    private String caseName;
     private Long fileSize;
     private String hashAlgorithm;
     private String hashValue;

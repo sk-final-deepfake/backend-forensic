@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS evidence (
     evidence_id           BIGSERIAL PRIMARY KEY,
     file_name             VARCHAR(255) NOT NULL,
+    case_name             VARCHAR(255),
     hash_algorithm        VARCHAR(20)  NOT NULL DEFAULT 'SHA-256',
     hash_value            VARCHAR(64)  NOT NULL,
     original_storage_path TEXT         NOT NULL,
