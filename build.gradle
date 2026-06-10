@@ -35,6 +35,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-amqp'
 	implementation platform('software.amazon.awssdk:bom:2.31.20')
 	implementation 'software.amazon.awssdk:s3'
+	// IRSA(웹 아이덴티티 토큰) 자격증명 교환에 필수
+	implementation 'software.amazon.awssdk:sts'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
@@ -45,8 +47,6 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
-	implementation platform('software.amazon.awssdk:bom:2.31.20')
-	implementation 'software.amazon.awssdk:s3'
 }
 
 dependencyManagement {
