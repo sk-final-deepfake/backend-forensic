@@ -16,8 +16,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
-
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -103,19 +101,16 @@ class AuthControllerTest {
     }
 
     private User createUser(String loginId, String rawPassword, UserRole role, UserStatus status) {
-        User user = new User();
-        user.setLoginId(loginId);
-        user.setEmail(loginId + "@test.local");
-        user.setPassword(passwordEncoder.encode(rawPassword));
-        user.setName("테스트-" + loginId);
-        user.setOrganizationType(OrgType.ETC);
-        user.setDepartment("테스트부서");
-        user.setRole(role);
-        user.setStatus(status);
-        user.setDarkMode(false);
-        LocalDateTime now = LocalDateTime.now();
-        user.setCreatedAt(now);
-        user.setUpdatedAt(now);
-        return user;
+        return User.builder()
+                .loginId(loginId)
+                .email(loginId + "@test.local")
+                .password(passwordEncoder.encode(rawPassword))
+                .name("테스트-" + loginId)
+                .organizationType(OrgType.ETC)
+                .department("테스트부서")
+                .role(role)
+                .status(status)
+                .darkMode(false)
+                .build();
     }
 }

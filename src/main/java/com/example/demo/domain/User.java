@@ -7,21 +7,26 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
 
     @Id
@@ -32,41 +37,42 @@ public class User {
     @Column(name = "login_id", nullable = false, unique = true, length = 100)
     private String loginId;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "email", nullable = false, unique = true, length = 255)
     private String email;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "password", nullable = false, length = 255)
     private String password;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(length = 30)
+    @Column(name = "phone", length = 30)
     private String phone;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "organization_type", nullable = false, length = 20)
+    @Column(name = "organization_type", nullable = false, length = 30)
     private OrgType organizationType;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "department", nullable = false, length = 255)
     private String department;
 
-    @Column(length = 255)
+    @Column(name = "position", length = 255)
     private String position;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     private UserStatus status;
 
     @Column(name = "dark_mode", nullable = false)
-    private boolean darkMode = false;
+    private Boolean darkMode;
 
-    @Column(name = "invite_code_id")
-    private Long inviteCodeId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invite_code_id")
+    private InviteCode inviteCode;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -76,4 +82,49 @@ public class User {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @Builder
+    public User(
+            String loginId,
+            String email,
+            String password,
+            String name,
+            String phone,
+            OrgType organizationType,
+            String department,
+            String position,
+            InviteCode inviteCode,
+            UserRole role,
+            UserStatus status,
+            Boolean darkMode
+    ) {
+        this.loginId = loginId;
+        this.email = email;
+        this.password = password;
+        this.name = name;
+        this.phone = phone;
+        this.organizationType = organizationType;
+        this.department = department;
+        this.position = position;
+        this.role = role != null ? role : UserRole.ROLE_USER;
+        this.status = status != null ? status : UserStatus.PENDING;
+        this.darkMode = darkMode != null ? darkMode : false;
+        this.inviteCode = inviteCode;
+    }
+
+    @PrePersist
+    void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }
