@@ -22,3 +22,9 @@ file:
 
 ffmpeg:
   path: C:\ffmpeg\ffmpeg-8.1.1-essentials_build\bin
+
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  s3:
+    evidence-bucket: ${S3_EVIDENCE_BUCKET:forenshield-evidence-877044078824}
