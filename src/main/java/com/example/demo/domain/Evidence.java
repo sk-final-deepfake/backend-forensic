@@ -116,4 +116,9 @@ public class Evidence {
     public String getHashValue() {
         return originalHashValue;
     }
+
+    /** 업로드 API caseName 파라미터와 호환 */
+    public String getCaseName() {
+        return caseNumber;
+    }
 }
