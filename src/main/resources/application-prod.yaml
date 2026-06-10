@@ -1,0 +1,45 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST}:5432/${POSTGRES_DB:forenshield}
+    driver-class-name: org.postgresql.Driver
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate        # 운영에서 update 절대 금지
+    show-sql: false
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL:true}   # ElastiCache는 TLS 필수
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+  autoconfigure:
+    exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  s3:
+    evidence-bucket: ${S3_EVIDENCE_BUCKET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+file:
+  upload-dir: uploads/original
+
+ffmpeg:
+  path: /usr/bin
