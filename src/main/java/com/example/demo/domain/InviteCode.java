@@ -9,18 +9,19 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "invite_codes")
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class InviteCode {
 
     @Id
@@ -28,7 +29,7 @@ public class InviteCode {
     @Column(name = "invite_code_id")
     private Long inviteCodeId;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(name = "code", nullable = false, unique = true, length = 100)
     private String code;
 
     @Enumerated(EnumType.STRING)
@@ -39,8 +40,8 @@ public class InviteCode {
     private Long issuedBy;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private InviteStatus status = InviteStatus.ACTIVE;
+    @Column(name = "status", nullable = false, length = 20)
+    private InviteStatus status;
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
@@ -50,4 +51,39 @@ public class InviteCode {
 
     @Column(name = "used_at")
     private LocalDateTime usedAt;
+
+    @Column(name = "used_by")
+    private Long usedBy;
+
+    @Builder
+    public InviteCode(
+            String code,
+            OrgType organizationType,
+            Long issuedBy,
+            InviteStatus status,
+            LocalDateTime expiresAt
+    ) {
+        this.code = code;
+        this.organizationType = organizationType;
+        this.issuedBy = issuedBy;
+        this.status = status == null ? InviteStatus.ACTIVE : status;
+        this.expiresAt = expiresAt;
+    }
+
+    @PrePersist
+    void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
+
+    public boolean isUsable(LocalDateTime now) {
+        return status == InviteStatus.ACTIVE && (expiresAt == null || expiresAt.isAfter(now));
+    }
+
+    public void markUsedBy(Long userId, LocalDateTime usedAt) {
+        this.status = InviteStatus.USED;
+        this.usedBy = userId;
+        this.usedAt = usedAt;
+    }
 }

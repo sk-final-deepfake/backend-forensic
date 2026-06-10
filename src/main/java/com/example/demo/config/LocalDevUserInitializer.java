@@ -13,8 +13,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
-
 /**
  * 로컬 H2(file) 개발 DB에 테스트 로그인 계정을 넣습니다.
  * 프론트 mock-auth와 동일: 1111/2222(USER), 3333/4444(ADMIN)
@@ -44,19 +42,16 @@ public class LocalDevUserInitializer implements ApplicationRunner {
     }
 
     private User createUser(String loginId, String rawPassword, String name, UserRole role) {
-        User user = new User();
-        user.setLoginId(loginId);
-        user.setEmail(loginId + "@local.dev");
-        user.setPassword(passwordEncoder.encode(rawPassword));
-        user.setName(name);
-        user.setOrganizationType(OrgType.ETC);
-        user.setDepartment("로컬개발팀");
-        user.setRole(role);
-        user.setStatus(UserStatus.APPROVED);
-        user.setDarkMode(false);
-        LocalDateTime now = LocalDateTime.now();
-        user.setCreatedAt(now);
-        user.setUpdatedAt(now);
-        return user;
+        return User.builder()
+                .loginId(loginId)
+                .email(loginId + "@local.dev")
+                .password(passwordEncoder.encode(rawPassword))
+                .name(name)
+                .organizationType(OrgType.ETC)
+                .department("로컬개발팀")
+                .role(role)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build();
     }
 }
