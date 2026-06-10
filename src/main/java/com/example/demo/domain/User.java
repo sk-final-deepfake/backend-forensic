@@ -121,6 +121,13 @@ public class User {
         this.password = encodedPassword;
     }
 
+    /** 로컬 개발용 계정(1111/3333) 로그인 보장 */
+    public void syncDevCredentials(UserRole role, String encodedPassword) {
+        this.role = role;
+        this.status = UserStatus.APPROVED;
+        this.password = encodedPassword;
+    }
+
     @PrePersist
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();
