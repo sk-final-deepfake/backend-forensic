@@ -28,7 +28,8 @@ public final class LogCategoryMapper {
             "ANALYSIS_COPY_VERIFIED",
             "ANALYSIS_COPY_DELETED",
             "REPORT_CREATED",
-            "REPORT_DOWNLOADED"
+            "REPORT_DOWNLOADED",
+            "EVIDENCE_DELETED"
     );
 
     private LogCategoryMapper() {
@@ -90,6 +91,7 @@ public final class LogCategoryMapper {
             case "ANALYSIS_FAILED" -> "분석 실패";
             case "REPORT_CREATED" -> "보고서 생성";
             case "REPORT_DOWNLOADED" -> "보고서 다운로드";
+            case "EVIDENCE_DELETED" -> "증거 삭제";
             default -> actionType;
         };
     }

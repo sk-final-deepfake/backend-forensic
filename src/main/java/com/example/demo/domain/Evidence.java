@@ -121,4 +121,9 @@ public class Evidence {
     public String getHashValue() {
         return originalHashValue;
     }
+
+    public void softDelete() {
+        this.status = EvidenceStatus.DELETED;
+        this.deletedAt = LocalDateTime.now();
+    }
 }

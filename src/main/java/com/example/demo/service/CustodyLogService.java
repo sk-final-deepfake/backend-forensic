@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.domain.CustodyLog;
+import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.repository.CustodyLogRepository;
@@ -37,6 +38,29 @@ public class CustodyLogService {
         log.setTargetType(CustodyTargetType.USER);
         log.setTargetId(target.getUserId());
         log.setActionType(actionType);
+        log.setReason(reason);
+        log.setPreviousLogHash(GENESIS_HASH.equals(previousHash) ? null : previousHash);
+        log.setCurrentLogHash(currentHash);
+        log.setCreatedAt(now);
+        custodyLogRepository.save(log);
+    }
+
+    @Transactional
+    public void recordEvidenceAction(User actor, Evidence evidence, String actionType, String reason) {
+        String previousHash = custodyLogRepository.findTopByOrderByLogIdDesc()
+                .map(CustodyLog::getCurrentLogHash)
+                .orElse(GENESIS_HASH);
+
+        LocalDateTime now = LocalDateTime.now();
+        String payload = actor.getUserId() + "|" + evidence.getEvidenceId() + "|" + actionType + "|" + now;
+        String currentHash = sha256Hex(payload + previousHash);
+
+        CustodyLog log = new CustodyLog();
+        log.setActorId(actor.getUserId());
+        log.setTargetType(CustodyTargetType.EVIDENCE);
+        log.setTargetId(evidence.getEvidenceId());
+        log.setActionType(actionType);
+        log.setSubjectHash(evidence.getOriginalHashValue());
         log.setReason(reason);
         log.setPreviousLogHash(GENESIS_HASH.equals(previousHash) ? null : previousHash);
         log.setCurrentLogHash(currentHash);
