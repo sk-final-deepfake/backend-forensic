@@ -38,7 +38,7 @@ public class LocalDevUserInitializer implements ApplicationRunner {
 
     private boolean isH2Database() {
         String url = environment.getProperty("spring.datasource.url", "");
-        return url.startsWith("jdbc:h2:");
+        return url.startsWith("jdbc:h2:file:");
     }
 
     private User createUser(String loginId, String rawPassword, String name, UserRole role) {
