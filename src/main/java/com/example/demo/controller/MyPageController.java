@@ -1,7 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.mypage.AnalysisHistoryPageResponse;
-import com.example.demo.security.UserContext;
+import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.MyPageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MyPageController {
 
 	private final MyPageService myPageService;
+	private final AuthUserResolver authUserResolver;
 
 	@Operation(summary = "내 분석 기록 목록", description = "로그인 사용자의 사건별 분석 기록을 조회합니다.")
 	@GetMapping({"/mypage/analysis-history", "/cases/me"})
@@ -26,6 +27,6 @@ public class MyPageController {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size
 	) {
-		return myPageService.getAnalysisHistory(UserContext.get(), sort, page, size);
+		return myPageService.getAnalysisHistory(authUserResolver.requireCurrentUser(), sort, page, size);
 	}
 }

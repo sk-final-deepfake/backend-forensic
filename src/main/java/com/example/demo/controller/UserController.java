@@ -3,7 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.ErrorResponse;
 import com.example.demo.dto.user.UpdateUserProfileRequest;
 import com.example.demo.dto.user.UserProfileResponse;
-import com.example.demo.security.UserContext;
+import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,18 +24,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
 	private final UserService userService;
+	private final AuthUserResolver authUserResolver;
 
 	@Operation(summary = "내 프로필 조회")
 	@GetMapping("/me")
 	public UserProfileResponse getMyProfile() {
-		return userService.getProfile(UserContext.get());
+		return userService.getProfile(authUserResolver.requireCurrentUser());
 	}
 
 	@Operation(summary = "내 프로필 수정")
 	@PatchMapping("/me")
 	public ResponseEntity<?> updateMyProfile(@Valid @RequestBody UpdateUserProfileRequest request) {
 		try {
-			UserProfileResponse response = userService.updateProfile(UserContext.get(), request);
+			UserProfileResponse response = userService.updateProfile(authUserResolver.requireCurrentUser(), request);
 			return ResponseEntity.ok(response);
 		} catch (IllegalArgumentException e) {
 			String errorCode = e.getMessage();
