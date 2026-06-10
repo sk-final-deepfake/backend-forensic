@@ -8,12 +8,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest, Long> {
 
     List<AnalysisRequest> findByEvidenceIdInOrderByRequestedAtDesc(List<Long> evidenceIds);
 
     boolean existsByEvidenceId(Long evidenceId);
+
+    Optional<AnalysisRequest> findTopByEvidenceIdOrderByRequestedAtDesc(Long evidenceId);
 
     @Query("""
             SELECT COUNT(DISTINCT e.evidenceId)
