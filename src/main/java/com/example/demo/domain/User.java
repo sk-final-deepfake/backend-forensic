@@ -117,8 +117,30 @@ public class User {
         this.department = department;
     }
 
+    public void updateAccountInfo(String name, String email, String department) {
+        this.name = name;
+        this.email = email;
+        this.department = department;
+    }
+
+    public void updateAdminProfile(String loginId, String name, String email, String department, String phone) {
+        this.loginId = loginId;
+        this.name = name;
+        this.email = email;
+        this.department = department;
+        this.phone = phone;
+    }
+
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
     public void updatePassword(String encodedPassword) {
         this.password = encodedPassword;
+    }
+
+    public void updateStatus(UserStatus status) {
+        this.status = status;
     }
 
     /** 로컬 개발용 계정(1111/3333) 로그인 보장 */
