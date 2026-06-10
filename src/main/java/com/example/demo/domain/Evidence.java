@@ -121,4 +121,9 @@ public class Evidence {
     public String getHashValue() {
         return originalHashValue;
     }
+
+    public void updateCaseInfo(String caseName) {
+        this.caseName = caseName;
+        this.caseNumber = caseName;
+    }
 }

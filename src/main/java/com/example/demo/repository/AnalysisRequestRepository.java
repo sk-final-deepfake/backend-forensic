@@ -13,6 +13,8 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
 
     List<AnalysisRequest> findByEvidenceIdInOrderByRequestedAtDesc(List<Long> evidenceIds);
 
+    boolean existsByEvidenceId(Long evidenceId);
+
     @Query("""
             SELECT COUNT(DISTINCT e.evidenceId)
             FROM Evidence e
@@ -28,5 +30,36 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
     long countCompletedAnalysesByFileType(
             @Param("fileType") FileType fileType,
             @Param("status") AnalysisStatus status
+    );
+
+    @Query("""
+            SELECT COUNT(e)
+            FROM Evidence e
+            WHERE e.deletedAt IS NULL
+              AND e.fileType = :fileType
+              AND EXISTS (
+                  SELECT 1
+                  FROM AnalysisRequest ar
+                  WHERE ar.evidenceId = e.evidenceId
+              )
+            """)
+    long countByFileTypeWithAnalysisRequest(@Param("fileType") FileType fileType);
+
+    @Query("""
+            SELECT COUNT(e)
+            FROM Evidence e
+            WHERE e.deletedAt IS NULL
+              AND e.fileType = :fileType
+              AND e.uploaderId = :uploaderId
+              AND EXISTS (
+                  SELECT 1
+                  FROM AnalysisRequest ar
+                  WHERE ar.evidenceId = e.evidenceId
+                    AND ar.requestedBy = :uploaderId
+              )
+            """)
+    long countByFileTypeAndUploaderWithAnalysisRequest(
+            @Param("fileType") FileType fileType,
+            @Param("uploaderId") Long uploaderId
     );
 }
