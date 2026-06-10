@@ -29,11 +29,15 @@ public class FileService {
 
     public FileService(
             @Value("${file.upload-dir:uploads}") String uploadDir,
+            @Value("${aws.s3.evidence-bucket}") String evidenceBucket,
+            S3Client s3Client,
             MediaService mediaService,
             HashService hashService,
             EvidenceRepository evidenceRepository,
             FileValidationService fileValidationService
     ) {
+        this.s3Client = s3Client;
+        this.evidenceBucket = evidenceBucket;
         this.root = Paths.get(uploadDir);
         this.mediaService = mediaService;
         this.hashService = hashService;
