@@ -64,7 +64,7 @@ public class EvidenceDetailService {
                 .orElse(null);
         AnalysisResult result = request == null
                 ? null
-                : analysisResultRepository.findByAnalysisRequestId(request.getRequestId()).orElse(null);
+                : analysisResultRepository.findByAnalysisRequestId(request.getAnalysisRequestId()).orElse(null);
         EvidenceMetadata metadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElse(null);
         List<CustodyLog> custodyLogs = custodyLogRepository
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
@@ -197,7 +197,7 @@ public class EvidenceDetailService {
         }
 
         List<AnalysisModuleResult> moduleResults = analysisModuleResultRepository
-                .findByAnalysisResultIdOrderByCreatedAtAsc(result.getResultId());
+                .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
 
         return AnalysisInfoDto.builder()
                 .status(status)

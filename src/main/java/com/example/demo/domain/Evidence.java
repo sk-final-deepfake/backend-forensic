@@ -122,6 +122,11 @@ public class Evidence {
         return originalHashValue;
     }
 
+    public void softDelete() {
+        this.status = EvidenceStatus.DELETED;
+        this.deletedAt = LocalDateTime.now();
+    }
+
     public void updateCaseInfo(String caseName) {
         this.caseName = caseName;
         this.caseNumber = caseName;

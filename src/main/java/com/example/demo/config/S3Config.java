@@ -3,10 +3,12 @@ package com.example.demo.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @Configuration
+@Profile("!test")
 public class S3Config {
 
     @Value("${aws.region}")  // application.yaml 의 aws.region 값(ap-northeast-2)을 이 변수에 자동 주입

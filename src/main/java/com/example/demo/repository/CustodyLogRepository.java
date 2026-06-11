@@ -22,4 +22,9 @@ public interface CustodyLogRepository extends JpaRepository<CustodyLog, Long>, J
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(LocalDateTime start, LocalDateTime end);
 
     long countByActionTypeIn(Collection<String> actionTypes);
+
+    List<CustodyLog> findByTargetTypeAndTargetIdOrderByCreatedAtDesc(
+            CustodyTargetType targetType,
+            Long targetId
+    );
 }
