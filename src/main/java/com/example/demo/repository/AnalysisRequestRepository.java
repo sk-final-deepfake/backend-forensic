@@ -8,12 +8,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest, Long> {
 
     List<AnalysisRequest> findByEvidenceIdInOrderByRequestedAtDesc(List<Long> evidenceIds);
 
     List<AnalysisRequest> findByEvidenceIdOrderByRequestedAtDesc(Long evidenceId);
+
+    boolean existsByEvidenceId(Long evidenceId);
+
+    Optional<AnalysisRequest> findTopByEvidenceIdOrderByRequestedAtDesc(Long evidenceId);
 
     @Query("""
             SELECT COUNT(DISTINCT e.evidenceId)
@@ -30,5 +35,36 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
     long countCompletedAnalysesByFileType(
             @Param("fileType") FileType fileType,
             @Param("status") AnalysisStatus status
+    );
+
+    @Query("""
+            SELECT COUNT(e)
+            FROM Evidence e
+            WHERE e.deletedAt IS NULL
+              AND e.fileType = :fileType
+              AND EXISTS (
+                  SELECT 1
+                  FROM AnalysisRequest ar
+                  WHERE ar.evidenceId = e.evidenceId
+              )
+            """)
+    long countByFileTypeWithAnalysisRequest(@Param("fileType") FileType fileType);
+
+    @Query("""
+            SELECT COUNT(e)
+            FROM Evidence e
+            WHERE e.deletedAt IS NULL
+              AND e.fileType = :fileType
+              AND e.uploaderId = :uploaderId
+              AND EXISTS (
+                  SELECT 1
+                  FROM AnalysisRequest ar
+                  WHERE ar.evidenceId = e.evidenceId
+                    AND ar.requestedBy = :uploaderId
+              )
+            """)
+    long countByFileTypeAndUploaderWithAnalysisRequest(
+            @Param("fileType") FileType fileType,
+            @Param("uploaderId") Long uploaderId
     );
 }

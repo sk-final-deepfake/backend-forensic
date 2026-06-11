@@ -10,6 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,10 +25,9 @@ import java.util.UUID;
 @Service
 public class FileService {
 
-    /** 로컬/테스트: LocalDevUserInitializer가 생성하는 기본 업로더(user_id=1) */
-    private static final long DEFAULT_UPLOADER_ID = 1L;
-
     private final Path root;
+    private final S3Client s3Client;
+    private final String evidenceBucket;
     private final MediaService mediaService;
     private final HashService hashService;
     private final EvidenceRepository evidenceRepository;
@@ -33,11 +35,15 @@ public class FileService {
 
     public FileService(
             @Value("${file.upload-dir:uploads}") String uploadDir,
+            @Value("${aws.s3.evidence-bucket}") String evidenceBucket,
+            S3Client s3Client,
             MediaService mediaService,
             HashService hashService,
             EvidenceRepository evidenceRepository,
             FileValidationService fileValidationService
     ) {
+        this.s3Client = s3Client;
+        this.evidenceBucket = evidenceBucket;
         this.root = Paths.get(uploadDir);
         this.mediaService = mediaService;
         this.hashService = hashService;
@@ -51,7 +57,7 @@ public class FileService {
     }
 
     @Transactional
-    public FileUploadResponse upload(MultipartFile file, String caseName) {
+    public FileUploadResponse upload(MultipartFile file, String caseName, Long uploaderId) {
         ValidatedFile validated = fileValidationService.validate(file);
         String originalFilename = validated.fileName();
 
@@ -71,8 +77,19 @@ public class FileService {
                 metadata = "깨짐";
             }
 
+            // 해시·메타데이터 추출이 끝난 로컬 파일을 S3에 업로드 (원본 보관소는 S3)
+            // 로컬에 임시 저장된 파일을 S3 버킷에 올리는 코드
+            String s3Key = "original/" + storedFileName;
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(evidenceBucket)
+                            .key(s3Key)
+                            .contentType(file.getContentType())
+                            .build(),
+                    RequestBody.fromFile(savedPath));
+
             Evidence evidence = Evidence.builder()
-                    .uploaderId(DEFAULT_UPLOADER_ID)
+                    .uploaderId(uploaderId)
                     .caseName(caseName)
                     .fileName(originalFilename)
                     .fileType(validated.fileType())
@@ -80,11 +97,14 @@ public class FileService {
                     .fileSize(validated.fileSize())
                     .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
                     .originalHashValue(hashValue)
-                    .originalStoragePath(savedPath.toString())
+                    .originalStoragePath(s3Key)
                     .uploadedAt(LocalDateTime.now())
                     .build();
 
             Evidence savedEvidence = evidenceRepository.save(evidence);
+
+            // 로컬 파일은 임시 작업용 — 보관은 S3가 담당하므로 정리
+            Files.deleteIfExists(savedPath);
 
             return FileUploadResponse.builder()
                     .success(true)

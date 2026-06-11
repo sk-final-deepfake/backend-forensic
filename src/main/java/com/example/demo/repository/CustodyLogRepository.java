@@ -12,6 +12,11 @@ import java.util.Optional;
 
 public interface CustodyLogRepository extends JpaRepository<CustodyLog, Long>, JpaSpecificationExecutor<CustodyLog> {
 
+    List<CustodyLog> findByTargetTypeAndTargetIdOrderByCreatedAtAsc(
+            CustodyTargetType targetType,
+            Long targetId
+    );
+
     Optional<CustodyLog> findTopByOrderByLogIdDesc();
 
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(LocalDateTime start, LocalDateTime end);

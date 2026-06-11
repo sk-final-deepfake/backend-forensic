@@ -16,3 +16,39 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL:true}   # ElastiCache는 TLS 필수
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+  autoconfigure:
+    exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  s3:
+    evidence-bucket: ${S3_EVIDENCE_BUCKET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# 해시·메타데이터 추출용 임시 작업 폴더 (원본 보관은 S3, 컨테이너에서 쓰기 가능한 경로여야 함)
+file:
+  upload-dir: /tmp/uploads
+
+ffmpeg:
+  path: /usr/bin

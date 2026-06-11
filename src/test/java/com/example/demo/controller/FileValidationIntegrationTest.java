@@ -6,6 +6,7 @@ import com.example.demo.security.JwtAuthenticationFilter;
 import com.example.demo.security.SignupRateLimitService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,15 +36,41 @@ class FileValidationIntegrationTest {
     private EvidenceStatsService evidenceStatsService;
 
     @MockBean
+    private com.example.demo.service.AnalysisService analysisService;
+
+    @MockBean
+    private com.example.demo.service.EvidenceDetailService evidenceDetailService;
+
+    @MockBean
+    private com.example.demo.security.AuthUserResolver authUserResolver;
+
+    @MockBean
     private SignupRateLimitService signupRateLimitService;
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    @BeforeEach
+    void stubCurrentUser() {
+        when(authUserResolver.requireCurrentUser()).thenReturn(
+                com.example.demo.domain.User.builder()
+                        .loginId("tester")
+                        .email("tester@test.local")
+                        .password("encoded")
+                        .name("테스트 사용자")
+                        .organizationType(com.example.demo.domain.enums.OrgType.ETC)
+                        .department("테스트부서")
+                        .role(com.example.demo.domain.enums.UserRole.ROLE_USER)
+                        .status(com.example.demo.domain.enums.UserStatus.APPROVED)
+                        .darkMode(false)
+                        .build()
+        );
+    }
+
     @Test
     @DisplayName("지원하지 않는 파일 형식 업로드 시 UNSUPPORTED_FILE_TYPE 오류 반환")
     void upload_UnsupportedFileType_ReturnsError() throws Exception {
-        when(fileService.upload(any(), any())).thenThrow(new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 이미지, 영상, 음성 파일만 업로드할 수 있습니다."));
+        when(fileService.upload(any(), any(), any())).thenThrow(new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 이미지, 영상, 음성 파일만 업로드할 수 있습니다."));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "test.txt", "text/plain", "unsupported content".getBytes());
@@ -59,7 +86,7 @@ class FileValidationIntegrationTest {
     @Test
     @DisplayName("파일 용량 초과 시 FILE_SIZE_EXCEEDED 오류 반환")
     void upload_FileSizeExceeded_ReturnsError() throws Exception {
-        when(fileService.upload(any(), any())).thenThrow(new FileSizeExceededException("IMAGE 파일의 최대 허용 용량은 20MB입니다."));
+        when(fileService.upload(any(), any(), any())).thenThrow(new FileSizeExceededException("IMAGE 파일의 최대 허용 용량은 20MB입니다."));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "large.jpg", "image/jpeg", new byte[1024]);

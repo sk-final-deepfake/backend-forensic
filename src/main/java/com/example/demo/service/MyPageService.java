@@ -49,7 +49,16 @@ public class MyPageService {
 
 		List<Long> evidenceIds = evidences.stream().map(Evidence::getEvidenceId).toList();
 		Map<Long, AnalysisRequest> latestRequestByEvidence = loadLatestRequests(evidenceIds);
-		Map<String, List<Evidence>> grouped = groupByCase(evidences);
+
+		List<Evidence> analyzedEvidences = evidences.stream()
+				.filter(evidence -> latestRequestByEvidence.containsKey(evidence.getEvidenceId()))
+				.toList();
+
+		if (analyzedEvidences.isEmpty()) {
+			return emptyPage(page, size);
+		}
+
+		Map<String, List<Evidence>> grouped = groupByCase(analyzedEvidences);
 
 		List<CaseSummaryResponse> summaries = grouped.entrySet().stream()
 				.map(entry -> toCaseSummary(entry.getKey(), entry.getValue(), latestRequestByEvidence))

@@ -126,4 +126,9 @@ public class Evidence {
         this.status = EvidenceStatus.DELETED;
         this.deletedAt = LocalDateTime.now();
     }
+
+    public void updateCaseInfo(String caseName) {
+        this.caseName = caseName;
+        this.caseNumber = caseName;
+    }
 }

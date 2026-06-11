@@ -25,7 +25,7 @@ file:
 ffmpeg:
   path: ${FFMPEG_PATH:C:\ffmpeg\ffmpeg-8.1.1-essentials_build\bin}
 
-# 인프라팀 env 변수와 1:1 매핑 (추후 S3/Redis/RabbitMQ 연동용)
+# 인프라팀 env 변수와 1:1 매핑
 forenshield:
   aws:
     region: ${AWS_REGION:ap-northeast-2}
@@ -45,3 +45,9 @@ forenshield:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:}
     password: ${RABBITMQ_PASSWORD:}
+
+# S3Config · FileService 연동용
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  s3:
+    evidence-bucket: ${S3_EVIDENCE_BUCKET:forenshield-evidence-877044078824}

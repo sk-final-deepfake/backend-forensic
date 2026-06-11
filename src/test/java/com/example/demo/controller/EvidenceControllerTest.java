@@ -4,6 +4,7 @@ import com.example.demo.domain.User;
 import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
+import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.support.JwtTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -30,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,10 +49,17 @@ class EvidenceControllerTest {
     private EvidenceRepository evidenceRepository;
 
     @Autowired
+    private AnalysisRequestRepository analysisRequestRepository;
+
+    @Autowired
     private com.example.demo.repository.UserRepository userRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    /** 테스트 환경에는 AWS 자격증명이 없으므로 S3 업로드는 모킹한다 */
+    @MockBean
+    private software.amazon.awssdk.services.s3.S3Client s3Client;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
@@ -76,6 +86,7 @@ class EvidenceControllerTest {
 
     @AfterEach
     void cleanUp() throws Exception {
+        analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
         Path root = Paths.get(uploadDir);
@@ -295,9 +306,75 @@ class EvidenceControllerTest {
 
         mockMvc.perform(get("/api/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageCount").value(0))
+                .andExpect(jsonPath("$.videoCount").value(0))
+                .andExpect(jsonPath("$.audioCount").value(0));
+
+        long imageEvidenceId = evidenceRepository.findAll().stream()
+                .filter(evidence -> evidence.getFileName().equals("photo.jpg"))
+                .findFirst()
+                .orElseThrow()
+                .getEvidenceId();
+        long videoEvidenceId = evidenceRepository.findAll().stream()
+                .filter(evidence -> evidence.getFileName().equals("clip.mp4"))
+                .findFirst()
+                .orElseThrow()
+                .getEvidenceId();
+        long audioEvidenceId = evidenceRepository.findAll().stream()
+                .filter(evidence -> evidence.getFileName().equals("voice.wav"))
+                .findFirst()
+                .orElseThrow()
+                .getEvidenceId();
+
+        mockMvc.perform(post("/api/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "2026-서울-0123 딥페이크 유포 사건",
+                                  "evidenceIds": [%d, %d, %d]
+                                }
+                                """.formatted(imageEvidenceId, videoEvidenceId, audioEvidenceId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.startedCount").value(3));
+
+        mockMvc.perform(get("/api/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.imageCount").value(1))
                 .andExpect(jsonPath("$.videoCount").value(1))
                 .andExpect(jsonPath("$.audioCount").value(1));
+    }
+
+    @Test
+    @DisplayName("사건명 없이 분석 시작 요청 시 400을 반환한다")
+    void startAnalysis_withoutCaseName_returnsBadRequest() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "analyze-test.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "analyze test".getBytes()
+        );
+
+        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
+
+        mockMvc.perform(post("/api/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(evidenceId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
     }
 
     @Test
