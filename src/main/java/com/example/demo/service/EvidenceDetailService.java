@@ -129,6 +129,7 @@ public class EvidenceDetailService {
                 .caseName(evidence.getCaseName())
                 .fileSize(evidence.getFileSize())
                 .uploadedAt(ISO_FORMATTER.format(evidence.getUploadedAt()))
+                .mediaType(evidence.getFileType().name())
                 .technicalMetadata(mapToTypeSpecificMetadata(evidence, metadata))
                 .build();
     }
@@ -147,12 +148,15 @@ public class EvidenceDetailService {
             case AUDIO -> AudioMetadataDto.builder()
                     .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
                     .sampleRate(metadata.getSampleRate())
+                    .bitrate(null) // TODO: Extract from ffprobeJson if needed
                     .channels(metadata.getChannels())
                     .codec(metadata.getCodec())
                     .build();
             case IMAGE -> ImageMetadataDto.builder()
                     .width(metadata.getWidth())
                     .height(metadata.getHeight())
+                    .format(null) // TODO: Extract from exifJson if needed
+                    .colorSpace(null) // TODO: Extract from exifJson if needed
                     .deviceInfo(metadata.getDeviceInfo())
                     .capturedAt(metadata.getCapturedAt())
                     .build();

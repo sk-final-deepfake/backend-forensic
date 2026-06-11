@@ -8,6 +8,7 @@ import lombok.Getter;
 public class AudioMetadataDto {
     private Double durationSec;
     private Integer sampleRate;
+    private Integer bitrate;
     private Integer channels;
     private String codec;
 }
