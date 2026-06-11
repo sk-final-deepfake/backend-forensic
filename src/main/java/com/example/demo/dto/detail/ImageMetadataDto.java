@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 @Getter
 @Builder
 public class ImageMetadataDto {
+    private String extractionStatus;
     private Integer width;
     private Integer height;
     private String format;

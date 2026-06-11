@@ -18,6 +18,7 @@ import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.dto.detail.EvidenceInfoDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
 import com.example.demo.dto.detail.ModuleResultDto;
+import com.example.demo.dto.detail.TechnicalMetadataDto;
 import com.example.demo.dto.detail.VideoMetadataDto;
 import com.example.demo.dto.detail.AudioMetadataDto;
 import com.example.demo.dto.detail.ImageMetadataDto;
@@ -130,15 +131,25 @@ public class EvidenceDetailService {
                 .fileSize(evidence.getFileSize())
                 .uploadedAt(ISO_FORMATTER.format(evidence.getUploadedAt()))
                 .mediaType(evidence.getFileType().name())
+                .fileType(evidence.getFileType().name())
                 .technicalMetadata(mapToTypeSpecificMetadata(evidence, metadata))
                 .build();
     }
 
     private Object mapToTypeSpecificMetadata(Evidence evidence, EvidenceMetadata metadata) {
-        if (metadata == null) return null;
+        if (metadata == null) {
+            return TechnicalMetadataDto.builder()
+                    .extractionStatus(ExtractionStatus.FAILED.name())
+                    .build();
+        }
+
+        String extractionStatus = metadata.getExtractionStatus() == null
+                ? ExtractionStatus.FAILED.name()
+                : metadata.getExtractionStatus().name();
 
         return switch (evidence.getFileType()) {
             case VIDEO -> VideoMetadataDto.builder()
+                    .extractionStatus(extractionStatus)
                     .width(metadata.getWidth())
                     .height(metadata.getHeight())
                     .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
@@ -146,6 +157,7 @@ public class EvidenceDetailService {
                     .codec(metadata.getCodec())
                     .build();
             case AUDIO -> AudioMetadataDto.builder()
+                    .extractionStatus(extractionStatus)
                     .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
                     .sampleRate(metadata.getSampleRate())
                     .bitrate(null) // TODO: Extract from ffprobeJson if needed
@@ -153,6 +165,7 @@ public class EvidenceDetailService {
                     .codec(metadata.getCodec())
                     .build();
             case IMAGE -> ImageMetadataDto.builder()
+                    .extractionStatus(extractionStatus)
                     .width(metadata.getWidth())
                     .height(metadata.getHeight())
                     .format(null) // TODO: Extract from exifJson if needed
@@ -168,6 +181,7 @@ public class EvidenceDetailService {
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
                 .chainValid(isChainValid)
+                .chainValidAlias(isChainValid)
                 .verificationStatus(isChainValid ? "VERIFIED" : "CORRUPTED")
                 .build();
     }

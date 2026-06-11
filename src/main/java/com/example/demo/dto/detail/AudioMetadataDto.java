@@ -6,6 +6,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class AudioMetadataDto {
+    private String extractionStatus;
     private Double durationSec;
     private Integer sampleRate;
     private Integer bitrate;
