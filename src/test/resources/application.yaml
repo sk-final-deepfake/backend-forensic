@@ -21,3 +21,8 @@ ffmpeg:
 jwt:
   secret: test-jwt-secret-key-for-unit-tests-only
   expiration-ms: 3600000
+
+aws:
+  region: ap-northeast-2
+  s3:
+    evidence-bucket: test-evidence-bucket
