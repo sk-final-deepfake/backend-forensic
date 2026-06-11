@@ -1,10 +1,13 @@
 package com.example.demo.service;
 
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.dto.ValidatedFile;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.repository.EvidenceRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -32,6 +37,8 @@ public class FileService {
     private final HashService hashService;
     private final EvidenceRepository evidenceRepository;
     private final FileValidationService fileValidationService;
+    private final CustodyLogService custodyLogService;
+    private final ObjectMapper objectMapper;
 
     public FileService(
             @Value("${file.upload-dir:uploads}") String uploadDir,
@@ -40,7 +47,9 @@ public class FileService {
             MediaService mediaService,
             HashService hashService,
             EvidenceRepository evidenceRepository,
-            FileValidationService fileValidationService
+            FileValidationService fileValidationService,
+            CustodyLogService custodyLogService,
+            ObjectMapper objectMapper
     ) {
         this.s3Client = s3Client;
         this.evidenceBucket = evidenceBucket;
@@ -49,6 +58,8 @@ public class FileService {
         this.hashService = hashService;
         this.evidenceRepository = evidenceRepository;
         this.fileValidationService = fileValidationService;
+        this.custodyLogService = custodyLogService;
+        this.objectMapper = objectMapper;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
@@ -70,11 +81,13 @@ public class FileService {
             String hashValue = hashService.generateSha256(savedPath);
 
             Object metadata = null;
+            String extractionStatus = "SUCCESS";
             try {
                 metadata = mediaService.extractMetadata(savedPath);
             } catch (Exception e) {
                 log.error("Metadata extraction failed for {}: {}", originalFilename, e.getMessage());
                 metadata = "깨짐";
+                extractionStatus = "FAILED";
             }
 
             // 해시·메타데이터 추출이 끝난 로컬 파일을 S3에 업로드 (원본 보관소는 S3)
@@ -102,6 +115,7 @@ public class FileService {
                     .build();
 
             Evidence savedEvidence = evidenceRepository.save(evidence);
+            recordUploadCustodyLogs(savedEvidence, uploaderId, extractionStatus);
 
             // 로컬 파일은 임시 작업용 — 보관은 S3가 담당하므로 정리
             Files.deleteIfExists(savedPath);
@@ -122,6 +136,75 @@ public class FileService {
         } catch (Exception e) {
             log.error("FileUpload Error: ", e);
             throw new RuntimeException("FILE_UPLOAD_FAILED");
+        }
+    }
+
+    private void recordUploadCustodyLogs(Evidence savedEvidence, Long uploaderId, String extractionStatus) {
+        custodyLogService.record(
+                uploaderId,
+                CustodyTargetType.EVIDENCE,
+                savedEvidence.getEvidenceId(),
+                "EVIDENCE_UPLOADED",
+                savedEvidence.getOriginalHashValue(),
+                savedEvidence.getOriginalStoragePath(),
+                "증거 파일 업로드 완료",
+                toJson(uploadPayload(savedEvidence)),
+                null
+        );
+
+        custodyLogService.record(
+                uploaderId,
+                CustodyTargetType.EVIDENCE,
+                savedEvidence.getEvidenceId(),
+                "HASH_CREATED",
+                savedEvidence.getOriginalHashValue(),
+                savedEvidence.getOriginalStoragePath(),
+                "SHA-256 해시 생성 완료",
+                toJson(hashPayload(savedEvidence)),
+                null
+        );
+
+        custodyLogService.record(
+                uploaderId,
+                CustodyTargetType.EVIDENCE,
+                savedEvidence.getEvidenceId(),
+                "METADATA_EXTRACTED",
+                savedEvidence.getOriginalHashValue(),
+                savedEvidence.getOriginalStoragePath(),
+                "메타데이터 추출 완료",
+                toJson(metadataPayload(extractionStatus)),
+                null
+        );
+    }
+
+    private Map<String, Object> uploadPayload(Evidence evidence) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("fileName", evidence.getFileName());
+        payload.put("fileType", evidence.getFileType().name());
+        payload.put("mimeType", evidence.getMimeType());
+        payload.put("fileSize", evidence.getFileSize());
+        payload.put("caseName", evidence.getCaseName());
+        return payload;
+    }
+
+    private Map<String, Object> hashPayload(Evidence evidence) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("hashAlgorithm", evidence.getHashAlgorithm());
+        payload.put("hashValue", evidence.getOriginalHashValue());
+        return payload;
+    }
+
+    private Map<String, Object> metadataPayload(String extractionStatus) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("extractionStatus", extractionStatus);
+        return payload;
+    }
+
+    private String toJson(Map<String, Object> payload) {
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize custody log payload", e);
         }
     }
 }

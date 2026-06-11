@@ -18,30 +18,98 @@ import java.util.HexFormat;
 @RequiredArgsConstructor
 public class CustodyLogService {
 
-    private static final String GENESIS_HASH = "GENESIS";
-
     private final CustodyLogRepository custodyLogRepository;
 
     @Transactional
     public void recordUserAction(User actor, User target, String actionType, String reason) {
-        String previousHash = custodyLogRepository.findTopByOrderByLogIdDesc()
+        record(
+                actor.getUserId(),
+                CustodyTargetType.USER,
+                target.getUserId(),
+                actionType,
+                null,
+                null,
+                reason,
+                null,
+                null
+        );
+    }
+
+    @Transactional
+    public CustodyLog record(
+            Long actorId,
+            CustodyTargetType targetType,
+            Long targetId,
+            String actionType,
+            String subjectHash,
+            String storagePathAtEvent,
+            String reason,
+            String eventPayloadJson,
+            String clientIp
+    ) {
+        validateRequired(actorId, targetType, targetId, actionType);
+
+        String previousLogHash = custodyLogRepository.findTopByOrderByLogIdDesc()
                 .map(CustodyLog::getCurrentLogHash)
-                .orElse(GENESIS_HASH);
+                .orElse(null);
 
         LocalDateTime now = LocalDateTime.now();
-        String payload = actor.getUserId() + "|" + target.getUserId() + "|" + actionType + "|" + now;
-        String currentHash = sha256Hex(payload + previousHash);
 
         CustodyLog log = new CustodyLog();
-        log.setActorId(actor.getUserId());
-        log.setTargetType(CustodyTargetType.USER);
-        log.setTargetId(target.getUserId());
+        log.setActorId(actorId);
+        log.setTargetType(targetType);
+        log.setTargetId(targetId);
         log.setActionType(actionType);
+        log.setSubjectHash(subjectHash);
+        log.setStoragePathAtEvent(storagePathAtEvent);
         log.setReason(reason);
-        log.setPreviousLogHash(GENESIS_HASH.equals(previousHash) ? null : previousHash);
-        log.setCurrentLogHash(currentHash);
+        log.setClientIp(clientIp);
+        log.setEventPayloadJson(eventPayloadJson);
+        log.setPreviousLogHash(previousLogHash);
         log.setCreatedAt(now);
-        custodyLogRepository.save(log);
+
+        log.setCurrentLogHash(sha256Hex(buildHashInput(log)));
+        return custodyLogRepository.save(log);
+    }
+
+    private void validateRequired(
+            Long actorId,
+            CustodyTargetType targetType,
+            Long targetId,
+            String actionType
+    ) {
+        if (actorId == null) {
+            throw new IllegalArgumentException("actorId is required");
+        }
+        if (targetType == null) {
+            throw new IllegalArgumentException("targetType is required");
+        }
+        if (targetId == null) {
+            throw new IllegalArgumentException("targetId is required");
+        }
+        if (actionType == null || actionType.isBlank()) {
+            throw new IllegalArgumentException("actionType is required");
+        }
+    }
+
+    private String buildHashInput(CustodyLog log) {
+        return String.join("|",
+                valueOf(log.getPreviousLogHash()),
+                valueOf(log.getActorId()),
+                valueOf(log.getTargetType()),
+                valueOf(log.getTargetId()),
+                valueOf(log.getActionType()),
+                valueOf(log.getSubjectHash()),
+                valueOf(log.getStoragePathAtEvent()),
+                valueOf(log.getReason()),
+                valueOf(log.getEventPayloadJson()),
+                valueOf(log.getClientIp()),
+                valueOf(log.getCreatedAt())
+        );
+    }
+
+    private String valueOf(Object value) {
+        return value == null ? "" : value.toString();
     }
 
     private String sha256Hex(String value) {

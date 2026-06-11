@@ -45,6 +45,9 @@ forenshield:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:}
     password: ${RABBITMQ_PASSWORD:}
+    analysis-exchange: ${RABBITMQ_ANALYSIS_EXCHANGE:}
+    analysis-routing-key: ${RABBITMQ_ANALYSIS_ROUTING_KEY:analysis.requested}
+    analysis-queue: ${RABBITMQ_ANALYSIS_QUEUE:forenshield.analysis.requests}
 
 # S3Config · FileService 연동용
 aws:

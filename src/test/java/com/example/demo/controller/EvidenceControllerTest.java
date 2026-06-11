@@ -1,12 +1,22 @@
 package com.example.demo.controller;
 
+import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.CustodyLog;
+import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
+import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
+import com.example.demo.messaging.AnalysisQueueMessage;
+import com.example.demo.messaging.AnalysisQueuePublisher;
 import com.example.demo.repository.AnalysisRequestRepository;
+import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.support.JwtTestSupport;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,20 +25,29 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.FileSystemUtils;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -51,10 +70,22 @@ class EvidenceControllerTest {
     private AnalysisRequestRepository analysisRequestRepository;
 
     @Autowired
+    private CustodyLogRepository custodyLogRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
     private com.example.demo.repository.UserRepository userRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @MockBean
+    private S3Client s3Client;
+
+    @MockBean
+    private AnalysisQueuePublisher analysisQueuePublisher;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
@@ -63,6 +94,13 @@ class EvidenceControllerTest {
 
     @BeforeEach
     void obtainAccessToken() throws Exception {
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenReturn(PutObjectResponse.builder().build());
+        when(analysisQueuePublisher.queueName()).thenReturn("test.analysis.requests");
+
+        custodyLogRepository.deleteAll();
+        analysisRequestRepository.deleteAll();
+        evidenceRepository.deleteAll();
         userRepository.deleteAll();
         userRepository.save(User.builder()
                 .loginId("1111")
@@ -81,6 +119,7 @@ class EvidenceControllerTest {
 
     @AfterEach
     void cleanUp() throws Exception {
+        custodyLogRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
@@ -393,6 +432,243 @@ class EvidenceControllerTest {
         assertThat(evidenceRepository.findAll())
                 .allMatch(evidence -> evidence.getHashAlgorithm().equals("SHA-256"))
                 .allMatch(evidence -> evidence.getHashValue().length() == 64);
+    }
+
+    @Test
+    @DisplayName("파일 업로드 성공 시 CoC 로그 3개를 ERD 이벤트명과 해시 체인으로 저장한다")
+    void upload_success_recordsCustodyLogs() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "coc-test.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "coc test image bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String caseName = "2026-서울-0123 딥페이크 유포 사건";
+
+        String responseBody = mockMvc.perform(multipart("/api/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.hashValue").value(org.hamcrest.Matchers.matchesRegex("[0-9a-f]{64}")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode response = objectMapper.readTree(responseBody);
+        long evidenceId = response.get("evidenceId").asLong();
+        String hashValue = response.get("hashValue").asText();
+
+        List<CustodyLog> logs = custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
+
+        assertThat(logs).hasSize(3);
+        assertThat(logs)
+                .extracting(CustodyLog::getActionType)
+                .containsExactly("EVIDENCE_UPLOADED", "HASH_CREATED", "METADATA_EXTRACTED");
+        assertThat(logs)
+                .allSatisfy(log -> {
+                    assertThat(log.getTargetType()).isEqualTo(CustodyTargetType.EVIDENCE);
+                    assertThat(log.getTargetId()).isEqualTo(evidenceId);
+                    assertThat(log.getSubjectHash()).isEqualTo(hashValue);
+                    assertThat(log.getStoragePathAtEvent()).isNotBlank();
+                    assertThat(log.getCurrentLogHash()).matches("[0-9a-f]{64}");
+                });
+
+        assertThat(logs.get(0).getPreviousLogHash()).isNull();
+        assertThat(logs.get(1).getPreviousLogHash()).isEqualTo(logs.get(0).getCurrentLogHash());
+        assertThat(logs.get(2).getPreviousLogHash()).isEqualTo(logs.get(1).getCurrentLogHash());
+
+        JsonNode uploadPayload = objectMapper.readTree(logs.get(0).getEventPayloadJson());
+        assertThat(uploadPayload.get("fileName").asText()).isEqualTo("coc-test.jpg");
+        assertThat(uploadPayload.get("fileType").asText()).isEqualTo("IMAGE");
+        assertThat(uploadPayload.get("mimeType").asText()).isEqualTo(MediaType.IMAGE_JPEG_VALUE);
+        assertThat(uploadPayload.get("fileSize").asLong()).isEqualTo(file.getSize());
+        assertThat(uploadPayload.get("caseName").asText()).isEqualTo(caseName);
+
+        JsonNode hashPayload = objectMapper.readTree(logs.get(1).getEventPayloadJson());
+        assertThat(hashPayload.get("hashAlgorithm").asText()).isEqualTo("SHA-256");
+        assertThat(hashPayload.get("hashValue").asText()).isEqualTo(hashValue);
+
+        JsonNode metadataPayload = objectMapper.readTree(logs.get(2).getEventPayloadJson());
+        assertThat(metadataPayload.get("extractionStatus").asText()).isIn("SUCCESS", "FAILED");
+
+        assertThat(custodyLogRepository.findAll())
+                .extracting(CustodyLog::getActionType)
+                .doesNotContain("FILE_UPLOADED", "ORIGINAL_HASH_CREATED");
+    }
+
+    @Test
+    @DisplayName("분석 요청 성공 시 ANALYSIS_REQUESTED CoC 로그를 저장하고 중복 요청에는 추가하지 않는다")
+    void startAnalysis_success_recordsAnalysisRequestedCustodyLog() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "analysis-coc.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "analysis coc image bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String caseName = "2026-서울-0123 딥페이크 유포 사건";
+
+        String uploadResponseBody = mockMvc.perform(multipart("/api/evidences/upload")
+                        .file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
+        Evidence evidence = evidenceRepository.findById(evidenceId).orElseThrow();
+        List<CustodyLog> uploadLogs = custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
+
+        mockMvc.perform(post("/api/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "%s",
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(caseName, evidenceId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.startedCount").value(1));
+
+        AnalysisRequest analysisRequest = analysisRequestRepository
+                .findTopByEvidenceIdOrderByRequestedAtDesc(evidenceId)
+                .orElseThrow();
+        List<CustodyLog> analysisLogs = custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(
+                        CustodyTargetType.ANALYSIS_REQUEST,
+                        analysisRequest.getAnalysisRequestId()
+                );
+
+        assertThat(analysisLogs).hasSize(1);
+        CustodyLog log = analysisLogs.get(0);
+        assertThat(log.getActionType()).isEqualTo("ANALYSIS_REQUESTED");
+        assertThat(log.getTargetType()).isEqualTo(CustodyTargetType.ANALYSIS_REQUEST);
+        assertThat(log.getTargetId()).isEqualTo(analysisRequest.getAnalysisRequestId());
+        assertThat(analysisRequest.getStatus()).isEqualTo(AnalysisStatus.QUEUED);
+        assertThat(log.getActorId()).isEqualTo(userRepository.findByLoginIdAndDeletedAtIsNull("1111")
+                .orElseThrow()
+                .getUserId());
+        assertThat(log.getSubjectHash()).isEqualTo(evidence.getOriginalHashValue());
+        assertThat(log.getStoragePathAtEvent()).isEqualTo(evidence.getOriginalStoragePath());
+        assertThat(log.getCurrentLogHash()).matches("[0-9a-f]{64}");
+        assertThat(log.getPreviousLogHash()).isEqualTo(uploadLogs.get(2).getCurrentLogHash());
+
+        JsonNode payload = objectMapper.readTree(log.getEventPayloadJson());
+        assertThat(payload.get("evidenceId").asLong()).isEqualTo(evidenceId);
+        assertThat(payload.get("analysisRequestId").asLong()).isEqualTo(analysisRequest.getAnalysisRequestId());
+        assertThat(payload.get("status").asText()).isEqualTo("QUEUED");
+        assertThat(payload.get("caseName").asText()).isEqualTo(caseName);
+        assertThat(payload.get("queueRegistered").asBoolean()).isTrue();
+        assertThat(payload.get("queueName").asText()).isEqualTo("test.analysis.requests");
+
+        mockMvc.perform(post("/api/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "%s",
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(caseName, evidenceId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.startedCount").value(0));
+
+        assertThat(analysisRequestRepository.count()).isEqualTo(1);
+        assertThat(custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(
+                        CustodyTargetType.ANALYSIS_REQUEST,
+                        analysisRequest.getAnalysisRequestId()
+                )).hasSize(1);
+        assertThat(custodyLogRepository.findAll())
+                .extracting(CustodyLog::getActionType)
+                .doesNotContain("QUEUE_REGISTERED", "ANALYSIS_STARTED", "ANALYSIS_COMPLETED",
+                        "ANALYSIS_COPY_CREATED", "ANALYSIS_FAILED", "ERROR_OCCURRED");
+    }
+
+    @Test
+    @DisplayName("분석 요청 큐 등록 실패 시 FAILED 상태와 ERROR_OCCURRED CoC 로그를 저장한다")
+    void startAnalysis_queuePublishFailure_recordsErrorOccurredCustodyLog() throws Exception {
+        doThrow(new RuntimeException("rabbit password=secret token=abc"))
+                .when(analysisQueuePublisher)
+                .publish(any(AnalysisQueueMessage.class));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "analysis-queue-fail.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "analysis queue fail bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String caseName = "2026-서울-0456 큐 등록 실패 사건";
+
+        String uploadResponseBody = mockMvc.perform(multipart("/api/evidences/upload")
+                        .file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
+        Evidence evidence = evidenceRepository.findById(evidenceId).orElseThrow();
+
+        mockMvc.perform(post("/api/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "%s",
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(caseName, evidenceId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.startedCount").value(0));
+
+        AnalysisRequest analysisRequest = analysisRequestRepository
+                .findTopByEvidenceIdOrderByRequestedAtDesc(evidenceId)
+                .orElseThrow();
+        assertThat(analysisRequest.getStatus()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(analysisRequest.getErrorCode()).isEqualTo("RABBITMQ_PUBLISH_FAILED");
+
+        List<CustodyLog> analysisLogs = custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(
+                        CustodyTargetType.ANALYSIS_REQUEST,
+                        analysisRequest.getAnalysisRequestId()
+                );
+
+        assertThat(analysisLogs).hasSize(1);
+        CustodyLog log = analysisLogs.get(0);
+        assertThat(log.getActionType()).isEqualTo("ERROR_OCCURRED");
+        assertThat(log.getTargetType()).isEqualTo(CustodyTargetType.ANALYSIS_REQUEST);
+        assertThat(log.getTargetId()).isEqualTo(analysisRequest.getAnalysisRequestId());
+        assertThat(log.getSubjectHash()).isEqualTo(evidence.getOriginalHashValue());
+        assertThat(log.getStoragePathAtEvent()).isEqualTo(evidence.getOriginalStoragePath());
+        assertThat(log.getCurrentLogHash()).matches("[0-9a-f]{64}");
+
+        JsonNode payload = objectMapper.readTree(log.getEventPayloadJson());
+        assertThat(payload.get("step").asText()).isEqualTo("RABBITMQ_PUBLISH");
+        assertThat(payload.get("errorCode").asText()).isEqualTo("RABBITMQ_PUBLISH_FAILED");
+        assertThat(payload.get("message").asText()).isEqualTo("분석 요청 큐 등록에 실패했습니다.");
+        assertThat(payload.get("evidenceId").asLong()).isEqualTo(evidenceId);
+        assertThat(payload.get("analysisRequestId").asLong()).isEqualTo(analysisRequest.getAnalysisRequestId());
+        assertThat(payload.get("queueName").asText()).isEqualTo("test.analysis.requests");
+        assertThat(payload.toString().toLowerCase())
+                .doesNotContain("password", "token", "secret");
+
+        assertThat(analysisLogs)
+                .extracting(CustodyLog::getActionType)
+                .doesNotContain("ANALYSIS_REQUESTED");
+        assertThat(custodyLogRepository.findAll())
+                .extracting(CustodyLog::getActionType)
+                .doesNotContain("QUEUE_REGISTERED", "ANALYSIS_STARTED", "ANALYSIS_COMPLETED",
+                        "ANALYSIS_COPY_CREATED");
     }
 
     private String bearerToken() {
