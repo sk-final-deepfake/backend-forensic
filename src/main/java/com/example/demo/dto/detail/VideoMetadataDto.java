@@ -6,6 +6,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class VideoMetadataDto {
+    private String extractionStatus;
     private Integer width;
     private Integer height;
     private Double durationSec;

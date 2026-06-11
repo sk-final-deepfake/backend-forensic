@@ -24,16 +24,20 @@ public class AnalysisStatusService {
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("증거를 찾을 수 없습니다."));
 
-        AnalysisRequest request = analysisRequestRepository
+        return analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
-                .orElseThrow(() -> new IllegalArgumentException("분석 요청을 찾을 수 없습니다."));
-
-        return AnalysisStatusResponse.builder()
-                .evidenceId(evidence.getEvidenceId())
-                .analysisRequestId(request.getAnalysisRequestId())
-                .status(toApiStatus(request.getStatus()))
-                .progressPercent(request.getProgressPercent())
-                .build();
+                .map(request -> AnalysisStatusResponse.builder()
+                        .evidenceId(evidence.getEvidenceId())
+                        .analysisRequestId(request.getAnalysisRequestId())
+                        .status(toApiStatus(request.getStatus()))
+                        .progressPercent(request.getProgressPercent())
+                        .build())
+                .orElseGet(() -> AnalysisStatusResponse.builder()
+                        .evidenceId(evidence.getEvidenceId())
+                        .analysisRequestId(0L)
+                        .status("PENDING")
+                        .progressPercent(0)
+                        .build());
     }
 
     private String toApiStatus(AnalysisStatus status) {

@@ -69,6 +69,11 @@ public class FileService {
 
     @Transactional
     public FileUploadResponse upload(MultipartFile file, String caseName, Long uploaderId) {
+        if (caseName == null || caseName.isBlank()) {
+            throw new IllegalArgumentException("사건명을 입력해 주세요.");
+        }
+
+        String trimmedCaseName = caseName.trim();
         ValidatedFile validated = fileValidationService.validate(file);
         String originalFilename = validated.fileName();
 
@@ -103,7 +108,7 @@ public class FileService {
 
             Evidence evidence = Evidence.builder()
                     .uploaderId(uploaderId)
-                    .caseName(caseName)
+                    .caseName(trimmedCaseName)
                     .fileName(originalFilename)
                     .fileType(validated.fileType())
                     .mimeType(validated.mimeType())

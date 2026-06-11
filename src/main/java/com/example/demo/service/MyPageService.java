@@ -164,7 +164,10 @@ public class MyPageService {
 		if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
 			return evidence.getCaseNumber();
 		}
-		return "evidence-" + evidence.getEvidenceId();
+		if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
+			return evidence.getCaseName();
+		}
+		return "EVIDENCE-" + evidence.getEvidenceId();
 	}
 
 	private String resolveCaseName(String caseId, List<Evidence> caseEvidences) {

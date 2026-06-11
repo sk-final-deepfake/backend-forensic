@@ -86,7 +86,7 @@ class FileValidationIntegrationTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "test.txt", "text/plain", "unsupported content".getBytes());
 
-        mockMvc.perform(multipart("/api/evidences/upload")
+        mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
@@ -102,7 +102,7 @@ class FileValidationIntegrationTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "large.jpg", "image/jpeg", new byte[1024]);
 
-        mockMvc.perform(multipart("/api/evidences/upload")
+        mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))

@@ -38,8 +38,9 @@ public class AnalysisCancelService {
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidenceId)
                 .orElseThrow(() -> new IllegalStateException("분석 요청을 찾을 수 없습니다."));
 
-        if (request.getStatus() == AnalysisStatus.COMPLETED) {
-            throw new IllegalStateException("완료된 분석은 중단할 수 없습니다.");
+        if (request.getStatus() != AnalysisStatus.QUEUED
+                && request.getStatus() != AnalysisStatus.ANALYZING) {
+            throw new IllegalStateException("대기 또는 진행 중인 분석만 중단할 수 있습니다.");
         }
 
         analysisRequestRepository.delete(request);
