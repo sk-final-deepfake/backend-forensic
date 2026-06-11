@@ -6,7 +6,10 @@ import com.example.demo.exception.UnsupportedFileTypeException;
 import com.example.demo.security.AuthUserResolver;
 import com.example.demo.security.JwtAuthenticationFilter;
 import com.example.demo.security.SignupRateLimitService;
+import com.example.demo.service.AnalysisCancelService;
+import com.example.demo.service.AnalysisJobEnqueuer;
 import com.example.demo.service.AnalysisService;
+import com.example.demo.service.AnalysisStatusService;
 import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
@@ -44,10 +47,19 @@ class FileValidationIntegrationTest {
     private AnalysisService analysisService;
 
     @MockBean
+    private AnalysisJobEnqueuer analysisJobEnqueuer;
+
+    @MockBean
     private EvidenceDetailService evidenceDetailService;
 
     @MockBean
     private EvidenceCancelService evidenceCancelService;
+
+    @MockBean
+    private AnalysisCancelService analysisCancelService;
+
+    @MockBean
+    private AnalysisStatusService analysisStatusService;
 
     @MockBean
     private AuthUserResolver authUserResolver;
