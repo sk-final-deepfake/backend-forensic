@@ -165,7 +165,33 @@ public class EvidenceController {
         }
     }
 
-    @Operation(summary = "분석 중단", description = "대기·진행 중인 분석을 중단하고 증거를 DB·S3에서 삭제합니다.")
+    @Operation(summary = "증거 초기화", description = "메인 화면 초기화 시 증거와 연결된 분석 요청을 모두 삭제하고 DB·S3에서 제거합니다.")
+    @DeleteMapping("/{evidenceId}/reset")
+    public ResponseEntity<?> resetEvidence(@PathVariable Long evidenceId) {
+        try {
+            evidenceCancelService.resetEvidence(
+                    authUserResolver.requireCurrentUser(),
+                    evidenceId
+            );
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ErrorResponse.builder()
+                            .success(false)
+                            .errorCode("EVIDENCE_NOT_FOUND")
+                            .message(e.getMessage())
+                            .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ErrorResponse.builder()
+                            .success(false)
+                            .errorCode("EVIDENCE_RESET_FAILED")
+                            .message("증거 초기화에 실패했습니다.")
+                            .build());
+        }
+    }
+
+    @Operation(summary = "분석 중단", description = "대기·진행 중인 분석 작업만 중단합니다. 원본 증거는 DB·S3에 유지됩니다.")
     @DeleteMapping("/{evidenceId}/analysis")
     public ResponseEntity<?> cancelAnalysis(@PathVariable Long evidenceId) {
         try {

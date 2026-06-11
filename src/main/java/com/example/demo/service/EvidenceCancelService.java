@@ -36,6 +36,18 @@ public class EvidenceCancelService {
     }
 
     @Transactional
+    public void resetEvidence(User user, Long evidenceId) {
+        Evidence evidence = evidenceRepository
+                .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("증거를 찾을 수 없습니다."));
+
+        analysisRequestRepository.deleteByEvidenceId(evidenceId);
+        deleteS3Object(evidence.getOriginalStoragePath());
+        evidence.softDelete();
+        custodyLogService.recordEvidenceAction(user, evidence, "EVIDENCE_DELETED", "초기화");
+    }
+
+    @Transactional
     public void cancelUpload(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())

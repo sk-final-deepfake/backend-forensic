@@ -54,6 +54,7 @@ public class AnalysisService {
             request.setEvidenceId(evidence.getEvidenceId());
             request.setRequestedBy(user.getUserId());
             request.setStatus(AnalysisStatus.QUEUED);
+            request.setProgressPercent(0);
             request.setRequestedAt(now);
             AnalysisRequest savedRequest = analysisRequestRepository.save(request);
             analysisJobEnqueuer.enqueue(savedRequest.getAnalysisRequestId(), evidence.getEvidenceId());

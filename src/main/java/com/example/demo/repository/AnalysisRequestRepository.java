@@ -18,6 +18,8 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
 
     Optional<AnalysisRequest> findTopByEvidenceIdOrderByRequestedAtDesc(Long evidenceId);
 
+    void deleteByEvidenceId(Long evidenceId);
+
     @Query("""
             SELECT COUNT(DISTINCT e.evidenceId)
             FROM Evidence e
