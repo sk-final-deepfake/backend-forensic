@@ -1,11 +1,20 @@
 package com.example.demo.controller;
 
+import com.example.demo.domain.User;
 import com.example.demo.exception.FileSizeExceededException;
 import com.example.demo.exception.UnsupportedFileTypeException;
+import com.example.demo.security.AuthUserResolver;
 import com.example.demo.security.JwtAuthenticationFilter;
 import com.example.demo.security.SignupRateLimitService;
+import com.example.demo.service.AnalysisCancelService;
+import com.example.demo.service.AnalysisJobEnqueuer;
+import com.example.demo.service.AnalysisService;
+import com.example.demo.service.AnalysisStatusService;
+import com.example.demo.service.EvidenceCancelService;
+import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +25,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,10 +45,38 @@ class FileValidationIntegrationTest {
     private EvidenceStatsService evidenceStatsService;
 
     @MockBean
+    private AnalysisService analysisService;
+
+    @MockBean
+    private AnalysisJobEnqueuer analysisJobEnqueuer;
+
+    @MockBean
+    private EvidenceDetailService evidenceDetailService;
+
+    @MockBean
+    private EvidenceCancelService evidenceCancelService;
+
+    @MockBean
+    private AnalysisCancelService analysisCancelService;
+
+    @MockBean
+    private AnalysisStatusService analysisStatusService;
+
+    @MockBean
+    private AuthUserResolver authUserResolver;
+
+    @MockBean
     private SignupRateLimitService signupRateLimitService;
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @BeforeEach
+    void setUp() {
+        User user = mock(User.class);
+        when(user.getUserId()).thenReturn(1L);
+        when(authUserResolver.requireCurrentUser()).thenReturn(user);
+    }
 
     @Test
     @DisplayName("지원하지 않는 파일 형식 업로드 시 UNSUPPORTED_FILE_TYPE 오류 반환")

@@ -1,0 +1,47 @@
+package com.example.demo.service;
+
+import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.Evidence;
+import com.example.demo.domain.User;
+import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.dto.AnalysisStatusResponse;
+import com.example.demo.repository.AnalysisRequestRepository;
+import com.example.demo.repository.EvidenceRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class AnalysisStatusService {
+
+    private final EvidenceRepository evidenceRepository;
+    private final AnalysisRequestRepository analysisRequestRepository;
+
+    public AnalysisStatusResponse getStatus(User user, Long evidenceId) {
+        Evidence evidence = evidenceRepository
+                .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("증거를 찾을 수 없습니다."));
+
+        AnalysisRequest request = analysisRequestRepository
+                .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
+                .orElseThrow(() -> new IllegalArgumentException("분석 요청을 찾을 수 없습니다."));
+
+        return AnalysisStatusResponse.builder()
+                .evidenceId(evidence.getEvidenceId())
+                .analysisRequestId(request.getAnalysisRequestId())
+                .status(toApiStatus(request.getStatus()))
+                .progressPercent(request.getProgressPercent())
+                .build();
+    }
+
+    private String toApiStatus(AnalysisStatus status) {
+        return switch (status) {
+            case QUEUED -> "PENDING";
+            case ANALYZING -> "PROCESSING";
+            case COMPLETED -> "COMPLETED";
+            case FAILED -> "FAILED";
+        };
+    }
+}
