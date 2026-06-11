@@ -164,8 +164,10 @@ public class MyPageService {
 		if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
 			return evidence.getCaseNumber();
 		}
-		// 사건명이 없으면 증거 ID를 직접 반환 (프론트엔드에서 숫자로 인식하여 증거 상세로 바로 이동)
-		return String.valueOf(evidence.getEvidenceId());
+		if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
+			return evidence.getCaseName();
+		}
+		return "EVIDENCE-" + evidence.getEvidenceId();
 	}
 
 	private String resolveCaseName(String caseId, List<Evidence> caseEvidences) {
