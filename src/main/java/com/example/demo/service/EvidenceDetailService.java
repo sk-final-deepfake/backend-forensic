@@ -18,7 +18,9 @@ import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.dto.detail.EvidenceInfoDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
 import com.example.demo.dto.detail.ModuleResultDto;
-import com.example.demo.dto.detail.TechnicalMetadataDto;
+import com.example.demo.dto.detail.VideoMetadataDto;
+import com.example.demo.dto.detail.AudioMetadataDto;
+import com.example.demo.dto.detail.ImageMetadataDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
@@ -50,6 +52,7 @@ public class EvidenceDetailService {
     private final AnalysisModuleResultRepository analysisModuleResultRepository;
     private final CustodyLogRepository custodyLogRepository;
     private final UserRepository userRepository;
+    private final CustodyLogService custodyLogService;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -61,16 +64,18 @@ public class EvidenceDetailService {
                 .orElse(null);
         AnalysisResult result = request == null
                 ? null
-                : analysisResultRepository.findByAnalysisRequestId(request.getAnalysisRequestId()).orElse(null);
+                : analysisResultRepository.findByAnalysisRequestId(request.getRequestId()).orElse(null);
         EvidenceMetadata metadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElse(null);
         List<CustodyLog> custodyLogs = custodyLogRepository
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
 
+        boolean isChainValid = custodyLogService.verifyChainIntegrity(CustodyTargetType.EVIDENCE, evidenceId);
+
         return EvidenceDetailResponse.builder()
                 .evidenceInfo(toEvidenceInfo(evidence, metadata))
-                .integrityInfo(toIntegrityInfo(evidence))
+                .integrityInfo(toIntegrityInfo(evidence, isChainValid))
                 .analysisInfo(toAnalysisInfo(request, result))
-                .cocLogs(toCocLogs(custodyLogs, evidence, request, user))
+                .cocLogs(toCocLogs(custodyLogs))
                 .build();
     }
 
@@ -124,40 +129,42 @@ public class EvidenceDetailService {
                 .caseName(evidence.getCaseName())
                 .fileSize(evidence.getFileSize())
                 .uploadedAt(ISO_FORMATTER.format(evidence.getUploadedAt()))
-                .technicalMetadata(toTechnicalMetadata(metadata))
+                .technicalMetadata(mapToTypeSpecificMetadata(evidence, metadata))
                 .build();
     }
 
-    private TechnicalMetadataDto toTechnicalMetadata(EvidenceMetadata metadata) {
-        if (metadata == null) {
-            return TechnicalMetadataDto.builder()
-                    .width(0)
-                    .height(0)
-                    .durationSec(0.0)
-                    .fps(0.0)
-                    .codec("unknown")
-                    .extractionStatus("UNAVAILABLE")
+    private Object mapToTypeSpecificMetadata(Evidence evidence, EvidenceMetadata metadata) {
+        if (metadata == null) return null;
+
+        return switch (evidence.getFileType()) {
+            case VIDEO -> VideoMetadataDto.builder()
+                    .width(metadata.getWidth())
+                    .height(metadata.getHeight())
+                    .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
+                    .fps(metadata.getFps())
+                    .codec(metadata.getCodec())
                     .build();
-        }
-
-        return TechnicalMetadataDto.builder()
-                .width(metadata.getWidth() != null ? metadata.getWidth() : 0)
-                .height(metadata.getHeight() != null ? metadata.getHeight() : 0)
-                .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : 0.0)
-                .fps(metadata.getFps() != null ? metadata.getFps() : 0.0)
-                .codec(metadata.getCodec() != null ? metadata.getCodec() : "unknown")
-                .extractionStatus(metadata.getExtractionStatus() == ExtractionStatus.SUCCESS
-                        ? "SUCCESS"
-                        : "FAILED")
-                .build();
+            case AUDIO -> AudioMetadataDto.builder()
+                    .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
+                    .sampleRate(metadata.getSampleRate())
+                    .channels(metadata.getChannels())
+                    .codec(metadata.getCodec())
+                    .build();
+            case IMAGE -> ImageMetadataDto.builder()
+                    .width(metadata.getWidth())
+                    .height(metadata.getHeight())
+                    .deviceInfo(metadata.getDeviceInfo())
+                    .capturedAt(metadata.getCapturedAt())
+                    .build();
+        };
     }
 
-    private IntegrityInfoDto toIntegrityInfo(Evidence evidence) {
+    private IntegrityInfoDto toIntegrityInfo(Evidence evidence, boolean isChainValid) {
         return IntegrityInfoDto.builder()
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
-                .chainValid(true)
-                .verificationStatus("VERIFIED")
+                .chainValid(isChainValid)
+                .verificationStatus(isChainValid ? "VERIFIED" : "CORRUPTED")
                 .build();
     }
 
@@ -190,7 +197,7 @@ public class EvidenceDetailService {
         }
 
         List<AnalysisModuleResult> moduleResults = analysisModuleResultRepository
-                .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
+                .findByAnalysisResultIdOrderByCreatedAtAsc(result.getResultId());
 
         return AnalysisInfoDto.builder()
                 .status(status)
@@ -213,38 +220,8 @@ public class EvidenceDetailService {
                 .build();
     }
 
-    private List<CocLogDto> toCocLogs(
-            List<CustodyLog> custodyLogs,
-            Evidence evidence,
-            AnalysisRequest request,
-            User user
-    ) {
-        if (!custodyLogs.isEmpty()) {
-            return custodyLogs.stream().map(this::toCocLog).toList();
-        }
-
-        List<CocLogDto> fallback = new ArrayList<>();
-        fallback.add(CocLogDto.builder()
-                .logId(1L)
-                .eventType("FILE_UPLOADED")
-                .userId(user.getLoginId())
-                .description("파일 업로드 완료: " + evidence.getFileName())
-                .createdAt(ISO_FORMATTER.format(evidence.getUploadedAt()))
-                .currentLogHash(shortHash(evidence.getOriginalHashValue()))
-                .build());
-
-        if (request != null) {
-            fallback.add(CocLogDto.builder()
-                    .logId(2L)
-                    .eventType("ANALYSIS_REQUESTED")
-                    .userId(user.getLoginId())
-                    .description("분석 요청 등록")
-                    .createdAt(ISO_FORMATTER.format(request.getRequestedAt()))
-                    .currentLogHash(shortHash(evidence.getOriginalHashValue() + "-analysis"))
-                    .build());
-        }
-
-        return fallback;
+    private List<CocLogDto> toCocLogs(List<CustodyLog> custodyLogs) {
+        return custodyLogs.stream().map(this::toCocLog).toList();
     }
 
     private CocLogDto toCocLog(CustodyLog log) {
