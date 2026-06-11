@@ -12,5 +12,6 @@ public class EvidenceInfoDto {
     private String caseName;
     private Long fileSize;
     private String uploadedAt;
+    private String mediaType;
     private Object technicalMetadata; // VideoMetadataDto, AudioMetadataDto, or ImageMetadataDto
 }
