@@ -17,10 +17,12 @@ public final class LogCategoryMapper {
             "ANALYSIS_REQUESTED",
             "ANALYSIS_STARTED",
             "ANALYSIS_COMPLETED",
-            "ANALYSIS_FAILED"
+            "ANALYSIS_FAILED",
+            "ANALYSIS_CANCELLED"
     );
     private static final Set<String> COC_ACTIONS = Set.of(
             "EVIDENCE_UPLOADED",
+            "EVIDENCE_DELETED",
             "HASH_CREATED",
             "METADATA_EXTRACTED",
             "EVIDENCE_VIEWED",
@@ -78,6 +80,7 @@ public final class LogCategoryMapper {
             case "USER_DELETED" -> "계정 삭제";
             case "USER_PASSWORD_RESET" -> "비밀번호 재설정";
             case "EVIDENCE_UPLOADED" -> "증거 업로드";
+            case "EVIDENCE_DELETED" -> "증거 삭제";
             case "HASH_CREATED" -> "해시 생성";
             case "METADATA_EXTRACTED" -> "메타데이터 추출";
             case "EVIDENCE_VIEWED" -> "증거 열람";
@@ -88,6 +91,7 @@ public final class LogCategoryMapper {
             case "ANALYSIS_STARTED" -> "분석 시작";
             case "ANALYSIS_COMPLETED" -> "분석 완료";
             case "ANALYSIS_FAILED" -> "분석 실패";
+            case "ANALYSIS_CANCELLED" -> "분석 중단";
             case "REPORT_CREATED" -> "보고서 생성";
             case "REPORT_DOWNLOADED" -> "보고서 다운로드";
             default -> actionType;

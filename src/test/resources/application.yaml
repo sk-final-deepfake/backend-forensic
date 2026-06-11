@@ -1,6 +1,10 @@
 spring:
   profiles:
     active: test
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
   datasource:
     url: jdbc:h2:mem:forenshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
@@ -9,8 +13,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-  autoconfigure:
-    exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
 
 file:
   upload-dir: build/test-uploads/original
@@ -21,3 +23,8 @@ ffmpeg:
 jwt:
   secret: test-jwt-secret-key-for-unit-tests-only
   expiration-ms: 3600000
+
+aws:
+  region: ap-northeast-2
+  s3:
+    evidence-bucket: test-evidence-bucket

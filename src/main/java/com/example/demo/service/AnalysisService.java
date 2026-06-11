@@ -21,6 +21,7 @@ public class AnalysisService {
 
     private final EvidenceRepository evidenceRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
+    private final AnalysisJobEnqueuer analysisJobEnqueuer;
 
     @Transactional
     public StartAnalysisResponse startAnalysis(User user, List<Long> evidenceIds, String caseName) {
@@ -53,8 +54,10 @@ public class AnalysisService {
             request.setEvidenceId(evidence.getEvidenceId());
             request.setRequestedBy(user.getUserId());
             request.setStatus(AnalysisStatus.QUEUED);
+            request.setProgressPercent(0);
             request.setRequestedAt(now);
-            analysisRequestRepository.save(request);
+            AnalysisRequest savedRequest = analysisRequestRepository.save(request);
+            analysisJobEnqueuer.enqueue(savedRequest.getAnalysisRequestId(), evidence.getEvidenceId());
             startedEvidenceIds.add(evidence.getEvidenceId());
         }
 
