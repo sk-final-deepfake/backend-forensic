@@ -238,7 +238,7 @@ public class EvidenceDetailService {
                 .eventType(log.getActionType())
                 .userId(actor)
                 .description(log.getReason() != null ? log.getReason() : log.getActionType())
-                .createdAt(ISO_FORMATTER.format(log.getCreatedAt()))
+                .createdAt(formatDateTime(log.getCreatedAt()))
                 .currentLogHash(log.getCurrentLogHash())
                 .build();
     }
