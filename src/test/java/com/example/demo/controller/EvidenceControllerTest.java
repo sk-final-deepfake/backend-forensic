@@ -687,7 +687,9 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.integrityInfo.isChainValid").isBoolean())
                 .andExpect(jsonPath("$.analysisInfo.status").value("PENDING"))
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isArray())
-                .andExpect(jsonPath("$.cocLogs").isArray());
+                .andExpect(jsonPath("$.analysisInfo.moduleResults").isEmpty())
+                .andExpect(jsonPath("$.cocLogs").isArray())
+                .andExpect(jsonPath("$.cocLogs").isNotEmpty());
     }
 
     @Test
