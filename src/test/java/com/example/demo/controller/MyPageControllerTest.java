@@ -1,9 +1,15 @@
 package com.example.demo.controller;
 
+import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
+import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
+import com.example.demo.repository.AnalysisRequestRepository;
+import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.support.JwtTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -17,6 +23,9 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
+
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,14 +44,23 @@ class MyPageControllerTest {
 	private UserRepository userRepository;
 
 	@Autowired
+	private EvidenceRepository evidenceRepository;
+
+	@Autowired
+	private AnalysisRequestRepository analysisRequestRepository;
+
+	@Autowired
 	private PasswordEncoder passwordEncoder;
 
 	private String userToken;
+	private User testUser;
 
 	@BeforeEach
 	void setUp() throws Exception {
+		analysisRequestRepository.deleteAll();
+		evidenceRepository.deleteAll();
 		userRepository.deleteAll();
-		userRepository.save(User.builder()
+		testUser = userRepository.save(User.builder()
 				.loginId("1111")
 				.email("1111@local.dev")
 				.password(passwordEncoder.encode("2222"))
@@ -59,6 +77,8 @@ class MyPageControllerTest {
 
 	@AfterEach
 	void tearDown() {
+		analysisRequestRepository.deleteAll();
+		evidenceRepository.deleteAll();
 		userRepository.deleteAll();
 	}
 
@@ -74,6 +94,43 @@ class MyPageControllerTest {
 						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.totalElements").value(0));
+	}
+
+	@Test
+	void getAnalysisHistory_withoutCaseNumber_usesCaseNameAsCaseId() throws Exception {
+		Evidence evidence = evidenceRepository.save(Evidence.builder()
+				.uploaderId(testUser.getUserId())
+				.caseName("12121212")
+				.fileName("case-name-only.jpg")
+				.fileType(FileType.IMAGE)
+				.mimeType("image/jpeg")
+				.fileSize(12L)
+				.hashAlgorithm("SHA-256")
+				.originalHashValue("a".repeat(64))
+				.originalStoragePath("uploads/test/case-name-only.jpg")
+				.uploadedAt(LocalDateTime.now())
+				.build());
+
+		AnalysisRequest request = new AnalysisRequest();
+		request.setEvidenceId(evidence.getEvidenceId());
+		request.setRequestedBy(testUser.getUserId());
+		request.setStatus(AnalysisStatus.QUEUED);
+		request.setRequestedAt(LocalDateTime.now());
+		analysisRequestRepository.save(request);
+
+		mockMvc.perform(get("/api/v1/mypage/analysis-history")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content[0].caseId").value("12121212"))
+				.andExpect(jsonPath("$.content[0].caseId").value(not(String.valueOf(evidence.getEvidenceId()))))
+				.andExpect(jsonPath("$.content[0].caseName").value("12121212"));
+
+		mockMvc.perform(get("/api/v1/cases")
+						.param("caseKey", "12121212")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.caseId").value("12121212"))
+				.andExpect(jsonPath("$.evidences[0].evidenceId").value(evidence.getEvidenceId()));
 	}
 
 	@Test
