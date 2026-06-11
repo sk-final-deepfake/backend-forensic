@@ -21,7 +21,7 @@ public class MyPageController {
 	private final AuthUserResolver authUserResolver;
 
 	@Operation(summary = "내 분석 기록 목록", description = "로그인 사용자의 사건별 분석 기록을 조회합니다.")
-	@GetMapping({"/mypage/analysis-history", "/cases/me"})
+	@GetMapping(value = {"/mypage/analysis-history", "/cases/me"}, produces = "application/json;charset=UTF-8")
 	public AnalysisHistoryPageResponse getAnalysisHistory(
 			@RequestParam(defaultValue = "newest") String sort,
 			@RequestParam(defaultValue = "0") int page,
