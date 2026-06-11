@@ -1,6 +1,9 @@
 package com.example.demo.controller;
 
+import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
+import com.example.demo.domain.enums.EvidenceStatus;
+import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
@@ -15,6 +18,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -23,12 +28,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.FileSystemUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -38,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
 })
+@ActiveProfiles("test")
 @AutoConfigureMockMvc
 class EvidenceControllerTest {
 
@@ -55,6 +63,10 @@ class EvidenceControllerTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    /** 테스트 환경에는 AWS 자격증명이 없으므로 S3 업로드는 모킹한다 */
+    @MockBean
+    private software.amazon.awssdk.services.s3.S3Client s3Client;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
@@ -370,6 +382,108 @@ class EvidenceControllerTest {
                                 """.formatted(evidenceId)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("분석 시작 전 업로드된 증거를 취소하면 소프트 삭제된다")
+    void cancelUpload_beforeAnalysis_softDeletesEvidence() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "cancel-me.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "cancel test".getBytes()
+        );
+
+        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
+
+        mockMvc.perform(delete("/api/evidences/{evidenceId}", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isNoContent());
+
+        Evidence evidence = evidenceRepository.findById(evidenceId).orElseThrow();
+        assertThat(evidence.getStatus()).isEqualTo(EvidenceStatus.DELETED);
+        assertThat(evidence.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("분석 대기 중에는 분석 중단 API로 삭제할 수 있다")
+    void cancelAnalysis_whenQueued_succeeds() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        Evidence queuedEvidence = evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName("queued.jpg")
+                .fileType(FileType.IMAGE)
+                .mimeType("image/jpeg")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("a".repeat(64))
+                .originalStoragePath("original/queued.jpg")
+                .uploadedAt(LocalDateTime.now())
+                .build());
+        long evidenceId = queuedEvidence.getEvidenceId();
+
+        mockMvc.perform(post("/api/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "큐 대기 테스트",
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(evidenceId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/evidences/{evidenceId}/analysis", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isNoContent());
+
+        Evidence evidence = evidenceRepository.findById(evidenceId).orElseThrow();
+        assertThat(evidence.getStatus()).isNotEqualTo(EvidenceStatus.DELETED);
+        assertThat(evidence.getDeletedAt()).isNull();
+        assertThat(analysisRequestRepository.existsByEvidenceId(evidenceId)).isFalse();
+    }
+
+    @Test
+    @DisplayName("분석 시작 후에는 업로드 취소가 불가하다")
+    void cancelUpload_afterAnalysisStarted_returnsBadRequest() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "locked.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "locked test".getBytes()
+        );
+
+        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
+
+        mockMvc.perform(post("/api/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "취소 불가 테스트",
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(evidenceId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/evidences/{evidenceId}", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("ANALYSIS_ALREADY_STARTED"));
     }
 
     @Test
