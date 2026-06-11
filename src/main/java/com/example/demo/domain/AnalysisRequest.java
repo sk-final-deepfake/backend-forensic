@@ -51,4 +51,8 @@ public class AnalysisRequest {
 
     @Column(name = "error_message", columnDefinition = "clob")
     private String errorMessage;
+
+    @Column(name = "progress_percent", nullable = false)
+    private int progressPercent = 0;
 }
+
