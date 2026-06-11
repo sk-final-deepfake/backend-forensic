@@ -86,6 +86,7 @@ class EvidenceControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    /** 테스트 환경에는 AWS 자격증명이 없으므로 S3 업로드는 모킹한다 */
     @MockBean
     private S3Client s3Client;
 
