@@ -483,6 +483,52 @@ class EvidenceControllerTest {
     }
 
     @Test
+    @DisplayName("완료된 분석은 중단할 수 없다")
+    void cancelAnalysis_whenCompleted_returnsBadRequest() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "completed.jpg");
+        AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
+                evidence,
+                user,
+                AnalysisStatus.COMPLETED
+        );
+
+        mockMvc.perform(delete("/api/evidences/{evidenceId}/analysis", evidence.getEvidenceId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("ANALYSIS_NOT_CANCELABLE"));
+
+        assertThat(analysisRequestRepository.findById(request.getAnalysisRequestId()))
+                .isPresent()
+                .get()
+                .extracting(AnalysisRequest::getStatus)
+                .isEqualTo(AnalysisStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("실패한 분석은 중단할 수 없다")
+    void cancelAnalysis_whenFailed_returnsBadRequest() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "failed.jpg");
+        AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
+                evidence,
+                user,
+                AnalysisStatus.FAILED
+        );
+
+        mockMvc.perform(delete("/api/evidences/{evidenceId}/analysis", evidence.getEvidenceId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("ANALYSIS_NOT_CANCELABLE"));
+
+        assertThat(analysisRequestRepository.findById(request.getAnalysisRequestId()))
+                .isPresent()
+                .get()
+                .extracting(AnalysisRequest::getStatus)
+                .isEqualTo(AnalysisStatus.FAILED);
+    }
+
+    @Test
     @DisplayName("분석 시작 후에는 업로드 취소가 불가하다")
     void cancelUpload_afterAnalysisStarted_returnsBadRequest() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
@@ -790,5 +836,33 @@ class EvidenceControllerTest {
         int start = index + "\"hashValue\":\"".length();
         int end = responseBody.indexOf('"', start);
         return responseBody.substring(start, end);
+    }
+
+    private Evidence saveEvidenceForCancelPolicy(User user, String fileName) {
+        return evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName(fileName)
+                .fileType(FileType.IMAGE)
+                .mimeType("image/jpeg")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("b".repeat(64))
+                .originalStoragePath("original/" + fileName)
+                .uploadedAt(LocalDateTime.now())
+                .build());
+    }
+
+    private AnalysisRequest saveAnalysisRequestForCancelPolicy(
+            Evidence evidence,
+            User user,
+            AnalysisStatus status
+    ) {
+        AnalysisRequest request = new AnalysisRequest();
+        request.setEvidenceId(evidence.getEvidenceId());
+        request.setRequestedBy(user.getUserId());
+        request.setStatus(status);
+        request.setRequestedAt(LocalDateTime.now());
+        request.setProgressPercent(status == AnalysisStatus.COMPLETED ? 100 : 0);
+        return analysisRequestRepository.save(request);
     }
 }
