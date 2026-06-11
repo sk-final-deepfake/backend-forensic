@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 public class ImageMetadataDto {
     private Integer width;
     private Integer height;
+    private String format;
+    private String colorSpace;
     private String deviceInfo;
     private LocalDateTime capturedAt;
 }
