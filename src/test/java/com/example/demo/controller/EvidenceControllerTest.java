@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -62,6 +63,10 @@ class EvidenceControllerTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    /** 테스트 환경에는 AWS 자격증명이 없으므로 S3 업로드는 모킹한다 */
+    @MockBean
+    private software.amazon.awssdk.services.s3.S3Client s3Client;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
