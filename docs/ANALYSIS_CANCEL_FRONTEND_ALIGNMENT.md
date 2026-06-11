@@ -30,7 +30,7 @@ AnalysisRequest row 유지 방식으로 변경
 처리 방식:
 
 ```text
-DELETE /api/evidences/{evidenceId}/analysis 성공
+DELETE /api/v1/evidences/{evidenceId}/analysis 성공
 -> 로컬 상태에서 분석 상태 제거
 -> 화면은 업로드 완료 / 분석 시작 가능 상태로 복귀
 ```
@@ -50,7 +50,7 @@ DELETE /api/evidences/{evidenceId}/analysis 성공
 
 ```text
 분석 중단 성공 시 AnalysisRequest row 삭제
-DELETE /api/evidences/{evidenceId}/analysis 성공 시 204 No Content
+DELETE /api/v1/evidences/{evidenceId}/analysis 성공 시 204 No Content
 중단 후 GET /analysis-status 요청 시 ANALYSIS_NOT_FOUND 가능
 ANALYSIS_CANCELLED CoC 로그 저장 유지
 ```
@@ -94,7 +94,7 @@ FAILED는 이미 종료된 분석 요청이므로 중단 API로 삭제하지 않
 프론트가 나중에 요청 단위 제어를 강화하면 아래 작업을 별도 단계로 검토한다.
 
 ```text
-POST /api/evidences/analyze 응답에 analysisRequestId/status/progressPercent 추가
+POST /api/v1/evidences/analyze 응답에 analysisRequestId/status/progressPercent 추가
 ANALYSIS_CANCELLED CoC 로그 targetType을 ANALYSIS_REQUEST 기준으로 변경
 중단 성공 응답 body 추가
 ```
