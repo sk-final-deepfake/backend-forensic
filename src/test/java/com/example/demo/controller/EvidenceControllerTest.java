@@ -159,7 +159,6 @@ class EvidenceControllerTest {
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "테스트 사건")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -169,25 +168,6 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.evidenceId").exists())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
                 .andExpect(jsonPath("$.hashValue").isString());
-    }
-
-    @Test
-    void shouldReturnErrorWhenCaseNameIsBlank() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "no-case-name.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
-                "No Case Name".getBytes()
-        );
-
-        mockMvc.perform(multipart("/api/v1/evidences/upload")
-                        .file(file)
-                        .param("caseName", " ")
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
-                .andExpect(jsonPath("$.message").value("사건명을 입력해 주세요."));
     }
 
     @Test
@@ -223,7 +203,6 @@ class EvidenceControllerTest {
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "빈 파일 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
@@ -241,7 +220,6 @@ class EvidenceControllerTest {
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "이미지 업로드 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -259,7 +237,6 @@ class EvidenceControllerTest {
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "깨진 메타데이터 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -279,7 +256,6 @@ class EvidenceControllerTest {
         );
 
         String firstResponse = mockMvc.perform(multipart("/api/v1/evidences/upload").file(sampleFile)
-                        .param("caseName", "동일 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
@@ -297,7 +273,6 @@ class EvidenceControllerTest {
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(sameFileAgain)
-                        .param("caseName", "동일 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue").value(firstHash));
@@ -317,7 +292,6 @@ class EvidenceControllerTest {
         );
 
         String originalResponse = mockMvc.perform(multipart("/api/v1/evidences/upload").file(originalFile)
-                        .param("caseName", "수정 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -332,7 +306,6 @@ class EvidenceControllerTest {
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(modifiedFile)
-                        .param("caseName", "수정 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue", not(extractHashValue(originalResponse))));
@@ -361,15 +334,12 @@ class EvidenceControllerTest {
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(imageFile)
-                        .param("caseName", "미디어별 건수 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(videoFile)
-                        .param("caseName", "미디어별 건수 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(audioFile)
-                        .param("caseName", "미디어별 건수 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
 
@@ -426,7 +396,6 @@ class EvidenceControllerTest {
         );
 
         String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "분석 시작 검증 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -458,7 +427,6 @@ class EvidenceControllerTest {
         );
 
         String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "업로드 취소 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -571,7 +539,6 @@ class EvidenceControllerTest {
         );
 
         String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "취소 불가 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -610,7 +577,6 @@ class EvidenceControllerTest {
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "해시 저장 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue").value(org.hamcrest.Matchers.matchesRegex("[0-9a-f]{64}")));
@@ -739,7 +705,6 @@ class EvidenceControllerTest {
 
         String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
-                        .param("caseName", caseName)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -837,7 +802,6 @@ class EvidenceControllerTest {
 
         String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
-                        .param("caseName", caseName)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
