@@ -17,7 +17,8 @@ public final class LogCategoryMapper {
             "ANALYSIS_REQUESTED",
             "ANALYSIS_STARTED",
             "ANALYSIS_COMPLETED",
-            "ANALYSIS_FAILED"
+            "ANALYSIS_FAILED",
+            "ANALYSIS_CANCELLED"
     );
     private static final Set<String> COC_ACTIONS = Set.of(
             "EVIDENCE_UPLOADED",
@@ -90,6 +91,7 @@ public final class LogCategoryMapper {
             case "ANALYSIS_STARTED" -> "분석 시작";
             case "ANALYSIS_COMPLETED" -> "분석 완료";
             case "ANALYSIS_FAILED" -> "분석 실패";
+            case "ANALYSIS_CANCELLED" -> "분석 중단";
             case "REPORT_CREATED" -> "보고서 생성";
             case "REPORT_DOWNLOADED" -> "보고서 다운로드";
             default -> actionType;

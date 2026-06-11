@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -43,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
 })
+@ActiveProfiles("test")
 @AutoConfigureMockMvc
 class EvidenceControllerTest {
 
@@ -438,7 +440,9 @@ class EvidenceControllerTest {
                 .andExpect(status().isNoContent());
 
         Evidence evidence = evidenceRepository.findById(evidenceId).orElseThrow();
-        assertThat(evidence.getStatus()).isEqualTo(EvidenceStatus.DELETED);
+        assertThat(evidence.getStatus()).isNotEqualTo(EvidenceStatus.DELETED);
+        assertThat(evidence.getDeletedAt()).isNull();
+        assertThat(analysisRequestRepository.existsByEvidenceId(evidenceId)).isFalse();
     }
 
     @Test
