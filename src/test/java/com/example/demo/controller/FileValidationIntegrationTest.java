@@ -25,6 +25,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -72,7 +73,7 @@ class FileValidationIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        User user = org.mockito.Mockito.mock(User.class);
+        User user = mock(User.class);
         when(user.getUserId()).thenReturn(1L);
         when(authUserResolver.requireCurrentUser()).thenReturn(user);
     }
