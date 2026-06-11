@@ -653,6 +653,44 @@ class EvidenceControllerTest {
     }
 
     @Test
+    @DisplayName("증거 상세 API는 프론트 상세 페이지가 사용하는 필드를 포함한다")
+    void getEvidenceDetail_returnsFrontendCompatibleFields() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "detail-page.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "detail page image bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String caseName = "상세 페이지 연동 사건";
+
+        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(evidenceId))
+                .andExpect(jsonPath("$.evidenceInfo.fileName").value("detail-page.jpg"))
+                .andExpect(jsonPath("$.evidenceInfo.caseName").value(caseName))
+                .andExpect(jsonPath("$.evidenceInfo.mediaType").value("IMAGE"))
+                .andExpect(jsonPath("$.evidenceInfo.fileType").value("IMAGE"))
+                .andExpect(jsonPath("$.evidenceInfo.technicalMetadata.extractionStatus").isString())
+                .andExpect(jsonPath("$.integrityInfo.chainValid").isBoolean())
+                .andExpect(jsonPath("$.integrityInfo.isChainValid").isBoolean())
+                .andExpect(jsonPath("$.analysisInfo.status").value("PENDING"))
+                .andExpect(jsonPath("$.analysisInfo.moduleResults").isArray())
+                .andExpect(jsonPath("$.cocLogs").isArray());
+    }
+
+    @Test
     @DisplayName("분석 요청 성공 시 ANALYSIS_REQUESTED CoC 로그를 저장하고 중복 요청에는 추가하지 않는다")
     void startAnalysis_success_recordsAnalysisRequestedCustodyLog() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
