@@ -2,7 +2,9 @@ name: Backend Deploy (ECR + Argo CD GitOps)
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
   workflow_dispatch:
 
 permissions:

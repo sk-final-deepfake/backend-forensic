@@ -19,6 +19,14 @@ public class EvidenceStatsService {
      * 분석 시작(AnalysisRequest 등록)된 증거만 집계합니다.
      */
     public EvidenceStatsResponse getMediaStats(Long uploaderId) {
+        if (uploaderId == null) {
+            return EvidenceStatsResponse.builder()
+                    .imageCount(0L)
+                    .videoCount(0L)
+                    .audioCount(0L)
+                    .build();
+        }
+
         return EvidenceStatsResponse.builder()
                 .imageCount(analysisRequestRepository.countByFileTypeAndUploaderWithAnalysisRequest(
                         FileType.IMAGE, uploaderId))

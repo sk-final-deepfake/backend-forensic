@@ -144,7 +144,7 @@ class EvidenceControllerTest {
                 "Hello, World!".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file))
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
     }
@@ -158,7 +158,8 @@ class EvidenceControllerTest {
                 "Hello, World!".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+                        .param("caseName", "테스트 사건")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -168,6 +169,25 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.evidenceId").exists())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
                 .andExpect(jsonPath("$.hashValue").isString());
+    }
+
+    @Test
+    void shouldReturnErrorWhenCaseNameIsBlank() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "no-case-name.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "No Case Name".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", " ")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("사건명을 입력해 주세요."));
     }
 
     @Test
@@ -181,7 +201,7 @@ class EvidenceControllerTest {
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
 
-        mockMvc.perform(multipart("/api/evidences/upload")
+        mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
                         .param("caseName", caseName)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
@@ -202,7 +222,8 @@ class EvidenceControllerTest {
                 new byte[0]
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+                        .param("caseName", "빈 파일 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
@@ -219,7 +240,8 @@ class EvidenceControllerTest {
                 "fake-image-data".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+                        .param("caseName", "이미지 업로드 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -236,7 +258,8 @@ class EvidenceControllerTest {
                 "not-a-video".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+                        .param("caseName", "깨진 메타데이터 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -255,7 +278,8 @@ class EvidenceControllerTest {
                 content
         );
 
-        String firstResponse = mockMvc.perform(multipart("/api/evidences/upload").file(sampleFile)
+        String firstResponse = mockMvc.perform(multipart("/api/v1/evidences/upload").file(sampleFile)
+                        .param("caseName", "동일 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
@@ -272,7 +296,8 @@ class EvidenceControllerTest {
                 content
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(sameFileAgain)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(sameFileAgain)
+                        .param("caseName", "동일 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue").value(firstHash));
@@ -291,7 +316,8 @@ class EvidenceControllerTest {
                 originalContent
         );
 
-        String originalResponse = mockMvc.perform(multipart("/api/evidences/upload").file(originalFile)
+        String originalResponse = mockMvc.perform(multipart("/api/v1/evidences/upload").file(originalFile)
+                        .param("caseName", "수정 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -305,7 +331,8 @@ class EvidenceControllerTest {
                 modifiedContent
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(modifiedFile)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(modifiedFile)
+                        .param("caseName", "수정 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue", not(extractHashValue(originalResponse))));
@@ -333,17 +360,20 @@ class EvidenceControllerTest {
                 "audio bytes".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(imageFile)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(imageFile)
+                        .param("caseName", "미디어별 건수 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
-        mockMvc.perform(multipart("/api/evidences/upload").file(videoFile)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(videoFile)
+                        .param("caseName", "미디어별 건수 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
-        mockMvc.perform(multipart("/api/evidences/upload").file(audioFile)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(audioFile)
+                        .param("caseName", "미디어별 건수 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
+        mockMvc.perform(get("/api/v1/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.imageCount").value(0))
                 .andExpect(jsonPath("$.videoCount").value(0))
@@ -365,7 +395,7 @@ class EvidenceControllerTest {
                 .orElseThrow()
                 .getEvidenceId();
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -378,7 +408,7 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.startedCount").value(3));
 
-        mockMvc.perform(get("/api/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
+        mockMvc.perform(get("/api/v1/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.imageCount").value(1))
                 .andExpect(jsonPath("$.videoCount").value(1))
@@ -395,7 +425,8 @@ class EvidenceControllerTest {
                 "analyze test".getBytes()
         );
 
-        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+                        .param("caseName", "분석 시작 검증 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -404,7 +435,7 @@ class EvidenceControllerTest {
 
         long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -426,7 +457,8 @@ class EvidenceControllerTest {
                 "cancel test".getBytes()
         );
 
-        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+                        .param("caseName", "업로드 취소 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -435,7 +467,7 @@ class EvidenceControllerTest {
 
         long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
 
-        mockMvc.perform(delete("/api/evidences/{evidenceId}", evidenceId)
+        mockMvc.perform(delete("/api/v1/evidences/{evidenceId}", evidenceId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isNoContent());
 
@@ -461,7 +493,7 @@ class EvidenceControllerTest {
                 .build());
         long evidenceId = queuedEvidence.getEvidenceId();
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -472,7 +504,7 @@ class EvidenceControllerTest {
                                 """.formatted(evidenceId)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/api/evidences/{evidenceId}/analysis", evidenceId)
+        mockMvc.perform(delete("/api/v1/evidences/{evidenceId}/analysis", evidenceId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isNoContent());
 
@@ -480,6 +512,52 @@ class EvidenceControllerTest {
         assertThat(evidence.getStatus()).isNotEqualTo(EvidenceStatus.DELETED);
         assertThat(evidence.getDeletedAt()).isNull();
         assertThat(analysisRequestRepository.existsByEvidenceId(evidenceId)).isFalse();
+    }
+
+    @Test
+    @DisplayName("완료된 분석은 중단할 수 없다")
+    void cancelAnalysis_whenCompleted_returnsBadRequest() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "completed.jpg");
+        AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
+                evidence,
+                user,
+                AnalysisStatus.COMPLETED
+        );
+
+        mockMvc.perform(delete("/api/v1/evidences/{evidenceId}/analysis", evidence.getEvidenceId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("ANALYSIS_NOT_CANCELABLE"));
+
+        assertThat(analysisRequestRepository.findById(request.getAnalysisRequestId()))
+                .isPresent()
+                .get()
+                .extracting(AnalysisRequest::getStatus)
+                .isEqualTo(AnalysisStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("실패한 분석은 중단할 수 없다")
+    void cancelAnalysis_whenFailed_returnsBadRequest() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "failed.jpg");
+        AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
+                evidence,
+                user,
+                AnalysisStatus.FAILED
+        );
+
+        mockMvc.perform(delete("/api/v1/evidences/{evidenceId}/analysis", evidence.getEvidenceId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("ANALYSIS_NOT_CANCELABLE"));
+
+        assertThat(analysisRequestRepository.findById(request.getAnalysisRequestId()))
+                .isPresent()
+                .get()
+                .extracting(AnalysisRequest::getStatus)
+                .isEqualTo(AnalysisStatus.FAILED);
     }
 
     @Test
@@ -492,7 +570,8 @@ class EvidenceControllerTest {
                 "locked test".getBytes()
         );
 
-        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+                        .param("caseName", "취소 불가 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -501,7 +580,7 @@ class EvidenceControllerTest {
 
         long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -512,7 +591,7 @@ class EvidenceControllerTest {
                                 """.formatted(evidenceId)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/api/evidences/{evidenceId}", evidenceId)
+        mockMvc.perform(delete("/api/v1/evidences/{evidenceId}", evidenceId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("ANALYSIS_ALREADY_STARTED"));
@@ -530,7 +609,8 @@ class EvidenceControllerTest {
                 "sample wav bytes".getBytes(StandardCharsets.UTF_8)
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+                        .param("caseName", "해시 저장 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue").value(org.hamcrest.Matchers.matchesRegex("[0-9a-f]{64}")));
@@ -552,7 +632,7 @@ class EvidenceControllerTest {
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
 
-        String responseBody = mockMvc.perform(multipart("/api/evidences/upload")
+        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
                         .param("caseName", caseName)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
@@ -607,6 +687,46 @@ class EvidenceControllerTest {
     }
 
     @Test
+    @DisplayName("증거 상세 API는 프론트 상세 페이지가 사용하는 필드를 포함한다")
+    void getEvidenceDetail_returnsFrontendCompatibleFields() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "detail-page.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "detail page image bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String caseName = "상세 페이지 연동 사건";
+
+        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(evidenceId))
+                .andExpect(jsonPath("$.evidenceInfo.fileName").value("detail-page.jpg"))
+                .andExpect(jsonPath("$.evidenceInfo.caseName").value(caseName))
+                .andExpect(jsonPath("$.evidenceInfo.mediaType").value("IMAGE"))
+                .andExpect(jsonPath("$.evidenceInfo.fileType").value("IMAGE"))
+                .andExpect(jsonPath("$.evidenceInfo.technicalMetadata.extractionStatus").isString())
+                .andExpect(jsonPath("$.integrityInfo.chainValid").isBoolean())
+                .andExpect(jsonPath("$.integrityInfo.isChainValid").isBoolean())
+                .andExpect(jsonPath("$.analysisInfo.status").value("PENDING"))
+                .andExpect(jsonPath("$.analysisInfo.moduleResults").isArray())
+                .andExpect(jsonPath("$.analysisInfo.moduleResults").isEmpty())
+                .andExpect(jsonPath("$.cocLogs").isArray())
+                .andExpect(jsonPath("$.cocLogs").isNotEmpty());
+    }
+
+    @Test
     @DisplayName("분석 요청 성공 시 ANALYSIS_REQUESTED CoC 로그를 저장하고 중복 요청에는 추가하지 않는다")
     void startAnalysis_success_recordsAnalysisRequestedCustodyLog() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
@@ -617,8 +737,9 @@ class EvidenceControllerTest {
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
 
-        String uploadResponseBody = mockMvc.perform(multipart("/api/evidences/upload")
+        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
+                        .param("caseName", caseName)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -630,7 +751,7 @@ class EvidenceControllerTest {
         List<CustodyLog> uploadLogs = custodyLogRepository
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -674,7 +795,7 @@ class EvidenceControllerTest {
         assertThat(payload.get("queueRegistered").asBoolean()).isTrue();
         assertThat(payload.get("queueName").asText()).isEqualTo("forenshield.analysis.queue");
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -714,8 +835,9 @@ class EvidenceControllerTest {
         );
         String caseName = "2026-서울-0456 큐 등록 실패 사건";
 
-        String uploadResponseBody = mockMvc.perform(multipart("/api/evidences/upload")
+        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
+                        .param("caseName", caseName)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -725,7 +847,7 @@ class EvidenceControllerTest {
         long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
         Evidence evidence = evidenceRepository.findById(evidenceId).orElseThrow();
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -790,5 +912,33 @@ class EvidenceControllerTest {
         int start = index + "\"hashValue\":\"".length();
         int end = responseBody.indexOf('"', start);
         return responseBody.substring(start, end);
+    }
+
+    private Evidence saveEvidenceForCancelPolicy(User user, String fileName) {
+        return evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName(fileName)
+                .fileType(FileType.IMAGE)
+                .mimeType("image/jpeg")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("b".repeat(64))
+                .originalStoragePath("original/" + fileName)
+                .uploadedAt(LocalDateTime.now())
+                .build());
+    }
+
+    private AnalysisRequest saveAnalysisRequestForCancelPolicy(
+            Evidence evidence,
+            User user,
+            AnalysisStatus status
+    ) {
+        AnalysisRequest request = new AnalysisRequest();
+        request.setEvidenceId(evidence.getEvidenceId());
+        request.setRequestedBy(user.getUserId());
+        request.setStatus(status);
+        request.setRequestedAt(LocalDateTime.now());
+        request.setProgressPercent(status == AnalysisStatus.COMPLETED ? 100 : 0);
+        return analysisRequestRepository.save(request);
     }
 }
