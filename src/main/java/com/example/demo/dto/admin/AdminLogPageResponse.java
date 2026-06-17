@@ -9,9 +9,10 @@ import java.util.List;
 @Builder
 public class AdminLogPageResponse {
 
-    private List<AdminLogItemResponse> items;
-    private long total;
+    private List<AdminLogItemResponse> content;
     private int page;
     private int size;
+    private long totalElements;
+    private int totalPages;
     private List<String> departments;
 }

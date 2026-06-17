@@ -1,15 +1,11 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.AnalysisStatusResponse;
-import com.example.demo.dto.ErrorResponse;
 import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
-import com.example.demo.exception.FileSizeExceededException;
-import com.example.demo.exception.HashGenerationException;
-import com.example.demo.exception.UnsupportedFileTypeException;
 import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.AnalysisCancelService;
 import com.example.demo.service.AnalysisService;
@@ -22,7 +18,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,7 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Evidence", description = "증거 관련 API")
 @RestController
-@RequestMapping("/api/evidences")
+@RequestMapping({"/api/v1/evidences", "/api/evidences"})
 @RequiredArgsConstructor
 public class EvidenceController {
 
@@ -50,223 +45,81 @@ public class EvidenceController {
     private final AnalysisStatusService analysisStatusService;
     private final AuthUserResolver authUserResolver;
 
-    @Operation(summary = "미디어별 분석 건수", description = "로그인 사용자의 분석 시작(요청) 건수를 조회합니다.")
+    @Operation(summary = "대시보드 통계", description = "RQ-DSH-043: 총 분석·딥페이크 탐지·완료·처리 중 건수를 조회합니다.")
     @GetMapping("/stats")
-    public ResponseEntity<EvidenceStatsResponse> stats() {
-        return ResponseEntity.ok(evidenceStatsService.getMediaStats(
+    public EvidenceStatsResponse stats() {
+        return evidenceStatsService.getDashboardStats(
                 authUserResolver.requireCurrentUser().getUserId()
-        ));
+        );
     }
 
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> upload(
+    public FileUploadResponse upload(
             @Parameter(description = "업로드할 파일") @RequestParam("file") MultipartFile file,
             @Parameter(description = "사건명") @RequestParam(value = "caseName", required = false) String caseName
     ) {
-        try {
-            FileUploadResponse response = fileService.upload(
-                    file,
-                    caseName,
-                    authUserResolver.requireCurrentUser().getUserId()
-            );
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            String errorCode = "INVALID_REQUEST";
-            if ("FILE_NOT_FOUND".equals(e.getMessage()) || "업로드된 파일이 없습니다.".equals(e.getMessage())) {
-                errorCode = "FILE_NOT_FOUND";
-            }
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode(errorCode)
-                            .message(e.getMessage())
-                            .build());
-        } catch (UnsupportedFileTypeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("UNSUPPORTED_FILE_TYPE")
-                            .message(e.getMessage())
-                            .build());
-        } catch (FileSizeExceededException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("FILE_SIZE_EXCEEDED")
-                            .message(e.getMessage())
-                            .build());
-        } catch (HashGenerationException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("HASH_GENERATION_FAILED")
-                            .message(e.getMessage())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("FILE_UPLOAD_FAILED")
-                            .message("파일 업로드에 실패했습니다.")
-                            .build());
-        }
+        return fileService.upload(
+                file,
+                caseName,
+                authUserResolver.requireCurrentUser().getUserId()
+        );
     }
 
     @Operation(summary = "업로드 취소", description = "분석 시작 전 업로드된 증거를 취소하고 DB·S3에서 삭제합니다.")
     @DeleteMapping("/{evidenceId}")
-    public ResponseEntity<?> cancelUpload(@PathVariable Long evidenceId) {
-        try {
-            evidenceCancelService.cancelUpload(
-                    authUserResolver.requireCurrentUser(),
-                    evidenceId
-            );
-            return ResponseEntity.noContent().build();
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("EVIDENCE_NOT_FOUND")
-                            .message(e.getMessage())
-                            .build());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("ANALYSIS_ALREADY_STARTED")
-                            .message(e.getMessage())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("EVIDENCE_CANCEL_FAILED")
-                            .message("업로드 취소에 실패했습니다.")
-                            .build());
-        }
+    public ResponseEntity<Void> cancelUpload(@PathVariable Long evidenceId) {
+        evidenceCancelService.cancelUpload(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "분석 상태 조회", description = "증거의 큐 대기·진행·완료 상태와 진행률을 조회합니다.")
     @GetMapping("/{evidenceId}/analysis-status")
-    public ResponseEntity<?> getAnalysisStatus(@PathVariable Long evidenceId) {
-        try {
-            AnalysisStatusResponse response = analysisStatusService.getStatus(
-                    authUserResolver.requireCurrentUser(),
-                    evidenceId
-            );
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("ANALYSIS_NOT_FOUND")
-                            .message(e.getMessage())
-                            .build());
-        }
+    public AnalysisStatusResponse getAnalysisStatus(@PathVariable Long evidenceId) {
+        return analysisStatusService.getStatus(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
     }
 
     @Operation(summary = "증거 초기화", description = "메인 화면 초기화 시 증거와 연결된 분석 요청을 모두 삭제하고 DB·S3에서 제거합니다.")
     @DeleteMapping("/{evidenceId}/reset")
-    public ResponseEntity<?> resetEvidence(@PathVariable Long evidenceId) {
-        try {
-            evidenceCancelService.resetEvidence(
-                    authUserResolver.requireCurrentUser(),
-                    evidenceId
-            );
-            return ResponseEntity.noContent().build();
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("EVIDENCE_NOT_FOUND")
-                            .message(e.getMessage())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("EVIDENCE_RESET_FAILED")
-                            .message("증거 초기화에 실패했습니다.")
-                            .build());
-        }
+    public ResponseEntity<Void> resetEvidence(@PathVariable Long evidenceId) {
+        evidenceCancelService.resetEvidence(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "분석 중단", description = "대기·진행 중인 분석 작업만 중단합니다. 원본 증거는 DB·S3에 유지됩니다.")
     @DeleteMapping("/{evidenceId}/analysis")
-    public ResponseEntity<?> cancelAnalysis(@PathVariable Long evidenceId) {
-        try {
-            analysisCancelService.cancelAnalysis(
-                    authUserResolver.requireCurrentUser(),
-                    evidenceId
-            );
-            return ResponseEntity.noContent().build();
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("EVIDENCE_NOT_FOUND")
-                            .message(e.getMessage())
-                            .build());
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("ANALYSIS_NOT_CANCELABLE")
-                            .message(e.getMessage())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("ANALYSIS_CANCEL_FAILED")
-                            .message("분석 중단에 실패했습니다.")
-                            .build());
-        }
+    public ResponseEntity<Void> cancelAnalysis(@PathVariable Long evidenceId) {
+        analysisCancelService.cancelAnalysis(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "증거 상세", description = "증거 ID로 상세 분석·메타데이터·무결성 정보를 조회합니다.")
     @GetMapping("/{evidenceId}/detail")
-    public ResponseEntity<?> getEvidenceDetail(@PathVariable Long evidenceId) {
-        try {
-            EvidenceDetailResponse response = evidenceDetailService.getEvidenceDetail(
-                    authUserResolver.requireCurrentUser(),
-                    evidenceId
-            );
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("EVIDENCE_NOT_FOUND")
-                            .message(e.getMessage())
-                            .build());
-        }
+    public EvidenceDetailResponse getEvidenceDetail(@PathVariable Long evidenceId) {
+        return evidenceDetailService.getEvidenceDetail(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
     }
 
-    @Operation(summary = "분석 시작", description = "업로드된 증거에 대한 분석을 요청합니다. 사건명은 필수입니다.")
+    @Operation(summary = "분석 시작", description = "업로드된 증거에 대한 분석을 요청합니다. evidenceId(단건) 또는 evidenceIds(복수) 중 하나를 사용합니다.")
     @PostMapping("/analyze")
-    public ResponseEntity<?> startAnalysis(@RequestBody StartAnalysisRequest request) {
-        try {
-            StartAnalysisResponse response = analysisService.startAnalysis(
-                    authUserResolver.requireCurrentUser(),
-                    request.getEvidenceIds(),
-                    request.getCaseName()
-            );
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("INVALID_REQUEST")
-                            .message(e.getMessage())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.builder()
-                            .success(false)
-                            .errorCode("ANALYSIS_START_FAILED")
-                            .message("분석 요청에 실패했습니다.")
-                            .build());
-        }
+    public StartAnalysisResponse startAnalysis(@RequestBody StartAnalysisRequest request) {
+        return analysisService.startAnalysis(
+                authUserResolver.requireCurrentUser(),
+                request
+        );
     }
 }

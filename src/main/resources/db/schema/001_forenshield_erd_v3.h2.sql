@@ -1,6 +1,6 @@
 -- =============================================================================
 -- ForenShield AI — ERD v3 H2 DDL (로컬 개발용)
--- Reference: backend/docs/ERD_SPECIFICATION.md
+-- Reference: backend/docs/database/erd.md
 -- H2 URL: jdbc:h2:file:./data/demo;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
 --
 -- JPA ddl-auto: update 가 엔티티 기준으로 테이블을 생성/갱신합니다.

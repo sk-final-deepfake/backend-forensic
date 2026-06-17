@@ -112,7 +112,7 @@ class EvidenceControllerTest {
                 "Hello, World!".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file))
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
     }
@@ -126,7 +126,7 @@ class EvidenceControllerTest {
                 "Hello, World!".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -149,7 +149,7 @@ class EvidenceControllerTest {
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
 
-        mockMvc.perform(multipart("/api/evidences/upload")
+        mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
                         .param("caseName", caseName)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
@@ -170,7 +170,7 @@ class EvidenceControllerTest {
                 new byte[0]
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
@@ -187,7 +187,7 @@ class EvidenceControllerTest {
                 "fake-image-data".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -204,7 +204,7 @@ class EvidenceControllerTest {
                 "not-a-video".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -223,7 +223,7 @@ class EvidenceControllerTest {
                 content
         );
 
-        String firstResponse = mockMvc.perform(multipart("/api/evidences/upload").file(sampleFile)
+        String firstResponse = mockMvc.perform(multipart("/api/v1/evidences/upload").file(sampleFile)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
@@ -240,7 +240,7 @@ class EvidenceControllerTest {
                 content
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(sameFileAgain)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(sameFileAgain)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue").value(firstHash));
@@ -259,7 +259,7 @@ class EvidenceControllerTest {
                 originalContent
         );
 
-        String originalResponse = mockMvc.perform(multipart("/api/evidences/upload").file(originalFile)
+        String originalResponse = mockMvc.perform(multipart("/api/v1/evidences/upload").file(originalFile)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -273,7 +273,7 @@ class EvidenceControllerTest {
                 modifiedContent
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(modifiedFile)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(modifiedFile)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue", not(extractHashValue(originalResponse))));
@@ -301,21 +301,22 @@ class EvidenceControllerTest {
                 "audio bytes".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(imageFile)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(imageFile)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
-        mockMvc.perform(multipart("/api/evidences/upload").file(videoFile)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(videoFile)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
-        mockMvc.perform(multipart("/api/evidences/upload").file(audioFile)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(audioFile)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
+        mockMvc.perform(get("/api/v1/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageCount").value(0))
-                .andExpect(jsonPath("$.videoCount").value(0))
-                .andExpect(jsonPath("$.audioCount").value(0));
+                .andExpect(jsonPath("$.totalAnalysisCount").value(0))
+                .andExpect(jsonPath("$.deepfakeDetectedCount").value(0))
+                .andExpect(jsonPath("$.completedCount").value(0))
+                .andExpect(jsonPath("$.inProgressCount").value(0));
 
         long imageEvidenceId = evidenceRepository.findAll().stream()
                 .filter(evidence -> evidence.getFileName().equals("photo.jpg"))
@@ -333,7 +334,7 @@ class EvidenceControllerTest {
                 .orElseThrow()
                 .getEvidenceId();
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -346,11 +347,12 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.startedCount").value(3));
 
-        mockMvc.perform(get("/api/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
+        mockMvc.perform(get("/api/v1/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageCount").value(1))
-                .andExpect(jsonPath("$.videoCount").value(1))
-                .andExpect(jsonPath("$.audioCount").value(1));
+                .andExpect(jsonPath("$.totalAnalysisCount").value(3))
+                .andExpect(jsonPath("$.deepfakeDetectedCount").value(0))
+                .andExpect(jsonPath("$.completedCount").value(0))
+                .andExpect(jsonPath("$.inProgressCount").value(3));
     }
 
     @Test
@@ -363,7 +365,7 @@ class EvidenceControllerTest {
                 "analyze test".getBytes()
         );
 
-        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -372,7 +374,7 @@ class EvidenceControllerTest {
 
         long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -394,7 +396,7 @@ class EvidenceControllerTest {
                 "cancel test".getBytes()
         );
 
-        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -403,7 +405,7 @@ class EvidenceControllerTest {
 
         long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
 
-        mockMvc.perform(delete("/api/evidences/{evidenceId}", evidenceId)
+        mockMvc.perform(delete("/api/v1/evidences/{evidenceId}", evidenceId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isNoContent());
 
@@ -429,7 +431,7 @@ class EvidenceControllerTest {
                 .build());
         long evidenceId = queuedEvidence.getEvidenceId();
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -440,7 +442,7 @@ class EvidenceControllerTest {
                                 """.formatted(evidenceId)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/api/evidences/{evidenceId}/analysis", evidenceId)
+        mockMvc.perform(delete("/api/v1/evidences/{evidenceId}/analysis", evidenceId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isNoContent());
 
@@ -460,7 +462,7 @@ class EvidenceControllerTest {
                 "locked test".getBytes()
         );
 
-        String responseBody = mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -469,7 +471,7 @@ class EvidenceControllerTest {
 
         long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
 
-        mockMvc.perform(post("/api/evidences/analyze")
+        mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -480,7 +482,7 @@ class EvidenceControllerTest {
                                 """.formatted(evidenceId)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/api/evidences/{evidenceId}", evidenceId)
+        mockMvc.perform(delete("/api/v1/evidences/{evidenceId}", evidenceId)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("ANALYSIS_ALREADY_STARTED"));
@@ -498,7 +500,7 @@ class EvidenceControllerTest {
                 "sample wav bytes".getBytes(StandardCharsets.UTF_8)
         );
 
-        mockMvc.perform(multipart("/api/evidences/upload").file(file)
+        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hashValue").value(org.hamcrest.Matchers.matchesRegex("[0-9a-f]{64}")));

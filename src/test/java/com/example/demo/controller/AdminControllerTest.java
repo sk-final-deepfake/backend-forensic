@@ -128,8 +128,8 @@ class AdminControllerTest {
         mockMvc.perform(get("/api/v1/admin/users")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(3))
-                .andExpect(jsonPath("$.items[0].username").exists());
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.content[0].username").exists());
     }
 
     @Test
@@ -202,9 +202,9 @@ class AdminControllerTest {
         mockMvc.perform(get("/api/v1/admin/logs")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(1))
-                .andExpect(jsonPath("$.items[0].category").value("ADMIN"))
-                .andExpect(jsonPath("$.items[0].action").value("가입 승인"));
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].category").value("ADMIN"))
+                .andExpect(jsonPath("$.content[0].action").value("가입 승인"));
     }
 
     @Test
