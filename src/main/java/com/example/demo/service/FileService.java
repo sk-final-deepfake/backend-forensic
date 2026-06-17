@@ -4,12 +4,14 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.dto.ValidatedFile;
+import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.repository.EvidenceRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -70,7 +72,8 @@ public class FileService {
     @Transactional
     public FileUploadResponse upload(MultipartFile file, String caseName, Long uploaderId) {
         if (caseName == null || caseName.isBlank()) {
-            throw new IllegalArgumentException("사건명을 입력해 주세요.");
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명을 입력해 주세요.");
         }
 
         String trimmedCaseName = caseName.trim();
@@ -140,7 +143,7 @@ public class FileService {
             throw e;
         } catch (Exception e) {
             log.error("FileUpload Error: ", e);
-            throw new RuntimeException("FILE_UPLOAD_FAILED");
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "FILE_UPLOAD_FAILED", "파일 업로드에 실패했습니다.");
         }
     }
 

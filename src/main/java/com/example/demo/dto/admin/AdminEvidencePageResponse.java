@@ -9,8 +9,9 @@ import java.util.List;
 @Builder
 public class AdminEvidencePageResponse {
 
-    private List<AdminEvidenceItemResponse> items;
-    private long total;
+    private List<AdminEvidenceItemResponse> content;
     private int page;
     private int size;
+    private long totalElements;
+    private int totalPages;
 }

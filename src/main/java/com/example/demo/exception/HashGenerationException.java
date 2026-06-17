@@ -1,12 +1,15 @@
 package com.example.demo.exception;
 
-public class HashGenerationException extends RuntimeException {
+import org.springframework.http.HttpStatus;
 
-	public HashGenerationException(String message) {
-		super(message);
-	}
+public class HashGenerationException extends BusinessException {
 
-	public HashGenerationException(String message, Throwable cause) {
-		super(message, cause);
-	}
+    public HashGenerationException(String message) {
+        super(HttpStatus.INTERNAL_SERVER_ERROR, "HASH_GENERATION_FAILED", message);
+    }
+
+    public HashGenerationException(String message, Throwable cause) {
+        super(HttpStatus.INTERNAL_SERVER_ERROR, "HASH_GENERATION_FAILED", message);
+        initCause(cause);
+    }
 }
