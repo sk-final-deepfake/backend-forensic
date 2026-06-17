@@ -1,5 +1,8 @@
 package com.example.demo.exception;
 
+import com.example.demo.dto.StandardErrorResponse;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -7,57 +10,112 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(AuthException.class)
-    public ResponseEntity<Map<String, Object>> handleAuthException(AuthException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("message", ex.getMessage());
-        return ResponseEntity.status(ex.getStatus()).body(body);
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<StandardErrorResponse> handleBusinessException(BusinessException ex) {
+        return ResponseEntity.status(ex.getStatus()).body(toErrorResponse(ex));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("errorCode", "FORBIDDEN");
-        body.put("message", "관리자 권한이 필요합니다.");
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
-    }
-
-    @ExceptionHandler(AdminException.class)
-    public ResponseEntity<Map<String, Object>> handleAdminException(AdminException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("errorCode", ex.getErrorCode());
-        body.put("message", ex.getMessage());
-        return ResponseEntity.status(ex.getStatus()).body(body);
+    public ResponseEntity<StandardErrorResponse> handleAccessDenied() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("FORBIDDEN")
+                        .message("관리자 권한이 필요합니다.")
+                        .build()
+        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getFieldErrors().stream()
-                .findFirst()
-                .map(FieldError::getDefaultMessage)
-                .orElse("요청 값이 올바르지 않습니다.");
+    public ResponseEntity<StandardErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+        List<StandardErrorResponse.FieldErrorDetail> details = ex.getBindingResult()
+                .getAllErrors()
+                .stream()
+                .map(error -> StandardErrorResponse.FieldErrorDetail.builder()
+                        .field(error instanceof FieldError fieldError ? fieldError.getField() : error.getObjectName())
+                        .reason(error.getDefaultMessage())
+                        .build())
+                .toList();
 
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("message", message);
-        return ResponseEntity.badRequest().body(body);
+        return ResponseEntity.badRequest().body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("VALIDATION_ERROR")
+                        .message("입력값을 확인해주세요.")
+                        .details(details)
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<StandardErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        List<StandardErrorResponse.FieldErrorDetail> details = ex.getConstraintViolations()
+                .stream()
+                .map(this::toFieldErrorDetail)
+                .toList();
+
+        return ResponseEntity.badRequest().body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("VALIDATION_ERROR")
+                        .message("입력값을 확인해주세요.")
+                        .details(details)
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<StandardErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest().body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("VALIDATION_ERROR")
+                        .message("요청 값이 올바르지 않습니다.")
+                        .build()
+        );
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleUnexpected(Exception ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("message", "서버 오류가 발생했습니다.");
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    public ResponseEntity<StandardErrorResponse> handleUnexpected(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("INTERNAL_ERROR")
+                        .message("서버 오류가 발생했습니다.")
+                        .build()
+        );
+    }
+
+    private StandardErrorResponse toErrorResponse(BusinessException ex) {
+        StandardErrorResponse.StandardErrorResponseBuilder builder = StandardErrorResponse.builder()
+                .success(false)
+                .errorCode(ex.getErrorCode())
+                .message(ex.getMessage());
+
+        if (!ex.getDetails().isEmpty()) {
+            builder.details(ex.getDetails());
+        }
+        return builder.build();
+    }
+
+    private StandardErrorResponse.FieldErrorDetail toFieldErrorDetail(ConstraintViolation<?> violation) {
+        String field = violation.getPropertyPath() == null
+                ? "request"
+                : violation.getPropertyPath().toString();
+        int lastDot = field.lastIndexOf('.');
+        if (lastDot >= 0) {
+            field = field.substring(lastDot + 1);
+        }
+        return StandardErrorResponse.FieldErrorDetail.builder()
+                .field(field)
+                .reason(violation.getMessage())
+                .build();
     }
 }

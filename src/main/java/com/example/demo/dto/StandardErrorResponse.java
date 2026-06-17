@@ -1,5 +1,6 @@
-package com.example.demo.dto.api;
+package com.example.demo.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -7,9 +8,11 @@ import java.util.List;
 
 @Getter
 @Builder
-public class ApiErrorResponse {
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
+public class StandardErrorResponse {
 
-    private String error;
+    private boolean success;
+    private String errorCode;
     private String message;
     private List<FieldErrorDetail> details;
 
