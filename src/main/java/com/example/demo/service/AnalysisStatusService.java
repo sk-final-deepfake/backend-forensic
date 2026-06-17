@@ -7,7 +7,9 @@ import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,11 +24,13 @@ public class AnalysisStatusService {
     public AnalysisStatusResponse getStatus(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("증거를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "ANALYSIS_NOT_FOUND", "증거를 찾을 수 없습니다."));
 
         AnalysisRequest request = analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
-                .orElseThrow(() -> new IllegalArgumentException("분석 요청을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "ANALYSIS_NOT_FOUND", "분석 요청을 찾을 수 없습니다."));
 
         return AnalysisStatusResponse.builder()
                 .evidenceId(evidence.getEvidenceId())

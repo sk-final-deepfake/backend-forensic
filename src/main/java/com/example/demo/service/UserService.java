@@ -3,8 +3,10 @@ package com.example.demo.service;
 import com.example.demo.domain.User;
 import com.example.demo.dto.user.UpdateUserProfileRequest;
 import com.example.demo.dto.user.UserProfileResponse;
+import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,21 +30,24 @@ public class UserService {
 
 	public UserProfileResponse updateProfile(User user, UpdateUserProfileRequest request) {
 		User managedUser = userRepository.findById(user.getUserId())
-				.orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND"));
+				.orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "NOT_FOUND", "사용자를 찾을 수 없습니다."));
 
 		if (!passwordEncoder.matches(request.getCurrentPassword(), managedUser.getPassword())) {
-			throw new IllegalArgumentException("INVALID_PASSWORD");
+			throw new BusinessException(
+					HttpStatus.BAD_REQUEST, "INVALID_PASSWORD", "현재 비밀번호가 일치하지 않습니다.");
 		}
 
 		if (userRepository.existsByLoginIdAndUserIdNotAndDeletedAtIsNull(request.getLoginId(), managedUser.getUserId())) {
-			throw new IllegalArgumentException("DUPLICATE_LOGIN_ID");
+			throw new BusinessException(
+					HttpStatus.BAD_REQUEST, "DUPLICATE_LOGIN_ID", "이미 사용 중인 사용자 이름입니다.");
 		}
 
 		managedUser.updateProfile(request.getLoginId(), request.getDepartment());
 
 		if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
 			if (request.getNewPassword().length() < 8) {
-				throw new IllegalArgumentException("PASSWORD_TOO_SHORT");
+				throw new BusinessException(
+						HttpStatus.BAD_REQUEST, "PASSWORD_TOO_SHORT", "비밀번호는 최소 8자 이상이어야 합니다.");
 			}
 			managedUser.updatePassword(passwordEncoder.encode(request.getNewPassword()));
 		}

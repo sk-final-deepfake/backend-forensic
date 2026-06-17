@@ -99,7 +99,7 @@ class SignupControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(signupJson("kimminhee", "kim@example.go.kr", "VF-SECOND-0002")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("DUPLICATE_RESOURCE"))
+                .andExpect(jsonPath("$.errorCode").value("DUPLICATE_LOGIN_ID"))
                 .andExpect(jsonPath("$.details[0].field").value("loginId"));
     }
 
@@ -111,7 +111,7 @@ class SignupControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(signupJson("kimminhee", "kim@example.go.kr", "Password123", "VF-A3K9-7M2P")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.details[0].field").value("password"));
     }
 
@@ -180,7 +180,7 @@ class SignupControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.error").value("RATE_LIMIT_EXCEEDED"))
+                .andExpect(jsonPath("$.errorCode").value("RATE_LIMIT_EXCEEDED"))
                 .andExpect(jsonPath("$.message").value("요청이 너무 많습니다. 잠시 후 다시 시도해주세요."));
     }
 
