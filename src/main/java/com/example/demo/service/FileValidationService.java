@@ -2,8 +2,10 @@ package com.example.demo.service;
 
 import com.example.demo.domain.enums.FileType;
 import com.example.demo.dto.ValidatedFile;
+import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.FileSizeExceededException;
 import com.example.demo.exception.UnsupportedFileTypeException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,12 +36,12 @@ public class FileValidationService {
 
     public ValidatedFile validate(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("업로드된 파일이 없습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "FILE_NOT_FOUND", "업로드된 파일이 없습니다.");
         }
 
         String fileName = file.getOriginalFilename();
         if (fileName == null || fileName.isEmpty()) {
-            throw new IllegalArgumentException("파일명이 존재하지 않습니다.");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "파일명이 존재하지 않습니다.");
         }
 
         String extension = getExtension(fileName);

@@ -375,9 +375,10 @@ class EvidenceControllerTest {
 
         mockMvc.perform(get("/api/v1/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageCount").value(0))
-                .andExpect(jsonPath("$.videoCount").value(0))
-                .andExpect(jsonPath("$.audioCount").value(0));
+                .andExpect(jsonPath("$.totalAnalysisCount").value(0))
+                .andExpect(jsonPath("$.deepfakeDetectedCount").value(0))
+                .andExpect(jsonPath("$.completedCount").value(0))
+                .andExpect(jsonPath("$.inProgressCount").value(0));
 
         long imageEvidenceId = evidenceRepository.findAll().stream()
                 .filter(evidence -> evidence.getFileName().equals("photo.jpg"))
@@ -410,30 +411,27 @@ class EvidenceControllerTest {
 
         mockMvc.perform(get("/api/v1/evidences/stats").header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageCount").value(1))
-                .andExpect(jsonPath("$.videoCount").value(1))
-                .andExpect(jsonPath("$.audioCount").value(1));
+                .andExpect(jsonPath("$.totalAnalysisCount").value(3))
+                .andExpect(jsonPath("$.deepfakeDetectedCount").value(0))
+                .andExpect(jsonPath("$.completedCount").value(0))
+                .andExpect(jsonPath("$.inProgressCount").value(3));
     }
 
     @Test
-    @DisplayName("사건명 없이 분석 시작 요청 시 400을 반환한다")
+    @DisplayName("업로드 시 사건명이 없고 분석 요청에도 사건명이 없으면 400을 반환한다")
     void startAnalysis_withoutCaseName_returnsBadRequest() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "analyze-test.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
-                "analyze test".getBytes()
-        );
-
-        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "분석 시작 검증 테스트")
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        long evidenceId = Long.parseLong(responseBody.replaceAll(".*\"evidenceId\":(\\d+).*", "$1"));
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        Evidence evidence = evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName("analyze-test.jpg")
+                .fileType(FileType.IMAGE)
+                .mimeType("image/jpeg")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("c".repeat(64))
+                .originalStoragePath("original/analyze-test.jpg")
+                .uploadedAt(LocalDateTime.now())
+                .build());
 
         mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
@@ -442,7 +440,7 @@ class EvidenceControllerTest {
                                 {
                                   "evidenceIds": [%d]
                                 }
-                                """.formatted(evidenceId)))
+                                """.formatted(evidence.getEvidenceId())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
     }

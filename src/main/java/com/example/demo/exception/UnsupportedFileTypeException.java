@@ -1,7 +1,10 @@
 package com.example.demo.exception;
 
-public class UnsupportedFileTypeException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class UnsupportedFileTypeException extends BusinessException {
+
     public UnsupportedFileTypeException(String message) {
-        super(message);
+        super(HttpStatus.BAD_REQUEST, "UNSUPPORTED_FILE_TYPE", message);
     }
 }

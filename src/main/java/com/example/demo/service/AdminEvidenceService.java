@@ -69,12 +69,13 @@ public class AdminEvidenceService {
         Map<Long, AnalysisRequest> latestAnalysis = resolveLatestAnalysis(result.getContent());
 
         return AdminEvidencePageResponse.builder()
-                .items(result.getContent().stream()
+                .content(result.getContent().stream()
                         .map(evidence -> toItem(evidence, uploaders, latestAnalysis))
                         .toList())
-                .total(result.getTotalElements())
                 .page(result.getNumber())
                 .size(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages())
                 .build();
     }
 
