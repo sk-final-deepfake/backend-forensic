@@ -50,12 +50,13 @@ public class AdminLogService {
         Map<Long, User> actorsById = resolveActors(result.getContent());
 
         return AdminLogPageResponse.builder()
-                .items(result.getContent().stream()
+                .content(result.getContent().stream()
                         .map(log -> toItem(log, actorsById))
                         .toList())
-                .total(result.getTotalElements())
                 .page(result.getNumber())
                 .size(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages())
                 .departments(userRepository.findDistinctDepartments())
                 .build();
     }
