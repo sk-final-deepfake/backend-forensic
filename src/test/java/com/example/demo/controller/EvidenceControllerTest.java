@@ -947,11 +947,21 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.evidenceInfo.technicalMetadata.extractionStatus").isString())
                 .andExpect(jsonPath("$.integrityInfo.chainValid").isBoolean())
                 .andExpect(jsonPath("$.integrityInfo.isChainValid").isBoolean())
+                .andExpect(jsonPath("$.integrityInfo.recoveryScore").isNumber())
+                .andExpect(jsonPath("$.integrityInfo.dataLossPercent").isNumber())
+                .andExpect(jsonPath("$.integrityInfo.recoveryGrade").isString())
                 .andExpect(jsonPath("$.analysisInfo.status").value("PENDING"))
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isArray())
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isEmpty())
                 .andExpect(jsonPath("$.cocLogs").isArray())
                 .andExpect(jsonPath("$.cocLogs").isNotEmpty());
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/coc/verify", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidenceId").value(evidenceId))
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.logCount").isNumber());
     }
 
     @Test

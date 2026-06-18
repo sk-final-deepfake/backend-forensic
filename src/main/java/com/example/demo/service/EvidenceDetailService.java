@@ -18,6 +18,7 @@ import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.dto.detail.EvidenceInfoDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
 import com.example.demo.dto.detail.ModuleResultDto;
+import com.example.demo.dto.detail.RecoveryScoreDto;
 import com.example.demo.dto.detail.VideoMetadataDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
@@ -52,6 +53,7 @@ public class EvidenceDetailService {
     private final UserRepository userRepository;
     private final CustodyLogService custodyLogService;
     private final BlockchainAnchorService blockchainAnchorService;
+    private final RecoveryScoreService recoveryScoreService;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -70,10 +72,11 @@ public class EvidenceDetailService {
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
 
         boolean isChainValid = custodyLogService.verifyChainIntegrity(CustodyTargetType.EVIDENCE, evidenceId);
+        var recovery = recoveryScoreService.calculate(metadata);
 
         return EvidenceDetailResponse.builder()
                 .evidenceInfo(toEvidenceInfo(evidence, metadata))
-                .integrityInfo(toIntegrityInfo(evidence, isChainValid))
+                .integrityInfo(toIntegrityInfo(evidence, isChainValid, recovery))
                 .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidenceId))
                 .analysisInfo(toAnalysisInfo(request, result))
                 .cocLogs(toCocLogs(custodyLogs))
@@ -160,7 +163,7 @@ public class EvidenceDetailService {
                 .build();
     }
 
-    private IntegrityInfoDto toIntegrityInfo(Evidence evidence, boolean isChainValid) {
+    private IntegrityInfoDto toIntegrityInfo(Evidence evidence, boolean isChainValid, RecoveryScoreDto recovery) {
         return IntegrityInfoDto.builder()
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
@@ -169,6 +172,9 @@ public class EvidenceDetailService {
                 .chainValid(isChainValid)
                 .chainValidAlias(isChainValid)
                 .verificationStatus(isChainValid ? "VERIFIED" : "CORRUPTED")
+                .recoveryScore(recovery.getRecoveryScore())
+                .dataLossPercent(recovery.getDataLossPercent())
+                .recoveryGrade(recovery.getGrade())
                 .build();
     }
 
