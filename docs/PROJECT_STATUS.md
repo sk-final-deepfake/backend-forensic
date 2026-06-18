@@ -1,8 +1,8 @@
 # VeriForensics 프로젝트 진행 상황
 
 > **작성일:** 2026-06-17  
-> **최종 갱신:** 2026-06-17  
-> **기준:** `backend-forensic` 레포 코드 · `docs/` 명세 · `요구사항명세서_최종 (1).xlsx`
+> **최종 갱신:** 2026-06-18  
+> **기준:** `backend-forensic` 레포 **`main` 브랜치** · `docs/` 명세 · `docs/requirements/source/` Excel
 
 ---
 
@@ -37,8 +37,9 @@
 | **요구사항 (RQ)** | 162건 | **약 55~60%** | FE·AI·INF RQ는 타 레포 |
 | **기능 (FN)** | 266건 | **BE FN 약 65%** | RTM 갱신 필요 (아래 §6) |
 | **REST API (BE)** | ~40 엔드포인트 | **핵심 MVP ✅** | PDF·Compare·알림 ⬜ |
-| **팀 문서 (`docs/`)** | 23개 md | **✅ 정비 완료** | [AGENTS.md](./AGENTS.md) 진입점 |
+| **팀 문서 (`docs/`)** | 23개 md + Excel source | **✅ 정비 완료** | [AGENTS.md](./AGENTS.md) 진입점 |
 | **테스트** | 14 test 클래스 | **✅ 전체 통과** | `./gradlew test` |
+| **배포 브랜치** | `main` | **✅ develop 머지 (2026-06-18)** | `develop` → PR/merge → `main` |
 
 ```mermaid
 pie title 백엔드 RQ 영역별 구현 상태 (추정)
@@ -140,16 +141,18 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 
 ---
 
-## 5. 문서·개발 표준 (2026-06-17 완료)
+## 5. 문서·개발 표준 (2026-06-18)
 
 | 항목 | 상태 |
 | :--- | :---: |
 | AI 통합 진입점 [AGENTS.md](./AGENTS.md) | ✅ |
 | 역할별 가이드 `teams/*` | ✅ |
 | RQ 162건 [requirements/index.md](./requirements/index.md) | ✅ |
+| Excel 정본 [requirements/source/](./requirements/source/) | ✅ |
 | API 정본 + Gap [api/specification.md](./api/specification.md) | ✅ |
 | 예외 통일 `BusinessException` + `StandardErrorResponse` | ✅ |
 | Admin 페이지네이션 `content` / `totalElements` | ✅ |
+| `.env` Git 추적 해제 + pre-commit 시크릿 차단 | ✅ |
 | 구버전 md 정리 | ✅ |
 
 ---
@@ -166,7 +169,18 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 
 ---
 
-## 7. 최근 완료 작업 (2026-06-17)
+## 7. 최근 완료 작업
+
+### 2026-06-18 (`develop` → `main`)
+
+| # | 작업 | 영향 |
+| :---: | :--- | :--- |
+| 1 | `feature/backendrule` → `develop` merge | API 정렬 · 문서 · 예외 통일 + develop CoC·분석중단 유지 |
+| 2 | `.env` Git 추적 해제 · pre-commit 시크릿 차단 | 보안 · 재발 방지 |
+| 3 | `develop` → `main` 릴리스 | 운영/배포 기준 브랜치 반영 |
+| 4 | Excel 정본 `requirements/source/` 추가 | 명세 drift 추적 |
+
+### 2026-06-17
 
 | # | 작업 | 영향 |
 | :---: | :--- | :--- |
@@ -230,4 +244,5 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 
 | 날짜 | 작성자 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-18 | — | develop→main 릴리스 · .env 추적 해제 · Excel source · merge 충돌 해결 |
 | 2026-06-17 | — | 초판 — 코드·문서·Gap 분석 기반 진행 상황 |
