@@ -2,6 +2,7 @@ package com.example.demo.repository;
 
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.enums.AnalysisStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -90,5 +91,18 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
             @Param("uploaderId") Long uploaderId,
             @Param("startInclusive") LocalDateTime startInclusive,
             @Param("endExclusive") LocalDateTime endExclusive
+    );
+
+    @Query("""
+            SELECT ar
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE ar.requestedBy = :uploaderId
+              AND e.deletedAt IS NULL
+            ORDER BY ar.requestedAt DESC
+            """)
+    List<AnalysisRequest> findRecentByUploader(
+            @Param("uploaderId") Long uploaderId,
+            Pageable pageable
     );
 }
