@@ -141,5 +141,11 @@ public class Evidence {
         this.copyHashValue = copyHashValue;
         this.copyStatus = CopyStatus.ACTIVE;
         this.copyCreatedAt = LocalDateTime.now();
+        this.copyDeletedAt = null;
+    }
+
+    public void markCopyDeleted() {
+        this.copyStatus = CopyStatus.DELETED;
+        this.copyDeletedAt = LocalDateTime.now();
     }
 }
