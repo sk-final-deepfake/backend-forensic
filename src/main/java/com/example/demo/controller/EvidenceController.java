@@ -4,6 +4,7 @@ import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.dto.AnalysisTrendResponse;
 import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.dto.FileUploadResponse;
+import com.example.demo.dto.RecentAnalysisResponse;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
@@ -67,6 +68,17 @@ public class EvidenceController {
         );
     }
 
+    @Operation(summary = "최근 분석 이력", description = "RQ-DSH-045: 대시보드 위젯용 최근 분석 요청 목록(3~5건)을 조회합니다.")
+    @GetMapping("/stats/recent")
+    public RecentAnalysisResponse recentAnalyses(
+            @Parameter(description = "조회 건수 (3~5, 기본 5)") @RequestParam(defaultValue = "5") int limit
+    ) {
+        return evidenceStatsService.getRecentAnalyses(
+                authUserResolver.requireCurrentUser().getUserId(),
+                limit
+        );
+    }
+
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public FileUploadResponse upload(
@@ -90,7 +102,7 @@ public class EvidenceController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "분석 상태 조회", description = "증거의 큐 대기·진행·완료 상태와 진행률을 조회합니다.")
+    @Operation(summary = "분석 상태 조회", description = "증거의 큐 대기·진행·완료·실패 상태와 진행률을 조회합니다. FAILED 시 errorCode·errorMessage 포함.")
     @GetMapping("/{evidenceId}/analysis-status")
     public AnalysisStatusResponse getAnalysisStatus(@PathVariable Long evidenceId) {
         return analysisStatusService.getStatus(
