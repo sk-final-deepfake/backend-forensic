@@ -24,8 +24,11 @@ public class Report {
     @Column(name = "report_id")
     private Long reportId;
 
-    @Column(name = "analysis_result_id", nullable = false)
+    @Column(name = "analysis_result_id")
     private Long analysisResultId;
+
+    @Column(name = "compare_id")
+    private Long compareId;
 
     @Column(name = "evidence_id", nullable = false)
     private Long evidenceId;

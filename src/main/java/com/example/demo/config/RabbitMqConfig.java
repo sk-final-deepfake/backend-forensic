@@ -18,10 +18,16 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitMqConfig {
 
     public static final String ANALYSIS_QUEUE = "forenshield.analysis.queue";
+    public static final String RESULT_QUEUE = "backend.ai.result.queue";
 
     @Bean
     Queue analysisQueue() {
         return QueueBuilder.durable(ANALYSIS_QUEUE).build();
+    }
+
+    @Bean
+    Queue analysisResultQueue() {
+        return QueueBuilder.durable(RESULT_QUEUE).build();
     }
 
     @Bean

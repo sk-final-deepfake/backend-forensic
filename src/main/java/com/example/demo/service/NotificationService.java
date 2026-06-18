@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.domain.Notification;
+import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.enums.NotificationType;
 import com.example.demo.dto.notification.NotificationDto;
 import com.example.demo.dto.notification.NotificationListResponse;
@@ -70,6 +71,32 @@ public class NotificationService {
                 "분석 실패",
                 fileName + " 분석이 실패했습니다.",
                 REF_EVIDENCE, evidenceId);
+    }
+
+    @Transactional
+    public void notifyBlockchainAnchored(
+            Long userId,
+            Long evidenceId,
+            BlockchainAnchorType anchorType,
+            String transactionHash
+    ) {
+        if (!userSettingsService.isAnalysisNotificationEnabled(userId)) {
+            return;
+        }
+        String label = anchorType == BlockchainAnchorType.REPORT_HASH
+                ? "PDF reportHash"
+                : "원본 해시";
+        create(userId, NotificationType.BLOCKCHAIN_ANCHOR,
+                "블록체인 앵커링 완료",
+                label + "가 블록체인에 등록되었습니다. Tx: " + shorten(transactionHash),
+                REF_EVIDENCE, evidenceId);
+    }
+
+    private String shorten(String transactionHash) {
+        if (transactionHash == null || transactionHash.length() <= 14) {
+            return transactionHash;
+        }
+        return transactionHash.substring(0, 10) + "..." + transactionHash.substring(transactionHash.length() - 4);
     }
 
     private void create(

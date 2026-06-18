@@ -61,6 +61,7 @@ public class CompareController {
         );
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + payload.fileName() + "\"")
+                .header("X-Report-Hash", payload.reportHash())
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(payload.content());
     }
