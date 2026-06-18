@@ -1,6 +1,7 @@
 # VeriForensics 문서 (docs/)
 
-> **진행 상황:** **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** · **AI 진입점:** [AGENTS.md](./AGENTS.md)
+> **진행 상황:** **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** · **AI 진입점:** [AGENTS.md](./AGENTS.md)  
+> **배포 기준 브랜치:** `main` (2026-06-18 — `develop` 머지 반영)
 
 ---
 
@@ -28,10 +29,11 @@ docs/
 │   ├── implementation-standards.md
 │   └── naming.md
 │
-├── requirements/           ← Excel 명세 (Markdown)
+├── requirements/           ← Excel 명세 (Markdown + 원본)
 │   ├── overview.md         ← RQ/FN 체계·영역 지도
 │   ├── index.md            ← RQ 162건 전문
-│   └── traceability.md     ← RQ ↔ FN ↔ 구현 RTM
+│   ├── traceability.md     ← RQ ↔ FN ↔ 구현 RTM
+│   └── source/             ← ★ Excel 정본 (.xlsx)
 │
 ├── api/                    ← REST API
 │   ├── specification.md    ← API 정본 + Gap
@@ -84,10 +86,27 @@ docs/
 
 ## 원본 Excel (정본)
 
-- `요구사항명세서_최종 (1).xlsx` — RQ 162건 → [requirements/index.md](./requirements/index.md)
-- `기능명세서_최종.xlsx` — FN 266건 → Excel FE/BE/AI/INF 시트 + [traceability.md](./requirements/traceability.md)
+레포 내 경로: **`requirements/source/`**
+
+| 파일 | 용도 | Markdown 색인 |
+| :--- | :--- | :--- |
+| `기능명세서_최종.xlsx` | FN 266건 · FE/BE/AI/INF 시트 | [traceability.md](./requirements/traceability.md) |
+| `기능명세서_검토수정.xlsx` | 검토·수정본 (참고) | — |
+| `요구사항명세서_최종 (1).xlsx` | RQ 162건 *(팀 공유본 — 레포 추가 예정)* | [index.md](./requirements/index.md) |
 
 충돌 시: **Excel → ERD → API 문서 → 코드**
+
+---
+
+## Git 브랜치 (백엔드)
+
+| 브랜치 | 용도 |
+| :--- | :--- |
+| `main` | **배포·릴리스 기준** (2026-06-18 `develop` 반영) |
+| `develop` | 통합·스프린트 merge 대상 |
+| `feature/*` | 기능 단위 PR |
+
+시크릿: `.env`는 **커밋 금지** · `.env.example`만 버전 관리 · `scripts/git/pre-commit-block-secrets` 설치 권장
 
 ---
 
@@ -98,15 +117,21 @@ docs/
 3. DB 변경 → `database/erd.md` 먼저  
 4. BE↔AI JSON 변경 → `integrations/ai-json.md`  
 5. PR에 RQ-ID / FN-ID 명시  
+6. 마일스톤 종료 시 [PROJECT_STATUS.md](./PROJECT_STATUS.md) §7·§12 갱신  
 
 ---
 
-## 팀 진행 상태 (2026-06-17)
+## 팀 진행 상태 (2026-06-18)
 
 | 항목 | 상태 |
 | :--- | :---: |
 | 문서 구조·AI 진입점 | ✅ |
 | API v1·stats·analyze·auth errorCode | ✅ |
-| 예외 Handler 통일 | ✅ |
+| 예외 Handler 통일 (`BusinessException`) | ✅ |
 | Admin 페이지네이션 표준 | ✅ |
+| `.env` 추적 해제 · pre-commit | ✅ |
+| `develop` → `main` 릴리스 | ✅ |
+| Excel source (`requirements/source/`) | 🟡 기능명세서 2종 · RQ xlsx 추가 예정 |
 | PDF / Compare / Notifications API | ⬜ | [PROJECT_STATUS.md §8](./PROJECT_STATUS.md) |
+
+**BE RQ 진행 (추정):** 핵심 MVP ✅ · 고급 기능(PDF·Compare·블록체인 등) ⬜ — 상세는 [PROJECT_STATUS.md §2](./PROJECT_STATUS.md)
