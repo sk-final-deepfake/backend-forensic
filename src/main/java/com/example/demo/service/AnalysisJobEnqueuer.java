@@ -1,6 +1,8 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.AnalysisJobMessage;
+
 public interface AnalysisJobEnqueuer {
 
-    void enqueue(Long analysisRequestId, Long evidenceId);
+    void enqueue(AnalysisJobMessage message);
 }

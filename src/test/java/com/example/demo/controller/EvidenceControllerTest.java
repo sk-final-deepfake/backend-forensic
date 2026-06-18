@@ -11,6 +11,7 @@ import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
+import com.example.demo.dto.AnalysisJobMessage;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
@@ -268,7 +269,7 @@ class EvidenceControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.metadata").value("깨짐"))
+                .andExpect(jsonPath("$.metadata.extractionStatus").value("FAILED"))
                 .andExpect(jsonPath("$.hashValue").isString());
     }
 
@@ -791,7 +792,8 @@ class EvidenceControllerTest {
                 .orElseThrow()
                 .getUserId());
         assertThat(log.getSubjectHash()).isEqualTo(evidence.getOriginalHashValue());
-        assertThat(log.getStoragePathAtEvent()).isEqualTo(evidence.getOriginalStoragePath());
+        Evidence evidenceAfterAnalyze = evidenceRepository.findById(evidenceId).orElseThrow();
+        assertThat(log.getStoragePathAtEvent()).isEqualTo(evidenceAfterAnalyze.getCopyStoragePath());
         assertThat(log.getCurrentLogHash()).matches("[0-9a-f]{64}");
         assertThat(log.getPreviousLogHash()).isEqualTo(uploadLogs.get(2).getCurrentLogHash());
 
@@ -802,6 +804,8 @@ class EvidenceControllerTest {
         assertThat(payload.get("caseName").asText()).isEqualTo(caseName);
         assertThat(payload.get("queueRegistered").asBoolean()).isTrue();
         assertThat(payload.get("queueName").asText()).isEqualTo("forenshield.analysis.queue");
+        assertThat(payload.get("fileType").asText()).isEqualTo("video");
+        assertThat(payload.get("filePath").asText()).isEqualTo(evidenceAfterAnalyze.getCopyStoragePath());
 
         mockMvc.perform(post("/api/v1/evidences/analyze")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
@@ -833,7 +837,7 @@ class EvidenceControllerTest {
     void startAnalysis_queuePublishFailure_recordsErrorOccurredCustodyLog() throws Exception {
         doThrow(new RuntimeException("rabbit password=secret token=abc"))
                 .when(analysisJobEnqueuer)
-                .enqueue(any(), any());
+                .enqueue(any(AnalysisJobMessage.class));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",
