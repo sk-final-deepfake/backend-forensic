@@ -70,7 +70,7 @@
 | 환경 설정 | RQ-COM-009 | `GET/PATCH /api/v1/users/me/settings` | ⬜ |
 | 블록체인 앵커 | RQ-REQ-052, DTL-078 | 업로드 시 앵커 + 조회 API | ⬜ |
 | X.509 사본 서명 | RQ-REQ-050 | 업로드 파이프라인 내부 | ⬜ |
-| 대시보드 7일 차트 | RQ-DSH-044 | `GET /api/v1/dashboard/analysis-trend?days=7` | ⬜ |
+| 대시보드 7일 차트 | RQ-DSH-044 | `GET /api/v1/evidences/stats/trend?days=7` | ✅ |
 | 최근 분석 목록 | RQ-DSH-045 | case/history API 확장 또는 전용 | 🟡 부분 (`mypage/analysis-history`) |
 | 로그아웃 | RQ-COM-011 | 클라이언트 sessionStorage 삭제 (서버 API 불필요) | — |
 
@@ -202,6 +202,36 @@
 ```
 
 > 업로드 미디어: **영상(VIDEO)만** 지원.
+
+---
+
+#### GET `/api/v1/evidences/stats/trend`
+
+| | |
+|---|---|
+| **RQ** | RQ-DSH-044 |
+| **Auth** | User |
+
+| Query | Required | Default | 설명 |
+| :--- | :---: | :--- | :--- |
+| `days` | ❌ | `7` | 조회 일수 (1~30). 오늘 포함 과거 N일 |
+
+**Response 200**
+
+```json
+{
+  "days": 7,
+  "points": [
+    { "date": "2026-06-12", "completedCount": 2 },
+    { "date": "2026-06-13", "completedCount": 0 }
+  ]
+}
+```
+
+- `points` 길이 = `days` (시작일~오늘, 일별)
+- `completedCount`: 해당 일 `AnalysisRequest.status = COMPLETED` 이고 `completedAt`이 그 날짜인 건수 (본인 업로드·미삭제 증거만)
+
+**Errors:** `INVALID_REQUEST` (days 범위 초과)
 
 ---
 
