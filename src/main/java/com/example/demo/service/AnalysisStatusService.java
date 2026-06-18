@@ -25,7 +25,7 @@ public class AnalysisStatusService {
         Evidence evidence = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
                 .orElseThrow(() -> new BusinessException(
-                        HttpStatus.NOT_FOUND, "ANALYSIS_NOT_FOUND", "증거를 찾을 수 없습니다."));
+                        HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "증거를 찾을 수 없습니다."));
 
         return analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())

@@ -10,6 +10,8 @@ public class IntegrityInfoDto {
 
     private String hashAlgorithm;
     private String originalHash;
+    private String copyHash;
+    private String copyStatus;
     private boolean chainValid;
     @JsonProperty("isChainValid")
     private boolean chainValidAlias;
