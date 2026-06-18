@@ -137,9 +137,9 @@ payload 예시:
 
 ```json
 {
-  "fileName": "sample.jpg",
-  "fileType": "IMAGE",
-  "mimeType": "image/jpeg",
+  "fileName": "sample.mp4",
+  "fileType": "VIDEO",
+  "mimeType": "video/mp4",
   "fileSize": 12345,
   "caseName": "사건명"
 }

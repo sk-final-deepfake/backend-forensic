@@ -101,13 +101,13 @@ class MyPageControllerTest {
 		Evidence evidence = evidenceRepository.save(Evidence.builder()
 				.uploaderId(testUser.getUserId())
 				.caseName("12121212")
-				.fileName("case-name-only.jpg")
-				.fileType(FileType.IMAGE)
-				.mimeType("image/jpeg")
+				.fileName("case-name-only.mp4")
+				.fileType(FileType.VIDEO)
+				.mimeType("video/mp4")
 				.fileSize(12L)
 				.hashAlgorithm("SHA-256")
 				.originalHashValue("a".repeat(64))
-				.originalStoragePath("uploads/test/case-name-only.jpg")
+				.originalStoragePath("uploads/test/case-name-only.mp4")
 				.uploadedAt(LocalDateTime.now())
 				.build());
 

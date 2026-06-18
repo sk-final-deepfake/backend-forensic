@@ -139,8 +139,8 @@ class EvidenceControllerTest {
     void shouldRejectUnauthorizedUpload() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "test-file.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "test-file.mp4",
+                "video/mp4",
                 "Hello, World!".getBytes()
         );
 
@@ -153,8 +153,8 @@ class EvidenceControllerTest {
     void shouldUploadFile() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "test-file.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "test-file.mp4",
+                "video/mp4",
                 "Hello, World!".getBytes()
         );
 
@@ -164,7 +164,7 @@ class EvidenceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("파일 업로드 완료"))
-                .andExpect(jsonPath("$.fileName").value("test-file.jpg"))
+                .andExpect(jsonPath("$.fileName").value("test-file.mp4"))
                 .andExpect(jsonPath("$.fileSize").value(file.getSize()))
                 .andExpect(jsonPath("$.evidenceId").exists())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
@@ -175,8 +175,8 @@ class EvidenceControllerTest {
     void shouldReturnErrorWhenCaseNameIsBlank() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "no-case-name.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "no-case-name.mp4",
+                "video/mp4",
                 "No Case Name".getBytes()
         );
 
@@ -195,8 +195,8 @@ class EvidenceControllerTest {
     void shouldUploadFileWithCaseName() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "case-test.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "case-test.mp4",
+                "video/mp4",
                 "Case Name Test Data".getBytes()
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
@@ -235,17 +235,17 @@ class EvidenceControllerTest {
     void shouldUploadImageFile() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "test-image.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "test-video.mp4",
+                "video/mp4",
                 "fake-image-data".getBytes()
         );
 
         mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
-                        .param("caseName", "이미지 업로드 테스트")
+                        .param("caseName", "영상 업로드 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.fileName").value("test-image.jpg"))
+                .andExpect(jsonPath("$.fileName").value("test-video.mp4"))
                 .andExpect(jsonPath("$.hashValue").isString());
     }
 
@@ -339,24 +339,24 @@ class EvidenceControllerTest {
     }
 
     @Test
-    @DisplayName("미디어별 분석 건수를 조회할 수 있다")
+    @DisplayName("영상 분석 건수 통계를 조회할 수 있다")
     void shouldReturnMediaStats() throws Exception {
         MockMultipartFile imageFile = new MockMultipartFile(
                 "file",
-                "photo.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "sample-a.mp4",
+                "video/mp4",
                 "image bytes".getBytes()
         );
         MockMultipartFile videoFile = new MockMultipartFile(
                 "file",
-                "clip.mp4",
+                "sample-b.mp4",
                 "video/mp4",
                 "video bytes".getBytes()
         );
         MockMultipartFile audioFile = new MockMultipartFile(
                 "file",
-                "voice.wav",
-                "audio/wav",
+                "sample-c.mp4",
+                "video/mp4",
                 "audio bytes".getBytes()
         );
 
@@ -381,17 +381,17 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.inProgressCount").value(0));
 
         long imageEvidenceId = evidenceRepository.findAll().stream()
-                .filter(evidence -> evidence.getFileName().equals("photo.jpg"))
+                .filter(evidence -> evidence.getFileName().equals("sample-a.mp4"))
                 .findFirst()
                 .orElseThrow()
                 .getEvidenceId();
         long videoEvidenceId = evidenceRepository.findAll().stream()
-                .filter(evidence -> evidence.getFileName().equals("clip.mp4"))
+                .filter(evidence -> evidence.getFileName().equals("sample-b.mp4"))
                 .findFirst()
                 .orElseThrow()
                 .getEvidenceId();
         long audioEvidenceId = evidenceRepository.findAll().stream()
-                .filter(evidence -> evidence.getFileName().equals("voice.wav"))
+                .filter(evidence -> evidence.getFileName().equals("sample-c.mp4"))
                 .findFirst()
                 .orElseThrow()
                 .getEvidenceId();
@@ -423,13 +423,13 @@ class EvidenceControllerTest {
         User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
         Evidence evidence = evidenceRepository.save(Evidence.builder()
                 .uploaderId(user.getUserId())
-                .fileName("analyze-test.jpg")
-                .fileType(FileType.IMAGE)
-                .mimeType("image/jpeg")
+                .fileName("analyze-test.mp4")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
                 .fileSize(100L)
                 .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
                 .originalHashValue("c".repeat(64))
-                .originalStoragePath("original/analyze-test.jpg")
+                .originalStoragePath("original/analyze-test.mp4")
                 .uploadedAt(LocalDateTime.now())
                 .build());
 
@@ -450,8 +450,8 @@ class EvidenceControllerTest {
     void cancelUpload_beforeAnalysis_softDeletesEvidence() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "cancel-me.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "cancel-me.mp4",
+                "video/mp4",
                 "cancel test".getBytes()
         );
 
@@ -480,13 +480,13 @@ class EvidenceControllerTest {
         User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
         Evidence queuedEvidence = evidenceRepository.save(Evidence.builder()
                 .uploaderId(user.getUserId())
-                .fileName("queued.jpg")
-                .fileType(FileType.IMAGE)
-                .mimeType("image/jpeg")
+                .fileName("queued.mp4")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
                 .fileSize(100L)
                 .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
                 .originalHashValue("a".repeat(64))
-                .originalStoragePath("original/queued.jpg")
+                .originalStoragePath("original/queued.mp4")
                 .uploadedAt(LocalDateTime.now())
                 .build());
         long evidenceId = queuedEvidence.getEvidenceId();
@@ -516,7 +516,7 @@ class EvidenceControllerTest {
     @DisplayName("완료된 분석은 중단할 수 없다")
     void cancelAnalysis_whenCompleted_returnsBadRequest() throws Exception {
         User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
-        Evidence evidence = saveEvidenceForCancelPolicy(user, "completed.jpg");
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "completed.mp4");
         AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
                 evidence,
                 user,
@@ -539,7 +539,7 @@ class EvidenceControllerTest {
     @DisplayName("실패한 분석은 중단할 수 없다")
     void cancelAnalysis_whenFailed_returnsBadRequest() throws Exception {
         User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
-        Evidence evidence = saveEvidenceForCancelPolicy(user, "failed.jpg");
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "failed.mp4");
         AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
                 evidence,
                 user,
@@ -563,8 +563,8 @@ class EvidenceControllerTest {
     void cancelUpload_afterAnalysisStarted_returnsBadRequest() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "locked.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "locked.mp4",
+                "video/mp4",
                 "locked test".getBytes()
         );
 
@@ -602,8 +602,8 @@ class EvidenceControllerTest {
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "sample.wav",
-                "audio/wav",
+                "sample.mp4",
+                "video/mp4",
                 "sample wav bytes".getBytes(StandardCharsets.UTF_8)
         );
 
@@ -624,8 +624,8 @@ class EvidenceControllerTest {
     void upload_success_recordsCustodyLogs() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "coc-test.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "coc-test.mp4",
+                "video/mp4",
                 "coc test image bytes".getBytes(StandardCharsets.UTF_8)
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
@@ -666,9 +666,9 @@ class EvidenceControllerTest {
         assertThat(logs.get(2).getPreviousLogHash()).isEqualTo(logs.get(1).getCurrentLogHash());
 
         JsonNode uploadPayload = objectMapper.readTree(logs.get(0).getEventPayloadJson());
-        assertThat(uploadPayload.get("fileName").asText()).isEqualTo("coc-test.jpg");
-        assertThat(uploadPayload.get("fileType").asText()).isEqualTo("IMAGE");
-        assertThat(uploadPayload.get("mimeType").asText()).isEqualTo(MediaType.IMAGE_JPEG_VALUE);
+        assertThat(uploadPayload.get("fileName").asText()).isEqualTo("coc-test.mp4");
+        assertThat(uploadPayload.get("fileType").asText()).isEqualTo("VIDEO");
+        assertThat(uploadPayload.get("mimeType").asText()).isEqualTo("video/mp4");
         assertThat(uploadPayload.get("fileSize").asLong()).isEqualTo(file.getSize());
         assertThat(uploadPayload.get("caseName").asText()).isEqualTo(caseName);
 
@@ -689,8 +689,8 @@ class EvidenceControllerTest {
     void getEvidenceDetail_returnsFrontendCompatibleFields() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "detail-page.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "detail-page.mp4",
+                "video/mp4",
                 "detail page image bytes".getBytes(StandardCharsets.UTF_8)
         );
         String caseName = "상세 페이지 연동 사건";
@@ -710,10 +710,10 @@ class EvidenceControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(evidenceId))
-                .andExpect(jsonPath("$.evidenceInfo.fileName").value("detail-page.jpg"))
+                .andExpect(jsonPath("$.evidenceInfo.fileName").value("detail-page.mp4"))
                 .andExpect(jsonPath("$.evidenceInfo.caseName").value(caseName))
-                .andExpect(jsonPath("$.evidenceInfo.mediaType").value("IMAGE"))
-                .andExpect(jsonPath("$.evidenceInfo.fileType").value("IMAGE"))
+                .andExpect(jsonPath("$.evidenceInfo.mediaType").value("VIDEO"))
+                .andExpect(jsonPath("$.evidenceInfo.fileType").value("VIDEO"))
                 .andExpect(jsonPath("$.evidenceInfo.technicalMetadata.extractionStatus").isString())
                 .andExpect(jsonPath("$.integrityInfo.chainValid").isBoolean())
                 .andExpect(jsonPath("$.integrityInfo.isChainValid").isBoolean())
@@ -729,8 +729,8 @@ class EvidenceControllerTest {
     void startAnalysis_success_recordsAnalysisRequestedCustodyLog() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "analysis-coc.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "analysis-coc.mp4",
+                "video/mp4",
                 "analysis coc image bytes".getBytes(StandardCharsets.UTF_8)
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
@@ -827,8 +827,8 @@ class EvidenceControllerTest {
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "analysis-queue-fail.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
+                "analysis-queue-fail.mp4",
+                "video/mp4",
                 "analysis queue fail bytes".getBytes(StandardCharsets.UTF_8)
         );
         String caseName = "2026-서울-0456 큐 등록 실패 사건";
@@ -916,8 +916,8 @@ class EvidenceControllerTest {
         return evidenceRepository.save(Evidence.builder()
                 .uploaderId(user.getUserId())
                 .fileName(fileName)
-                .fileType(FileType.IMAGE)
-                .mimeType("image/jpeg")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
                 .fileSize(100L)
                 .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
                 .originalHashValue("b".repeat(64))
