@@ -183,24 +183,14 @@
 
 ### 2.3 증거 · 분석 (Legacy prefix `/api/evidences`)
 
-#### GET `/api/evidences/stats`
+#### GET `/api/v1/evidences/stats`
 
 | | |
 |---|---|
-| **RQ** | RQ-DSH-043 (⚠️ 응답 필드 불일치) |
+| **RQ** | RQ-DSH-043 |
 | **Auth** | User |
 
-**Response 200 (현재)**
-
-```json
-{
-  "imageCount": 3,
-  "videoCount": 12,
-  "audioCount": 1
-}
-```
-
-**명세 목표 (RQ-DSH-043, 미구현 필드)**
+**Response 200**
 
 ```json
 {
@@ -210,6 +200,8 @@
   "inProgressCount": 0
 }
 ```
+
+> 업로드 미디어: **영상(VIDEO)만** 지원.
 
 ---
 
@@ -224,9 +216,11 @@
 | Field | Required |
 | :--- | :---: |
 | `file` | ✅ |
-| `caseName` | ❌ |
+| `caseName` | ✅ |
 
 **Response 200:** `FileUploadResponse` (`evidenceId`, `hashValue`, `metadata`, …)
+
+**허용 파일:** 영상 **MP4, MOV** only (`FileValidationService`)
 
 **Errors:** `FILE_NOT_FOUND`, `UNSUPPORTED_FILE_TYPE`, `FILE_SIZE_EXCEEDED`, `HASH_GENERATION_FAILED`
 

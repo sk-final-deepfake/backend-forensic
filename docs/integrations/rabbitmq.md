@@ -1,25 +1,64 @@
-# 🔄 RabbitMQ 분석 파이프라인 설계
+# RabbitMQ 분석 파이프라인
 
-메시지 유실 방지와 효율적인 워크로드 분산을 위한 토픽 기반 메시징 구조입니다.
+> **기준:** `docs/requirements/source/기능명세서_최종.xlsx` · **영상(VIDEO) 분석 전용**  
+> **AI JSON 계약:** [ai-json.md](./ai-json.md)
 
-## 1. Exchange 및 라우팅 구성
+---
+
+## 1. 현재 구현 (backend-forensic)
+
+Spring Boot는 **단일 durable 큐**를 사용합니다.
+
+| 항목 | 값 |
+| :--- | :--- |
+| Queue | `forenshield.analysis.queue` |
+| Config | `RabbitMqConfig.ANALYSIS_QUEUE` |
+| Publisher | `RabbitMqAnalysisJobEnqueuer` |
+| Consumer (dev) | `RabbitMqAnalysisQueueConsumer` |
+| Prefetch | `1` (무거운 영상 분석 1건씩) |
+
+활성 조건: `spring.rabbitmq.host` 설정 시 (`@ConditionalOnExpression`)
+
+---
+
+## 2. 메시지 페이로드
+
+큐 메시지 body는 [ai-json.md §2 Analysis Request](./ai-json.md)를 따릅니다.
+
+- `fileType`은 **`video`만** 허용  
+- 음성·이미지 워커 라우팅 **없음**
+
+---
+
+## 3. 목표 아키텍처 (확장 시)
+
+영상 전용이므로 Topic 라우팅 키도 **video 하나**로 단순화할 수 있습니다.
 
 | 요소 | 이름 | 타입 | 설명 |
 | :--- | :--- | :--- | :--- |
-| **Analysis Exchange** | `ai.analysis.exchange` | Topic | 분석 요청 분배용 |
-| **Result Exchange** | `ai.result.exchange` | Topic | 분석 결과 수집용 |
-| **Dead Letter (DLX)** | `ai.dead.exchange` | Direct | 장애 메시지 격리용 |
+| Analysis Exchange | `ai.analysis.exchange` | Topic | 분석 요청 |
+| Result Exchange | `ai.result.exchange` | Topic | 결과 수집 |
+| Routing Key | `analyze.video` | — | 영상 AI 워커 |
+| Result Queue | `backend.ai.result.queue` | — | BE 결과 수집 |
+| DLX | `ai.dead.exchange` | Direct | 3회 실패 격리 |
 
-### Routing Keys
-*   `analyze.video`: 영상 분석 워커용
-*   `analyze.audio`: 음성 분석 워커용
-*   `analyze.image`: 이미지 분석 워커용
+---
 
-## 2. 메시지 신뢰성 및 소비 정책 (Reliability)
+## 4. 신뢰성
 
-*   **Persistent Messages**: RabbitMQ 재시작 시에도 메시지가 유지되도록 Delivery Mode 2로 설정합니다.
-*   **Prefetch Count (QoS)**: `prefetch_count=1`로 설정하여 AI 워커가 한 번에 한 개의 무거운 분석 작업만 처리하도록 제한합니다.
-*   **Retry Policy**:
-    1. 분석 실패 시 최대 3회 재시도 수행.
-    2. 3회 초과 시 `ai.dead.exchange`로 메시지를 전송하여 분석 불능 상태로 격리(DLX).
-*   **Result Collection**: 모든 워커는 분석 완료 후 결과를 `ai.result.exchange`로 발행하며, 백엔드는 `backend.ai.result.queue` 단일 큐를 통해 이를 수집합니다.
+- **Persistent messages** (delivery mode 2)  
+- **Prefetch 1** — GPU/CPU 부하 분산  
+- **Retry:** 최대 3회 → DLX  
+- **실패 시 BE:** `AnalysisRequest` → `FAILED`, CoC `ERROR_OCCURRED` ([COC_LOG_PROGRESS.md](../COC_LOG_PROGRESS.md))
+
+---
+
+## 5. 명세와의 관계
+
+| 문서 | 내용 |
+| :--- | :--- |
+| RQ-REQ-049 | 비동기 AI 분석 큐 연동 |
+| Excel AI 시트 | 영상 딥페이크·편집 탐지 모듈 |
+| 구버전 초안 | `analyze.audio` / `analyze.image` — **폐기** (스코프: 영상만) |
+
+재생성: Excel·코드 변경 시 본 문서와 `ai-json.md`를 함께 갱신하세요.

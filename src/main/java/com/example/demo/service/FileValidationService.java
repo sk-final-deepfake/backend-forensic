@@ -9,30 +9,22 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class FileValidationService {
 
-    private static final Map<String, List<String>> ALLOWED_EXTENSIONS = Map.of(
-            "IMAGE", Arrays.asList("jpg", "jpeg", "png"),
-            "VIDEO", Arrays.asList("mp4", "mov"),
-            "AUDIO", Arrays.asList("wav", "mp3", "m4a")
+    private static final String VIDEO = FileType.VIDEO.name();
+
+    private static final List<String> ALLOWED_EXTENSIONS = List.of("mp4", "mov");
+
+    private static final List<String> ALLOWED_MIME_TYPES = List.of(
+            "video/mp4",
+            "video/quicktime"
     );
 
-    private static final Map<String, List<String>> ALLOWED_MIME_TYPES = Map.of(
-            "IMAGE", Arrays.asList("image/jpeg", "image/png"),
-            "VIDEO", Arrays.asList("video/mp4", "video/quicktime"),
-            "AUDIO", Arrays.asList("audio/wav", "audio/mpeg", "audio/x-wav", "audio/mp4", "audio/x-m4a")
-    );
-
-    private static final Map<String, Long> MAX_FILE_SIZES = Map.of(
-            "IMAGE", 20 * 1024 * 1024L, // 20MB
-            "VIDEO", 500 * 1024 * 1024L, // 500MB
-            "AUDIO", 100 * 1024 * 1024L // 100MB
-    );
+    private static final long MAX_VIDEO_SIZE = 500L * 1024 * 1024;
 
     public ValidatedFile validate(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -47,16 +39,15 @@ public class FileValidationService {
         String extension = getExtension(fileName);
         String mimeType = file.getContentType();
 
-        String fileTypeName = determineFileType(extension, mimeType);
-        if (fileTypeName == null) {
-            throw new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 이미지, 영상, 음성 파일만 업로드할 수 있습니다.");
+        if (!isSupportedVideo(extension, mimeType)) {
+            throw new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 영상(MP4, MOV) 파일만 업로드할 수 있습니다.");
         }
 
-        validateSize(file.getSize(), fileTypeName);
+        validateSize(file.getSize());
 
         return new ValidatedFile(
                 fileName,
-                FileType.valueOf(fileTypeName),
+                FileType.VIDEO,
                 mimeType,
                 file.getSize()
         );
@@ -67,23 +58,19 @@ public class FileValidationService {
         return (dotIndex == -1) ? "" : fileName.substring(dotIndex + 1).toLowerCase();
     }
 
-    private String determineFileType(String extension, String mimeType) {
-        if (mimeType == null) return null;
-
-        for (Map.Entry<String, List<String>> entry : ALLOWED_EXTENSIONS.entrySet()) {
-            String type = entry.getKey();
-            if (entry.getValue().contains(extension) && ALLOWED_MIME_TYPES.get(type).contains(mimeType)) {
-                return type;
-            }
+    private boolean isSupportedVideo(String extension, String mimeType) {
+        if (mimeType == null) {
+            return false;
         }
-        return null;
+        return ALLOWED_EXTENSIONS.contains(extension) && ALLOWED_MIME_TYPES.contains(mimeType);
     }
 
-    private void validateSize(long size, String fileType) {
-        long maxSize = MAX_FILE_SIZES.get(fileType);
-        if (size > maxSize) {
-            throw new FileSizeExceededException(String.format("%s 파일의 최대 허용 용량은 %dMB입니다.", 
-                    fileType, maxSize / (1024 * 1024)));
+    private void validateSize(long size) {
+        if (size > MAX_VIDEO_SIZE) {
+            throw new FileSizeExceededException(String.format(
+                    "%s 파일의 최대 허용 용량은 %dMB입니다.",
+                    VIDEO,
+                    MAX_VIDEO_SIZE / (1024 * 1024)));
         }
     }
 }

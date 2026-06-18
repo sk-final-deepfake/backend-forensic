@@ -53,9 +53,9 @@ public class DataInitializer implements CommandLineRunner {
         Evidence videoEvidence = seedEvidence(demoUser, "딥페이크 의심 영상.mp4", FileType.VIDEO, "video/mp4", now.minusDays(1));
         seedAnalysisAndLogs(demoUser, videoEvidence, AnalysisStatus.COMPLETED, now.minusDays(1));
 
-        // 4. Evidence 2: 이미지 (분석 중 상태)
-        Evidence imageEvidence = seedEvidence(demoUser, "조작 의심 프로필.jpg", FileType.IMAGE, "image/jpeg", now.minusHours(5));
-        seedAnalysisAndLogs(demoUser, imageEvidence, AnalysisStatus.ANALYZING, now.minusHours(5));
+        // 4. Evidence 2: 영상 (분석 중 상태)
+        Evidence analyzingVideo = seedEvidence(demoUser, "편집 의심 클립.mp4", FileType.VIDEO, "video/mp4", now.minusHours(5));
+        seedAnalysisAndLogs(demoUser, analyzingVideo, AnalysisStatus.ANALYZING, now.minusHours(5));
         
         // 기존 seedCase 로직 보존 (필요 시)
         seedCase(demoUser, "추가 검증 건", AnalysisStatus.QUEUED, now.minusDays(2), 1);

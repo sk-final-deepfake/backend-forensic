@@ -1,8 +1,9 @@
 # 요구사항·기능 명세 개요
 
-> **원본 Excel (정본):**  
-> - `요구사항명세서_최종 (1).xlsx` — **RQ 162건**  
-> - `기능명세서_최종.xlsx` — **FN 266건** (FE/BE/AI/INF 파트별)
+> **원본 Excel (정본):** `docs/requirements/source/`  
+> - `요구사항명세서_최종 (1).xlsx` — **RQ 169건** (자동 추출)  
+> - `기능명세서_최종.xlsx` — **FN** FE/BE/AI/INF 시트  
+> **지원 미디어:** **영상(VIDEO)만** — 음성·이미지 제외
 
 본 폴더의 Markdown은 Excel에서 추출·정리한 **검색용 색인**입니다. Excel과 Markdown이 다르면 **Excel을 따릅니다**.
 
@@ -27,7 +28,7 @@
 | `LOGIN` | 로그인 | ~12 | `POST /api/auth/login` |
 | `SIGNUP` | 회원가입 | ~9 | [signup.md](../api/signup.md) |
 | `DSH` | 메인 대시보드 | ~5 | `GET /api/v1/evidences/stats` |
-| `REQ` | 분석 요청·업로드 | ~6 | `POST .../upload`, `.../analyze` |
+| `REQ` | 분석 요청·업로드 | ~6 | `POST .../upload` (**영상 MP4/MOV**), `.../analyze` |
 | `DTL` | 분석 상세 | ~38 | `GET /api/v1/cases/{id}`, evidence detail |
 | `CMP` | 비교 검증 | ~13 | ⬜ API 미구현 |
 | `HIS` | 분석 이력 | ~2 | `GET /api/v1/mypage/analysis-history` |
@@ -74,10 +75,10 @@ Markdown에는 **RQ 전문**과 **BE RTM**이 포함되어 있습니다. FE/AI/I
 
 ## 5. Excel 갱신 → Markdown 재생성
 
-1. Excel 수정 후 팀 드라이브에 저장  
-2. `requirements/index.md` RQ 표 갱신 (수동 또는 [scripts/README.md](../scripts/README.md) 스크립트)  
-3. `traceability.md` 해당 FN 행 상태 수정  
-4. API/DB 변경 시 [specification.md](../api/specification.md) · [erd.md](../database/erd.md) 동시 수정
+1. Excel 수정 후 `docs/requirements/source/` 저장  
+2. `python scripts/extract_requirements_from_excel.py`  
+3. `python scripts/generate_requirements_markdown.py` → `index.md` · `traceability.md`  
+4. API/DB 변경 시 [specification.md](../api/specification.md) · [erd.md](../database/erd.md) 동시 수정  
 
 ---
 

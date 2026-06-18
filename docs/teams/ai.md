@@ -79,11 +79,11 @@ sequenceDiagram
 
 ## 6. fileType 매핑
 
-| BE Enum | AI JSON |
-| :--- | :--- |
-| `VIDEO` | `video` |
-| `AUDIO` | `audio` |
-| `IMAGE` | `image` |
+| BE Enum | AI JSON | MVP |
+| :--- | :--- | :---: |
+| `VIDEO` | `video` | ✅ |
+
+음성(`audio`)·이미지(`image`) 라우팅·워커는 **사용하지 않음**.
 
 ---
 
