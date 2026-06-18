@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.BlockchainAnchorStatusResponse;
+import com.example.demo.dto.CocChainVerifyResponse;
 import com.example.demo.dto.IntegrityVerifyResponse;
 import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.dto.AnalysisTrendResponse;
@@ -20,6 +21,7 @@ import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
 import com.example.demo.service.BlockchainAnchorService;
+import com.example.demo.service.CocChainVerificationService;
 import com.example.demo.service.IntegrityVerificationService;
 import com.example.demo.service.ReportPdfService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,6 +56,7 @@ public class EvidenceController {
     private final ReportPdfService reportPdfService;
     private final BlockchainAnchorService blockchainAnchorService;
     private final IntegrityVerificationService integrityVerificationService;
+    private final CocChainVerificationService cocChainVerificationService;
     private final AuthUserResolver authUserResolver;
 
     @Operation(summary = "대시보드 통계", description = "RQ-DSH-043: 총 분석·딥페이크 탐지·완료·처리 중 건수를 조회합니다.")
@@ -189,6 +192,15 @@ public class EvidenceController {
                 authUserResolver.requireCurrentUser(),
                 evidenceId,
                 reportHash
+        );
+    }
+
+    @Operation(summary = "CoC 해시 체인 검증", description = "RQ-HIS-107: 증거 감사 로그 해시 체인 무결성 검증")
+    @GetMapping("/{evidenceId}/coc/verify")
+    public CocChainVerifyResponse verifyCocChain(@PathVariable Long evidenceId) {
+        return cocChainVerificationService.verifyEvidenceChain(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
         );
     }
 
