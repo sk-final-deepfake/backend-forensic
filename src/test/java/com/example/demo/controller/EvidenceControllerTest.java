@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
@@ -9,10 +10,12 @@ import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.EvidenceStatus;
 import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.OrgType;
+import com.example.demo.domain.enums.RiskLevel;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.dto.AnalysisJobMessage;
 import com.example.demo.repository.AnalysisRequestRepository;
+import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.service.AnalysisJobEnqueuer;
@@ -74,6 +77,9 @@ class EvidenceControllerTest {
 
     @Autowired
     private AnalysisRequestRepository analysisRequestRepository;
+
+    @Autowired
+    private AnalysisResultRepository analysisResultRepository;
 
     @Autowired
     private CustodyLogRepository custodyLogRepository;
@@ -487,6 +493,118 @@ class EvidenceControllerTest {
     }
 
     @Test
+    @DisplayName("RQ-DSH-045: 최근 분석 이력 위젯을 조회할 수 있다")
+    void shouldReturnRecentAnalyses() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        LocalDateTime now = LocalDateTime.now();
+
+        Evidence newest = evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName("recent-newest.mp4")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("f".repeat(64))
+                .originalStoragePath("original/recent-newest.mp4")
+                .uploadedAt(now)
+                .build());
+        AnalysisRequest newestRequest = analysisRequestRepository.save(
+                completedRequest(newest.getEvidenceId(), user.getUserId(), now));
+        newestRequest.setRequestedAt(now.minusMinutes(1));
+        analysisRequestRepository.save(newestRequest);
+        saveAnalysisResult(newestRequest, 72.5, RiskLevel.HIGH);
+
+        Evidence older = evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName("recent-older.mp4")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("g".repeat(64))
+                .originalStoragePath("original/recent-older.mp4")
+                .uploadedAt(now.minusHours(2))
+                .build());
+        AnalysisRequest olderRequest = analysisRequestRepository.save(
+                completedRequest(older.getEvidenceId(), user.getUserId(), now.minusHours(1)));
+        saveAnalysisResult(olderRequest, 15.0, RiskLevel.LOW);
+
+        Evidence processing = evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName("recent-processing.mp4")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("h".repeat(64))
+                .originalStoragePath("original/recent-processing.mp4")
+                .uploadedAt(now.minusMinutes(30))
+                .build());
+        AnalysisRequest processingRequest = new AnalysisRequest();
+        processingRequest.setEvidenceId(processing.getEvidenceId());
+        processingRequest.setRequestedBy(user.getUserId());
+        processingRequest.setStatus(AnalysisStatus.ANALYZING);
+        processingRequest.setRequestedAt(now.minusMinutes(10));
+        processingRequest.setStartedAt(now.minusMinutes(5));
+        processingRequest.setProgressPercent(40);
+        analysisRequestRepository.save(processingRequest);
+
+        mockMvc.perform(get("/api/v1/evidences/stats/recent")
+                        .param("limit", "5")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.limit").value(5))
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].fileName").value("recent-newest.mp4"))
+                .andExpect(jsonPath("$.items[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$.items[0].riskScore").value(72.5))
+                .andExpect(jsonPath("$.items[0].riskLevel").value("HIGH"))
+                .andExpect(jsonPath("$.items[0].verdictIndicator").value("DANGER"))
+                .andExpect(jsonPath("$.items[1].fileName").value("recent-processing.mp4"))
+                .andExpect(jsonPath("$.items[1].status").value("PROCESSING"))
+                .andExpect(jsonPath("$.items[1].riskScore").doesNotExist())
+                .andExpect(jsonPath("$.items[2].fileName").value("recent-older.mp4"))
+                .andExpect(jsonPath("$.items[2].verdictIndicator").value("NORMAL"));
+    }
+
+    @Test
+    @DisplayName("최근 분석 위젯은 증거당 최신 요청 1건만 반환한다")
+    void recentAnalyses_deduplicatesByEvidence() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        LocalDateTime now = LocalDateTime.now();
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "recent-dedupe.mp4");
+
+        AnalysisRequest oldRequest = new AnalysisRequest();
+        oldRequest.setEvidenceId(evidence.getEvidenceId());
+        oldRequest.setRequestedBy(user.getUserId());
+        oldRequest.setStatus(AnalysisStatus.COMPLETED);
+        oldRequest.setRequestedAt(now.minusDays(1));
+        oldRequest.setCompletedAt(now.minusDays(1));
+        oldRequest.setProgressPercent(100);
+        analysisRequestRepository.save(oldRequest);
+
+        AnalysisRequest latestRequest = analysisRequestRepository.save(
+                completedRequest(evidence.getEvidenceId(), user.getUserId(), now));
+
+        mockMvc.perform(get("/api/v1/evidences/stats/recent")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].analysisRequestId").value(latestRequest.getAnalysisRequestId()));
+    }
+
+    @Test
+    @DisplayName("최근 분석 limit 파라미터가 범위를 벗어나면 400을 반환한다")
+    void recentAnalyses_invalidLimit_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/evidences/stats/recent")
+                        .param("limit", "2")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    }
+
+    @Test
     @DisplayName("업로드 시 사건명이 없고 분석 요청에도 사건명이 없으면 400을 반환한다")
     void startAnalysis_withoutCaseName_returnsBadRequest() throws Exception {
         User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
@@ -629,6 +747,43 @@ class EvidenceControllerTest {
                 .get()
                 .extracting(AnalysisRequest::getStatus)
                 .isEqualTo(AnalysisStatus.FAILED);
+    }
+
+    @Test
+    @DisplayName("분석 실패 시 analysis-status가 errorCode·errorMessage를 반환한다")
+    void getAnalysisStatus_whenFailed_returnsErrorDetails() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "status-failed.mp4");
+        AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
+                evidence,
+                user,
+                AnalysisStatus.FAILED
+        );
+        request.setErrorCode("ANALYSIS_FAILED");
+        request.setErrorMessage("모델 추론 중 오류가 발생했습니다.");
+        analysisRequestRepository.save(request);
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/analysis-status", evidence.getEvidenceId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.errorCode").value("ANALYSIS_FAILED"))
+                .andExpect(jsonPath("$.errorMessage").value("모델 추론 중 오류가 발생했습니다."));
+    }
+
+    @Test
+    @DisplayName("분석 완료 시 analysis-status는 errorCode·errorMessage를 포함하지 않는다")
+    void getAnalysisStatus_whenCompleted_omitsErrorDetails() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        Evidence evidence = saveEvidenceForCancelPolicy(user, "status-completed.mp4");
+        saveAnalysisRequestForCancelPolicy(evidence, user, AnalysisStatus.COMPLETED);
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/analysis-status", evidence.getEvidenceId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.errorCode").doesNotExist())
+                .andExpect(jsonPath("$.errorMessage").doesNotExist());
     }
 
     @Test
@@ -1072,5 +1227,16 @@ class EvidenceControllerTest {
         request.setRequestedAt(LocalDateTime.now());
         request.setProgressPercent(status == AnalysisStatus.COMPLETED ? 100 : 0);
         return analysisRequestRepository.save(request);
+    }
+
+    private void saveAnalysisResult(AnalysisRequest request, double riskScore, RiskLevel riskLevel) {
+        AnalysisResult result = new AnalysisResult();
+        result.setAnalysisRequestId(request.getAnalysisRequestId());
+        result.setRiskScore(riskScore);
+        result.setConfidenceScore(0.9);
+        result.setRiskLevel(riskLevel);
+        result.setSummary("test");
+        result.setAnalyzedAt(request.getCompletedAt());
+        analysisResultRepository.save(result);
     }
 }

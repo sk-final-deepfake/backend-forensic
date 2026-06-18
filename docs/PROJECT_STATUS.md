@@ -61,7 +61,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **로그인** | RQ-LOGIN-020~021 | `POST /api/auth/login` | ✅ | PENDING → 401 + `ACCOUNT_PENDING` |
 | **회원가입** | RQ-SIGNUP-* | signup · invite · username check | ✅ | Rate limit · StandardErrorResponse |
 | **대시보드** | RQ-DSH-043 | `GET /api/v1/evidences/stats` | ✅ | 4카드 통계 (2026-06-17 반영) |
-| **대시보드 차트** | RQ-DSH-044~045 | `GET /api/v1/evidences/stats/trend` | 🟡 | 7일 트렌드 ✅ · 최근 목록 API ⬜ |
+| **대시보드 차트** | RQ-DSH-044~045 | `stats/trend` · `stats/recent` | ✅ | 7일 트렌드 · 최근 위젯 (2026-06-18) |
 | **분석 요청** | RQ-REQ-047~049 | upload · analyze · analysis-status | ✅ | **영상 MP4/MOV만** · RabbitMQ + Local worker |
 | **무결성·CoC** | RQ-REQ-051 | CustodyLogs 해시 체인 | ✅ | 업로드·분석·관리 감사 |
 | **WORM·S3** | RQ-REQ-048, SEC-150 | S3 upload (`original/`) | 🟡 | 코드 연동 있음 · Object Lock 운영은 INF |
@@ -102,6 +102,8 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | Method | Path | 용도 |
 | :--- | :--- | :--- |
 | GET | `/api/v1/evidences/stats` | 대시보드 통계 |
+| GET | `/api/v1/evidences/stats/trend` | 7일 분석 추이 |
+| GET | `/api/v1/evidences/stats/recent` | 최근 분석 위젯 |
 | POST | `/api/v1/evidences/upload` | 업로드 + SHA-256 |
 | POST | `/api/v1/evidences/analyze` | 분석 시작 |
 | GET | `/api/v1/evidences/{id}/analysis-status` | 진행률 polling |

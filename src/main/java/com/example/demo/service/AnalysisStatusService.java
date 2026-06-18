@@ -29,12 +29,18 @@ public class AnalysisStatusService {
 
         return analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
-                .map(request -> AnalysisStatusResponse.builder()
-                        .evidenceId(evidence.getEvidenceId())
-                        .analysisRequestId(request.getAnalysisRequestId())
-                        .status(toApiStatus(request.getStatus()))
-                        .progressPercent(request.getProgressPercent())
-                        .build())
+                .map(request -> {
+                    AnalysisStatusResponse.AnalysisStatusResponseBuilder builder = AnalysisStatusResponse.builder()
+                            .evidenceId(evidence.getEvidenceId())
+                            .analysisRequestId(request.getAnalysisRequestId())
+                            .status(toApiStatus(request.getStatus()))
+                            .progressPercent(request.getProgressPercent());
+                    if (request.getStatus() == AnalysisStatus.FAILED) {
+                        builder.errorCode(request.getErrorCode())
+                                .errorMessage(request.getErrorMessage());
+                    }
+                    return builder.build();
+                })
                 .orElseGet(() -> AnalysisStatusResponse.builder()
                         .evidenceId(evidence.getEvidenceId())
                         .analysisRequestId(0L)
