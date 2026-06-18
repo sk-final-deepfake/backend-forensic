@@ -67,6 +67,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **Recovery Score** | RQ-DTL-071~072 | `detail.integrityInfo` | ✅ | 메타데이터 기반 점수 |
 | **WORM·S3** | RQ-REQ-048, SEC-150 | S3 upload (`original/`) | 🟡 | 코드 연동 있음 · Object Lock 운영은 INF |
 | **X.509 사본 서명** | RQ-REQ-050 | 분석 copy 파이프라인 | ✅ | Manifest + mock X.509 (2026-06-18) |
+| **보안 무결성 알림** | RQ-SEC-153, SK-632 | detail 자동검증 · `integrity/verify` | ✅ | 서명·CoC·블록체인 불일치 시 SECURITY_ALERT (2026-06-18) |
 | **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | `GET .../blockchain` | 🟡 | BE 파이프라인 ✅ · INF URL 대기 |
 | **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | API 분할 · FE 합의 필요 |
 | **PDF 리포트** | RQ-DTL-084~087 | `GET .../reports/pdf` | ✅ | QR reportHash |
@@ -76,7 +77,6 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **관리자** | RQ-ADMIN-* | `/api/v1/admin/**` | ✅ | |
 | **알림** | RQ-COM-015~016 | `/api/v1/notifications` | ✅ | |
 | **환경 설정** | RQ-COM-009 | `users/me/settings` | ✅ | |
-
 | **성능 NFR** | RQ-PER-* | — | 🟡 | 부하·최적화 검증 미실시 |
 
 **범례:** ✅ 완료 · 🟡 부분 · ⬜ 미구현 · — 타 파트(FE/AI/INF) 주도
@@ -109,7 +109,8 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | POST | `/api/v1/evidences/upload` | 업로드 + SHA-256 |
 | POST | `/api/v1/evidences/analyze` | 분석 시작 |
 | GET | `/api/v1/evidences/{id}/analysis-status` | 진행률 polling |
-| GET | `/api/v1/evidences/{id}/detail` | 증거 상세 (+ Recovery Score) |
+| GET | `/api/v1/evidences/{id}/detail` | 증거 상세 (SEC-153 자동검증·알림, Recovery Score) |
+| GET | `/api/v1/evidences/{id}/integrity/verify` | 무결성·서명·블록체인 검증 (SK-632) |
 | GET | `/api/v1/evidences/{id}/coc/verify` | CoC 체인 검증 |
 | DELETE | `/api/v1/evidences/{id}` | 업로드 취소 |
 | DELETE | `/api/v1/evidences/{id}/reset` | 증거 초기화 |
@@ -253,6 +254,7 @@ python scripts/generate_requirements_markdown.py
 
 | 날짜 | 작성자 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-18 | — | RQ-SEC-153/SK-632: detail 자동 무결성 검증·`SECURITY_ALERT` · `GET .../integrity/verify` |
 | 2026-06-17 | — | Recovery Score(DTL-071~072) · CoC 검증 API(HIS-107) · 문서 Gap 갱신 |
 | 2026-06-18 | — | source Excel → index/traceability 재생성 · **영상-only** 스코프 반영 (docs·코드) |
 | 2026-06-17 | — | 초판 — 코드·문서·Gap 분석 기반 진행 상황 |
