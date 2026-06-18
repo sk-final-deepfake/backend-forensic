@@ -16,7 +16,7 @@
 | **증거·분석 API** | ✅ v1 prefix + stats/analyze/auth **통일 완료** (legacy alias 유지) |
 | **에러 JSON·예외 Handler** | ✅ `StandardErrorResponse` 단일 |
 | **Admin 페이지네이션** | ✅ `content` / `totalElements` |
-| **비교검증·PDF·알림·설정·블록체인** | ⬜ **미구현** |
+| **비교검증·PDF·알림·설정·블록체인** | ✅ **구현 완료** (INF 게이트웨이·X.509 제외) |
 
 > **FE 연동:** [§2 현재 구현 정본](#2-현재-구현-정본-controller-기준) 사용  
 > **AI 에이전트:** [../AGENTS.md](../AGENTS.md) → 본 문서 §2
@@ -58,21 +58,21 @@
 
 ---
 
-### 0.4 기능명세서·RQ 기준 — API 미구현
+### 0.4 기능명세서·RQ 기준 — 잔여 Gap
 
-아래는 요구사항/기능명세에 있으나 **백엔드 REST가 아직 없음**:
+| 영역 | RQ (예) | API | 상태 |
+| :--- | :--- | :--- | :---: |
+| PDF 리포트 | DTL-084~087 | `GET .../reports/pdf`, `.../verify` | ✅ |
+| 비교 검증 | CMP-091~104 | `POST /api/v1/compare/verify` 등 | ✅ |
+| 알림 | COM-015~016 | `GET/PATCH /api/v1/notifications` | ✅ |
+| 환경 설정 | COM-009 | `GET/PATCH /api/v1/users/me/settings` | ✅ |
+| Recovery Score | DTL-071~072 | `detail.integrityInfo` | ✅ |
+| CoC 체인 검증 | HIS-107 | `GET .../coc/verify` | ✅ |
+| X.509 사본 서명 | REQ-050, DTL-075~076 | 분석 copy Manifest + mock 서명 | ✅ |
+| 블록체인 앵커 | REQ-052, DTL-078 | `GET .../blockchain` | 🟡 INF URL 대기 |
+| 대시보드 7일·최근 | DSH-044~045 | `stats/trend`, `stats/recent` | ✅ |
+| 로그아웃 | COM-011 | 클라이언트 sessionStorage 삭제 (서버 API 불필요) | — |
 
-| 영역 | RQ (예) | 필요 API (목표) | 상태 |
-| :--- | :--- | :--- | :--- |
-| PDF 리포트 | RQ-DTL-082~086 | `GET /api/v1/evidences/{id}/reports/pdf` 등 | ⬜ |
-| 비교 검증 | RQ-CMP-083~095 | `POST /api/v1/compare`, `GET .../result` | ⬜ |
-| 알림 | RQ-COM-015~016 | `GET /api/v1/notifications` | ⬜ |
-| 환경 설정 | RQ-COM-009 | `GET/PATCH /api/v1/users/me/settings` | ⬜ |
-| 블록체인 앵커 | RQ-REQ-052, DTL-078 | 업로드 시 앵커 + 조회 API | ⬜ |
-| X.509 사본 서명 | RQ-REQ-050 | 분석 copy 시 Manifest + mock 서명 | ✅ |
-| 대시보드 7일 차트 | RQ-DSH-044 | `GET /api/v1/evidences/stats/trend?days=7` | ✅ |
-| 최근 분석 위젯 | RQ-DSH-045 | `GET /api/v1/evidences/stats/recent?limit=5` | ✅ |
-| 로그아웃 | RQ-COM-011 | 클라이언트 sessionStorage 삭제 (서버 API 불필요) | — |
 
 ---
 
@@ -88,6 +88,8 @@
 | DELETE | `/api/evidences/{evidenceId}` | 증거 삭제 |
 | DELETE | `/api/evidences/{evidenceId}/reset` | 증거+분석 초기화 |
 | DELETE | `/api/evidences/{evidenceId}/analysis` | 분석 중단 |
+| GET | `/api/evidences/{evidenceId}/coc/verify` | CoC 해시 체인 검증 (RQ-HIS-107) |
+| GET | `/api/evidences/{evidenceId}/reports/pdf` | PDF 리포트 |
 | GET/DELETE | `/api/v1/admin/evidences/**` | 관리자 증거 관리 |
 | DELETE | `/api/v1/admin/users/{userId}` | 관리자 계정 삭제 |
 
@@ -100,7 +102,7 @@
 | 순위 | 작업 | 담당 |
 | :---: | :--- | :--- |
 | 1~4 | Evidence v1 · stats · analyze · auth errorCode | ✅ 완료 |
-| 5 | PDF / Compare API | ⬜ BE |
+| 5 | PDF / Compare / Notifications / Settings / Blockchain | ✅ BE |
 | 6 | 기능명세서 Excel FE「호출 API」열 갱신 | PM/문서 |
 
 ---
@@ -390,7 +392,12 @@
 ```json
 {
   "evidenceInfo": { },
-  "integrityInfo": { },
+  "integrityInfo": {
+    "recoveryScore": 85,
+    "dataLossPercent": 15,
+    "recoveryGrade": "HIGH",
+    "chainValid": true
+  },
   "manifestInfo": {
     "evidenceId": 12,
     "fileId": 12,
@@ -459,6 +466,27 @@
 | `BLOCKCHAIN_HASH_MISMATCH` | 블록체인 앵커 해시 ≠ 현재 원본 해시 |
 
 **Errors:** `EVIDENCE_NOT_FOUND` (404)
+
+#### GET `/api/evidences/{evidenceId}/coc/verify`
+
+| | |
+|---|---|
+| **RQ** | RQ-HIS-107 |
+| **Auth** | User |
+
+**Response 200**
+
+```json
+{
+  "evidenceId": 1,
+  "valid": true,
+  "logCount": 3,
+  "brokenAtLogId": null,
+  "failureReason": null,
+  "message": "CoC 해시 체인 검증에 성공했습니다."
+}
+```
+
 
 ---
 

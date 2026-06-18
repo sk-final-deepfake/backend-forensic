@@ -11,6 +11,7 @@ import com.example.demo.service.AnalysisJobEnqueuer;
 import com.example.demo.service.AnalysisService;
 import com.example.demo.service.AnalysisStatusService;
 import com.example.demo.service.BlockchainAnchorService;
+import com.example.demo.service.CocChainVerificationService;
 import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
@@ -73,6 +74,9 @@ class FileValidationIntegrationTest {
 
     @MockBean
     private IntegrityVerificationService integrityVerificationService;
+
+    @MockBean
+    private CocChainVerificationService cocChainVerificationService;
 
     @MockBean
     private AuthUserResolver authUserResolver;
