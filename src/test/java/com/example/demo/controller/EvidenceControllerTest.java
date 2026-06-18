@@ -158,7 +158,7 @@ class EvidenceControllerTest {
                 "Hello, World!".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
+        String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload").file(file)
                         .param("caseName", "테스트 사건")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
@@ -168,7 +168,12 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.fileSize").value(file.getSize()))
                 .andExpect(jsonPath("$.evidenceId").exists())
                 .andExpect(jsonPath("$.hashAlgorithm").value("SHA-256"))
-                .andExpect(jsonPath("$.hashValue").isString());
+                .andExpect(jsonPath("$.hashValue").isString())
+                .andExpect(jsonPath("$.originalSha256").isString())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        assertUploadHashFieldsMatch(responseBody);
     }
 
     @Test
@@ -288,6 +293,7 @@ class EvidenceControllerTest {
                 .getContentAsString();
 
         String firstHash = extractHashValue(firstResponse);
+        assertThat(extractOriginalSha256(firstResponse)).isEqualTo(firstHash);
 
         MockMultipartFile sameFileAgain = new MockMultipartFile(
                 "file",
@@ -300,7 +306,8 @@ class EvidenceControllerTest {
                         .param("caseName", "동일 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hashValue").value(firstHash));
+                .andExpect(jsonPath("$.hashValue").value(firstHash))
+                .andExpect(jsonPath("$.originalSha256").value(firstHash));
     }
 
     @Test
@@ -335,7 +342,8 @@ class EvidenceControllerTest {
                         .param("caseName", "수정 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hashValue", not(extractHashValue(originalResponse))));
+                .andExpect(jsonPath("$.hashValue", not(extractHashValue(originalResponse))))
+                .andExpect(jsonPath("$.originalSha256", not(extractOriginalSha256(originalResponse))));
     }
 
     @Test
@@ -637,6 +645,7 @@ class EvidenceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.hashValue").value(org.hamcrest.Matchers.matchesRegex("[0-9a-f]{64}")))
+                .andExpect(jsonPath("$.originalSha256").value(org.hamcrest.Matchers.matchesRegex("[0-9a-f]{64}")))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -644,6 +653,7 @@ class EvidenceControllerTest {
         JsonNode response = objectMapper.readTree(responseBody);
         long evidenceId = response.get("evidenceId").asLong();
         String hashValue = response.get("hashValue").asText();
+        assertThat(response.get("originalSha256").asText()).isEqualTo(hashValue);
 
         List<CustodyLog> logs = custodyLogRepository
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
@@ -910,6 +920,26 @@ class EvidenceControllerTest {
         int start = index + "\"hashValue\":\"".length();
         int end = responseBody.indexOf('"', start);
         return responseBody.substring(start, end);
+    }
+
+    private String extractOriginalSha256(String responseBody) {
+        int index = responseBody.indexOf("\"originalSha256\":\"");
+        if (index < 0) {
+            throw new IllegalStateException("originalSha256 not found in response: " + responseBody);
+        }
+        int start = index + "\"originalSha256\":\"".length();
+        int end = responseBody.indexOf('"', start);
+        return responseBody.substring(start, end);
+    }
+
+    private void assertUploadHashFieldsMatch(String responseBody) throws Exception {
+        JsonNode response = objectMapper.readTree(responseBody);
+        assertThat(response.hasNonNull("hashValue")).isTrue();
+        assertThat(response.hasNonNull("originalSha256")).isTrue();
+        String hashValue = response.get("hashValue").asText();
+        String originalSha256 = response.get("originalSha256").asText();
+        assertThat(originalSha256).isEqualTo(hashValue);
+        assertThat(originalSha256).matches("[0-9a-f]{64}");
     }
 
     private Evidence saveEvidenceForCancelPolicy(User user, String fileName) {
