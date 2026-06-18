@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS evidences (
     status                  VARCHAR(20)   NOT NULL DEFAULT 'UPLOADED',
     uploaded_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     deleted_at              TIMESTAMPTZ,
-    CONSTRAINT chk_evidences_file_type CHECK (file_type IN ('IMAGE', 'VIDEO', 'AUDIO')),
+    CONSTRAINT chk_evidences_file_type CHECK (file_type IN ('VIDEO')),
     CONSTRAINT chk_evidences_copy_status CHECK (copy_status IN ('NONE', 'ACTIVE', 'DELETED')),
     CONSTRAINT chk_evidences_status CHECK (status IN ('UPLOADED', 'DELETED')),
     CONSTRAINT chk_evidences_status_deleted_at CHECK (
@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS analysis_module_results (
     details_json        JSONB,
     created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_analysis_module_results_file_type CHECK (
-        file_type IS NULL OR file_type IN ('IMAGE', 'VIDEO', 'AUDIO')
+        file_type IS NULL OR file_type IN ('VIDEO')
     )
 );
 CREATE INDEX IF NOT EXISTS idx_analysis_module_results_analysis_result_id

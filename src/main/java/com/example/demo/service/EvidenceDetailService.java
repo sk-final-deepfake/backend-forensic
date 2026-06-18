@@ -18,10 +18,7 @@ import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.dto.detail.EvidenceInfoDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
 import com.example.demo.dto.detail.ModuleResultDto;
-import com.example.demo.dto.detail.TechnicalMetadataDto;
 import com.example.demo.dto.detail.VideoMetadataDto;
-import com.example.demo.dto.detail.AudioMetadataDto;
-import com.example.demo.dto.detail.ImageMetadataDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
@@ -30,13 +27,13 @@ import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.exception.BusinessException;
+import com.example.demo.util.ApiDateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +42,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class EvidenceDetailService {
-
-    private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final EvidenceRepository evidenceRepository;
     private final EvidenceMetadataRepository evidenceMetadataRepository;
@@ -121,7 +116,7 @@ public class EvidenceDetailService {
                 .caseId(caseId)
                 .caseName(caseName)
                 .status(aggregateStatus)
-                .createdAt(ISO_FORMATTER.format(createdAt))
+                .createdAt(ApiDateTimeFormatter.formatUtc(createdAt))
                 .evidences(summaries)
                 .build();
     }
@@ -132,16 +127,16 @@ public class EvidenceDetailService {
                 .fileName(evidence.getFileName())
                 .caseName(evidence.getCaseName())
                 .fileSize(evidence.getFileSize())
-                .uploadedAt(ISO_FORMATTER.format(evidence.getUploadedAt()))
+                .uploadedAt(ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()))
                 .mediaType(evidence.getFileType().name())
                 .fileType(evidence.getFileType().name())
                 .technicalMetadata(mapToTypeSpecificMetadata(evidence, metadata))
                 .build();
     }
 
-    private Object mapToTypeSpecificMetadata(Evidence evidence, EvidenceMetadata metadata) {
+    private VideoMetadataDto mapToTypeSpecificMetadata(Evidence evidence, EvidenceMetadata metadata) {
         if (metadata == null) {
-            return TechnicalMetadataDto.builder()
+            return VideoMetadataDto.builder()
                     .extractionStatus(ExtractionStatus.FAILED.name())
                     .build();
         }
@@ -150,39 +145,25 @@ public class EvidenceDetailService {
                 ? ExtractionStatus.FAILED.name()
                 : metadata.getExtractionStatus().name();
 
-        return switch (evidence.getFileType()) {
-            case VIDEO -> VideoMetadataDto.builder()
-                    .extractionStatus(extractionStatus)
-                    .width(metadata.getWidth())
-                    .height(metadata.getHeight())
-                    .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
-                    .fps(metadata.getFps())
-                    .codec(metadata.getCodec())
-                    .build();
-            case AUDIO -> AudioMetadataDto.builder()
-                    .extractionStatus(extractionStatus)
-                    .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
-                    .sampleRate(metadata.getSampleRate())
-                    .bitrate(null) // TODO: Extract from ffprobeJson if needed
-                    .channels(metadata.getChannels())
-                    .codec(metadata.getCodec())
-                    .build();
-            case IMAGE -> ImageMetadataDto.builder()
-                    .extractionStatus(extractionStatus)
-                    .width(metadata.getWidth())
-                    .height(metadata.getHeight())
-                    .format(null) // TODO: Extract from exifJson if needed
-                    .colorSpace(null) // TODO: Extract from exifJson if needed
-                    .deviceInfo(metadata.getDeviceInfo())
-                    .capturedAt(metadata.getCapturedAt())
-                    .build();
-        };
+        return VideoMetadataDto.builder()
+                .extractionStatus(extractionStatus)
+                .width(metadata.getWidth())
+                .height(metadata.getHeight())
+                .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
+                .fps(metadata.getFps())
+                .codec(metadata.getCodec())
+                .sampleRate(metadata.getSampleRate())
+                .channels(metadata.getChannels())
+                .hasAudioTrack(metadata.getSampleRate() != null || metadata.getChannels() != null)
+                .build();
     }
 
     private IntegrityInfoDto toIntegrityInfo(Evidence evidence, boolean isChainValid) {
         return IntegrityInfoDto.builder()
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
+                .copyHash(evidence.getCopyHashValue())
+                .copyStatus(evidence.getCopyStatus() != null ? evidence.getCopyStatus().name() : null)
                 .chainValid(isChainValid)
                 .chainValidAlias(isChainValid)
                 .verificationStatus(isChainValid ? "VERIFIED" : "CORRUPTED")
@@ -310,7 +291,7 @@ public class EvidenceDetailService {
     }
 
     private String formatDateTime(LocalDateTime value) {
-        return value == null ? null : ISO_FORMATTER.format(value);
+        return ApiDateTimeFormatter.formatUtc(value);
     }
 
     private String shortHash(String hash) {

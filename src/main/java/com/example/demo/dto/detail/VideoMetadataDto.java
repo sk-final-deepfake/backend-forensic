@@ -11,5 +11,8 @@ public class VideoMetadataDto {
     private Integer height;
     private Double durationSec;
     private Double fps;
+    private Integer sampleRate;
+    private Integer channels;
+    private Boolean hasAudioTrack;
     private String codec;
 }

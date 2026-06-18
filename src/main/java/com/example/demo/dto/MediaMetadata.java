@@ -6,16 +6,16 @@ import lombok.Data;
 @Data
 @Builder
 public class MediaMetadata {
-    private String type; // "video", "audio", or "image"
+    /** MVP: always video (embedded audio track metadata optional) */
+    private String type;
     private Double duration;
     private String codec;
-    
-    // Video specific
     private Integer width;
     private Integer height;
     private Double fps;
-    
-    // Audio specific
+    /** Embedded audio track (within video file) */
     private Integer sampleRate;
     private Integer channels;
+    private Boolean hasAudioTrack;
+    private String ffprobeJson;
 }

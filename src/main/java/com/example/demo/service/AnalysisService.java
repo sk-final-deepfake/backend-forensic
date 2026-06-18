@@ -6,11 +6,13 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CustodyTargetType;
+import com.example.demo.dto.AnalysisJobMessage;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.util.ApiDateTimeFormatter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class AnalysisService {
     private final EvidenceRepository evidenceRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
     private final AnalysisJobEnqueuer analysisJobEnqueuer;
+    private final EvidenceCopyService evidenceCopyService;
     private final CustodyLogService custodyLogService;
     private final ObjectMapper objectMapper;
 
@@ -55,11 +58,22 @@ public class AnalysisService {
         List<Long> startedEvidenceIds = new ArrayList<>();
 
         for (Evidence evidence : evidences) {
-            evidence.updateCaseInfo(trimmedCaseName);
+            if (analysisRequestRepository.existsByEvidenceIdAndStatus(
+                    evidence.getEvidenceId(), AnalysisStatus.COMPLETED)) {
+                throw new BusinessException(
+                        HttpStatus.BAD_REQUEST,
+                        "ANALYSIS_ALREADY_COMPLETED",
+                        "이미 분석이 완료된 증거입니다.");
+            }
 
-            if (analysisRequestRepository.existsByEvidenceId(evidence.getEvidenceId())) {
+            if (analysisRequestRepository.existsByEvidenceIdAndStatusIn(
+                    evidence.getEvidenceId(), List.of(AnalysisStatus.QUEUED, AnalysisStatus.ANALYZING))) {
                 continue;
             }
+
+            evidence.updateCaseInfo(trimmedCaseName);
+            evidenceCopyService.prepareCopyForAnalysis(evidence);
+            evidenceRepository.save(evidence);
 
             AnalysisRequest analysisRequest = new AnalysisRequest();
             analysisRequest.setEvidenceId(evidence.getEvidenceId());
@@ -70,7 +84,16 @@ public class AnalysisService {
             AnalysisRequest savedRequest = analysisRequestRepository.save(analysisRequest);
 
             try {
-                analysisJobEnqueuer.enqueue(savedRequest.getAnalysisRequestId(), evidence.getEvidenceId());
+                AnalysisJobMessage message = AnalysisJobMessage.builder()
+                        .analysisRequestId(savedRequest.getAnalysisRequestId())
+                        .evidenceId(evidence.getEvidenceId())
+                        .fileType("video")
+                        .filePath(evidence.getCopyStoragePath())
+                        .originalHash(evidence.getOriginalHashValue())
+                        .caseName(trimmedCaseName)
+                        .requestedAt(ApiDateTimeFormatter.formatUtc(now))
+                        .build();
+                analysisJobEnqueuer.enqueue(message);
                 recordAnalysisRequestedLog(user, evidence, savedRequest, trimmedCaseName);
                 startedEvidenceIds.add(evidence.getEvidenceId());
             } catch (Exception ex) {
@@ -128,7 +151,7 @@ public class AnalysisService {
                 savedRequest.getAnalysisRequestId(),
                 "ANALYSIS_REQUESTED",
                 evidence.getOriginalHashValue(),
-                evidence.getOriginalStoragePath(),
+                evidence.getCopyStoragePath() != null ? evidence.getCopyStoragePath() : evidence.getOriginalStoragePath(),
                 "AI 분석 요청 생성 및 큐 등록 완료",
                 toJson(analysisRequestedPayload(evidence, savedRequest, caseName)),
                 null
@@ -163,6 +186,8 @@ public class AnalysisService {
         payload.put("analysisRequestId", savedRequest.getAnalysisRequestId());
         payload.put("status", savedRequest.getStatus().name());
         payload.put("caseName", caseName);
+        payload.put("fileType", "video");
+        payload.put("filePath", evidence.getCopyStoragePath());
         payload.put("queueRegistered", true);
         payload.put("queueName", queueName());
         return payload;
