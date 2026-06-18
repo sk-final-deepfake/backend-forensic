@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.config.AnalysisMessagingProperties;
 import com.example.demo.config.AnalysisWorkerProperties;
 import com.example.demo.config.RabbitMqConfig;
 import com.example.demo.domain.AnalysisRequest;
@@ -11,10 +12,10 @@ import com.example.demo.dto.AnalysisJobMessage;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.exception.AnalysisCopyException;
+import com.example.demo.exception.AnalysisDispatchException;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
-import com.example.demo.util.ApiDateTimeFormatter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -33,17 +34,20 @@ import java.util.Map;
 public class AnalysisService {
 
     private static final String RABBITMQ_PUBLISH_FAILED = "RABBITMQ_PUBLISH_FAILED";
+    private static final String S3_COPY_NOT_READY = "S3_COPY_NOT_READY";
     private static final String RABBITMQ_PUBLISH_STEP = "RABBITMQ_PUBLISH";
     private static final String RABBITMQ_PUBLISH_FAILURE_MESSAGE = "분석 요청 큐 등록에 실패했습니다.";
 
     private final EvidenceRepository evidenceRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
     private final AnalysisJobEnqueuer analysisJobEnqueuer;
+    private final AnalysisJobMessageFactory analysisJobMessageFactory;
     private final EvidenceCopyService evidenceCopyService;
     private final CustodyLogService custodyLogService;
     private final ObjectMapper objectMapper;
     private final AnalysisWorkerProperties workerProperties;
     private final AnalysisWorkerService analysisWorkerService;
+    private final AnalysisMessagingProperties messagingProperties;
 
     @Transactional
     public StartAnalysisResponse startAnalysis(User user, StartAnalysisRequest request) {
@@ -96,21 +100,20 @@ public class AnalysisService {
             AnalysisRequest savedRequest = analysisRequestRepository.save(analysisRequest);
 
             try {
-                AnalysisJobMessage message = AnalysisJobMessage.builder()
-                        .analysisRequestId(savedRequest.getAnalysisRequestId())
-                        .evidenceId(evidence.getEvidenceId())
-                        .fileType("video")
-                        .filePath(evidence.getCopyStoragePath())
-                        .originalHash(evidence.getOriginalHashValue())
-                        .caseName(trimmedCaseName)
-                        .requestedAt(ApiDateTimeFormatter.formatUtc(now))
-                        .build();
+                AnalysisJobMessage message = analysisJobMessageFactory.buildForGpuDispatch(
+                        evidence, savedRequest, trimmedCaseName);
                 analysisJobEnqueuer.enqueue(message);
-                recordAnalysisRequestedLog(user, evidence, savedRequest, trimmedCaseName);
+                recordAnalysisRequestedLog(user, evidence, savedRequest, trimmedCaseName, message);
                 if (workerProperties.isAiMode()) {
                     analysisWorkerService.markDispatchedToAi(savedRequest.getAnalysisRequestId());
                 }
                 startedEvidenceIds.add(evidence.getEvidenceId());
+            } catch (AnalysisDispatchException ex) {
+                savedRequest.setStatus(AnalysisStatus.FAILED);
+                savedRequest.setErrorCode(ex.getErrorCode());
+                savedRequest.setErrorMessage(ex.getMessage());
+                analysisRequestRepository.save(savedRequest);
+                recordDispatchErrorLog(user, evidence, savedRequest, ex.getErrorCode(), ex.getMessage());
             } catch (Exception ex) {
                 savedRequest.setStatus(AnalysisStatus.FAILED);
                 savedRequest.setErrorCode(RABBITMQ_PUBLISH_FAILED);
@@ -158,7 +161,8 @@ public class AnalysisService {
             User user,
             Evidence evidence,
             AnalysisRequest savedRequest,
-            String caseName
+            String caseName,
+            AnalysisJobMessage message
     ) {
         custodyLogService.record(
                 user.getUserId(),
@@ -168,7 +172,29 @@ public class AnalysisService {
                 evidence.getOriginalHashValue(),
                 evidence.getCopyStoragePath() != null ? evidence.getCopyStoragePath() : evidence.getOriginalStoragePath(),
                 "AI 분석 요청 생성 및 큐 등록 완료",
-                toJson(analysisRequestedPayload(evidence, savedRequest, caseName)),
+                toJson(analysisRequestedPayload(evidence, savedRequest, caseName, message)),
+                null
+        );
+    }
+
+    private void recordDispatchErrorLog(
+            User user,
+            Evidence evidence,
+            AnalysisRequest savedRequest,
+            String errorCode,
+            String message
+    ) {
+        custodyLogService.record(
+                user.getUserId(),
+                CustodyTargetType.ANALYSIS_REQUEST,
+                savedRequest.getAnalysisRequestId(),
+                "ERROR_OCCURRED",
+                evidence.getOriginalHashValue(),
+                evidence.getOriginalStoragePath(),
+                S3_COPY_NOT_READY.equals(errorCode)
+                        ? "분석용 S3 사본 확인 실패"
+                        : "분석 요청 큐 등록 실패",
+                toJson(dispatchErrorPayload(evidence, savedRequest, errorCode, message)),
                 null
         );
     }
@@ -194,7 +220,8 @@ public class AnalysisService {
     private Map<String, Object> analysisRequestedPayload(
             Evidence evidence,
             AnalysisRequest savedRequest,
-            String caseName
+            String caseName,
+            AnalysisJobMessage message
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("evidenceId", evidence.getEvidenceId());
@@ -202,9 +229,32 @@ public class AnalysisService {
         payload.put("status", savedRequest.getStatus().name());
         payload.put("caseName", caseName);
         payload.put("fileType", "video");
-        payload.put("filePath", evidence.getCopyStoragePath());
+        payload.put("filePath", message.getFilePath());
+        payload.put("s3Bucket", message.getS3Bucket());
+        payload.put("s3Region", message.getS3Region());
+        payload.put("presignedDownloadUrl", message.getPresignedDownloadUrl());
         payload.put("queueRegistered", true);
         payload.put("queueName", queueName());
+        payload.put("exchange", messagingProperties.getAnalysisExchange());
+        payload.put("routingKey", messagingProperties.getVideoAnalysisRoutingKey());
+        return payload;
+    }
+
+    private Map<String, Object> dispatchErrorPayload(
+            Evidence evidence,
+            AnalysisRequest savedRequest,
+            String errorCode,
+            String message
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("step", RABBITMQ_PUBLISH_STEP);
+        payload.put("errorCode", errorCode);
+        payload.put("message", message);
+        payload.put("evidenceId", evidence.getEvidenceId());
+        payload.put("analysisRequestId", savedRequest.getAnalysisRequestId());
+        payload.put("queueName", queueName());
+        payload.put("exchange", messagingProperties.getAnalysisExchange());
+        payload.put("routingKey", messagingProperties.getVideoAnalysisRoutingKey());
         return payload;
     }
 
