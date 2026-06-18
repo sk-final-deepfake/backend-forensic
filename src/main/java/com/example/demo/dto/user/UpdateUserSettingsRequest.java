@@ -1,0 +1,16 @@
+package com.example.demo.dto.user;
+
+import com.example.demo.domain.enums.DateDisplayFormat;
+import com.example.demo.domain.enums.ListViewMode;
+import lombok.Getter;
+import lombok.Setter;
+@Getter
+@Setter
+public class UpdateUserSettingsRequest {
+
+    private DateDisplayFormat dateDisplayFormat;
+
+    private Boolean analysisCompleteNotificationEnabled;
+
+    private ListViewMode listViewMode;
+}
