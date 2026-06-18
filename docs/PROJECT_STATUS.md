@@ -121,7 +121,8 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 
 | Method | Path | 용도 |
 | :--- | :--- | :--- |
-| GET | `/api/v1/admin/dashboard/stats` | 관리자 통계 |
+| GET | `/api/v1/admin/dashboard/stats` | 관리자 대시보드 통계 (RQ-ADMIN-120) |
+| GET | `/api/v1/admin/dashboard/analysis-stats` | 관리자 분석 통계 (RQ-ADMIN-150) |
 | GET/PATCH/POST/DELETE | `/api/v1/admin/users/**` | 계정 관리 |
 | GET/POST | `/api/v1/admin/invite-codes/**` | 초대코드 |
 | GET | `/api/v1/admin/logs` | 감사 로그 (+ CSV export) |

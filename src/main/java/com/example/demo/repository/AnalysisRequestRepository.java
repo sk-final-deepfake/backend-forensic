@@ -105,4 +105,65 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
             @Param("uploaderId") Long uploaderId,
             Pageable pageable
     );
+
+    @Query("""
+            SELECT COUNT(ar)
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE e.deletedAt IS NULL
+              AND ar.requestedAt >= :startInclusive
+              AND ar.requestedAt < :endExclusive
+            """)
+    long countRequestedBetween(
+            @Param("startInclusive") LocalDateTime startInclusive,
+            @Param("endExclusive") LocalDateTime endExclusive
+    );
+
+    @Query("""
+            SELECT COUNT(ar)
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE e.deletedAt IS NULL
+              AND ar.status = com.example.demo.domain.enums.AnalysisStatus.COMPLETED
+              AND ar.completedAt >= :startInclusive
+              AND ar.completedAt < :endExclusive
+            """)
+    long countCompletedBetween(
+            @Param("startInclusive") LocalDateTime startInclusive,
+            @Param("endExclusive") LocalDateTime endExclusive
+    );
+
+    @Query("""
+            SELECT COUNT(ar)
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            JOIN AnalysisResult r ON r.analysisRequestId = ar.analysisRequestId
+            WHERE e.deletedAt IS NULL
+              AND ar.status = com.example.demo.domain.enums.AnalysisStatus.COMPLETED
+              AND r.riskLevel IN (
+                  com.example.demo.domain.enums.RiskLevel.HIGH,
+                  com.example.demo.domain.enums.RiskLevel.MEDIUM
+              )
+              AND ar.completedAt >= :startInclusive
+              AND ar.completedAt < :endExclusive
+            """)
+    long countDeepfakeDetectedBetween(
+            @Param("startInclusive") LocalDateTime startInclusive,
+            @Param("endExclusive") LocalDateTime endExclusive
+    );
+
+    @Query("""
+            SELECT ar
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE e.deletedAt IS NULL
+              AND ar.status = com.example.demo.domain.enums.AnalysisStatus.COMPLETED
+              AND ar.completedAt IS NOT NULL
+              AND ar.completedAt >= :startInclusive
+              AND ar.completedAt < :endExclusive
+            """)
+    List<AnalysisRequest> findCompletedRequestsBetween(
+            @Param("startInclusive") LocalDateTime startInclusive,
+            @Param("endExclusive") LocalDateTime endExclusive
+    );
 }

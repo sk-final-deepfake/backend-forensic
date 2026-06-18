@@ -194,6 +194,19 @@ class AdminControllerTest {
     }
 
     @Test
+    void getAnalysisStats_withAdmin_returnsAnalysisStats() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/dashboard/analysis-stats")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.weeklyTotalCount").isNumber())
+                .andExpect(jsonPath("$.deepfakeDetectionRate").isNumber())
+                .andExpect(jsonPath("$.averageAnalysisMinutes").isNumber())
+                .andExpect(jsonPath("$.weeklyPoints").isArray())
+                .andExpect(jsonPath("$.weeklyPoints.length()").value(7))
+                .andExpect(jsonPath("$.riskDistribution.safeCount").isNumber());
+    }
+
+    @Test
     void listLogs_withAdmin_returnsLogsAfterApproval() throws Exception {
         mockMvc.perform(post("/api/v1/admin/users/{userId}/approve", pendingUserId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
