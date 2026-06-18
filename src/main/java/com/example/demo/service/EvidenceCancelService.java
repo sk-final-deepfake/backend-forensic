@@ -4,8 +4,10 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -39,7 +41,8 @@ public class EvidenceCancelService {
     public void resetEvidence(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("증거를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "증거를 찾을 수 없습니다."));
 
         analysisRequestRepository.deleteByEvidenceId(evidenceId);
         deleteS3Object(evidence.getOriginalStoragePath());
@@ -51,10 +54,12 @@ public class EvidenceCancelService {
     public void cancelUpload(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("증거를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "증거를 찾을 수 없습니다."));
 
         if (analysisRequestRepository.existsByEvidenceId(evidenceId)) {
-            throw new IllegalStateException("이미 분석이 시작된 증거는 취소할 수 없습니다.");
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST, "ANALYSIS_ALREADY_STARTED", "이미 분석이 시작된 증거는 취소할 수 없습니다.");
         }
 
         deleteS3Object(evidence.getOriginalStoragePath());

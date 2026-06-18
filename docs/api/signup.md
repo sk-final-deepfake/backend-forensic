@@ -1,9 +1,7 @@
 # VeriForensics — 회원가입(Signup) API 명세서
 
-> **기준 브랜치:** `develop`
-> **담당 범위:** 회원가입(Signup) 관련 API (본 문서)
-> **현재 프론트 상태:** `fetch`/`axios` 미연동, `sessionStorage`·`localStorage` mock 사용
-> **참고:** 전체 API 명세는 별도 문서(`API_SPECIFICATION.md` / 프론트 계약서) 참조. 본 문서는 회원가입 파트만 분리한 작업용 명세입니다.
+> **전체 API:** [specification.md](../api/specification.md) · **회원가입 파트:** 본 문서  
+> **공통 API 규칙:** [convention.md](./convention.md)
 
 ---
 
@@ -180,7 +178,7 @@
 
 ## 3. 가입 관련 도메인 규칙 (ERD 연계)
 
-회원가입 구현 시 참고할 `Users` / `InviteCodes` 핵심 컬럼 (자세한 건 `ERD_SPECIFICATION.md` 참조).
+회원가입 구현 시 참고할 `Users` / `InviteCodes` 핵심 컬럼 (자세한 건 [../database/erd.md](../database/erd.md) 참조).
 
 ### Users (가입 시 저장)
 

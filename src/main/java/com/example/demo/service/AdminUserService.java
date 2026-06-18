@@ -36,10 +36,11 @@ public class AdminUserService {
         );
 
         return AdminUserPageResponse.builder()
-                .items(result.getContent().stream().map(this::toItem).toList())
-                .total(result.getTotalElements())
+                .content(result.getContent().stream().map(this::toItem).toList())
                 .page(result.getNumber())
                 .size(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages())
                 .build();
     }
 

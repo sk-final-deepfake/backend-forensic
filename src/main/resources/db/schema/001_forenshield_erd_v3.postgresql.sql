@@ -1,6 +1,6 @@
 -- =============================================================================
 -- ForenShield AI — ERD v3 PostgreSQL DDL
--- Reference: backend/docs/ERD_SPECIFICATION.md
+-- Reference: backend/docs/database/erd.md
 --
 -- EC2 실행 예시:
 --   psql -h localhost -U forenshield -d forenshield -f 001_forenshield_erd_v3.postgresql.sql

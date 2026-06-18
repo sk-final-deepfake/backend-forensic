@@ -1,8 +1,10 @@
 package com.example.demo.service;
 
-import com.example.demo.domain.enums.FileType;
+import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.repository.AnalysisRequestRepository;
+import java.util.List;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,26 +16,15 @@ public class EvidenceStatsService {
 
     private final AnalysisRequestRepository analysisRequestRepository;
 
-    /**
-     * 로그인 사용자 기준 미디어별 분석 건수.
-     * 분석 시작(AnalysisRequest 등록)된 증거만 집계합니다.
-     */
-    public EvidenceStatsResponse getMediaStats(Long uploaderId) {
-        if (uploaderId == null) {
-            return EvidenceStatsResponse.builder()
-                    .imageCount(0L)
-                    .videoCount(0L)
-                    .audioCount(0L)
-                    .build();
-        }
-
+    /** RQ-DSH-043: 대시보드 통계 카드 4종 */
+    public EvidenceStatsResponse getDashboardStats(Long uploaderId) {
         return EvidenceStatsResponse.builder()
-                .imageCount(analysisRequestRepository.countByFileTypeAndUploaderWithAnalysisRequest(
-                        FileType.IMAGE, uploaderId))
-                .videoCount(analysisRequestRepository.countByFileTypeAndUploaderWithAnalysisRequest(
-                        FileType.VIDEO, uploaderId))
-                .audioCount(analysisRequestRepository.countByFileTypeAndUploaderWithAnalysisRequest(
-                        FileType.AUDIO, uploaderId))
+                .totalAnalysisCount(analysisRequestRepository.countTotalByUploader(uploaderId))
+                .deepfakeDetectedCount(analysisRequestRepository.countDeepfakeDetectedByUploader(uploaderId))
+                .completedCount(analysisRequestRepository.countByUploaderAndStatus(
+                        uploaderId, AnalysisStatus.COMPLETED))
+                .inProgressCount(analysisRequestRepository.countByUploaderAndStatusIn(
+                        uploaderId, List.of(AnalysisStatus.QUEUED, AnalysisStatus.ANALYZING)))
                 .build();
     }
 }

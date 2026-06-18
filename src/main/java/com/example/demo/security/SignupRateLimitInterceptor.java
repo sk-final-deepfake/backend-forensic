@@ -1,6 +1,6 @@
 package com.example.demo.security;
 
-import com.example.demo.dto.api.ApiErrorResponse;
+import com.example.demo.dto.StandardErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -13,7 +13,6 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -38,10 +37,10 @@ public class SignupRateLimitInterceptor implements HandlerInterceptor {
         response.setHeader(HttpHeaders.RETRY_AFTER, String.valueOf(decision.retryAfterSeconds()));
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getWriter(), ApiErrorResponse.builder()
-                .error("RATE_LIMIT_EXCEEDED")
+        objectMapper.writeValue(response.getWriter(), StandardErrorResponse.builder()
+                .success(false)
+                .errorCode("RATE_LIMIT_EXCEEDED")
                 .message("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.")
-                .details(List.of())
                 .build());
         return false;
     }
