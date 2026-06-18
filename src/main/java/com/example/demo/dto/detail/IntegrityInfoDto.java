@@ -16,4 +16,7 @@ public class IntegrityInfoDto {
     @JsonProperty("isChainValid")
     private boolean chainValidAlias;
     private String verificationStatus;
+    private Integer recoveryScore;
+    private Integer dataLossPercent;
+    private String recoveryGrade;
 }
