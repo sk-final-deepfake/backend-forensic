@@ -35,7 +35,7 @@
 | PDF 저장 위치 | S3 저장 권장 |
 | CoC 해시 체인 | `previousLogHash`, `currentLogHash` 사용 |
 | CoC 로그 대상 | 사용자, 증거, 분석 요청/결과, 보고서 중심 |
-| 분석 건수 통계 | 이미지/영상/음성 분석 건수는 DB 컬럼으로 저장하지 않고 집계 조회로 계산 |
+| 분석 건수 통계 | RQ-DSH-043 4카드 필드로 집계 (`totalAnalysisCount` 등) — DB 컬럼 저장 없음 |
 
 ---
 
@@ -55,13 +55,8 @@ Reports
 CustodyLogs
 ```
 
-분석 건수 통계는 별도 테이블 없이 `Evidences.fileType`, `AnalysisRequests.status`, `AnalysisResults`를 조인하여 계산합니다.
-
-```text
-이미지 분석 건수 = fileType = IMAGE 이면서 분석 완료된 건수
-영상 분석 건수 = fileType = VIDEO 이면서 분석 완료된 건수
-음성 분석 건수 = fileType = AUDIO 이면서 분석 완료된 건수
-```
+분석 건수 통계는 별도 테이블 없이 `AnalysisRequests`·`AnalysisResults`·`Evidences`를 조인하여 계산합니다.  
+**MVP 대시보드(RQ-DSH-043):** 미디어 유형별 카드가 아니라 4카드(`totalAnalysisCount`, `deepfakeDetectedCount`, `completedCount`, `inProgressCount`)를 반환합니다.
 
 선택적으로 추후 확장 가능한 테이블은 다음과 같습니다.
 
@@ -232,7 +227,7 @@ FAILED 존재    → 새 AnalysisRequests row 생성 (재시도)
 | `caseNumber` | String | Nullable | 사건 번호 문자열 (예: `2026-서울-0123`) |
 | `caseName` | String | Nullable | 사건명 (업로드 시 사용자 입력, 예: `딥페이크 유포 사건`) |
 | `fileName` | String | Not Null | 원본 파일명 |
-| `fileType` | FileType | Not Null | IMAGE, VIDEO, AUDIO |
+| `fileType` | FileType | Not Null | **MVP: VIDEO만 업로드** · enum: IMAGE, VIDEO, AUDIO |
 | `mimeType` | String | Not Null | MIME 타입 |
 | `fileSize` | Long | Not Null | 파일 크기 |
 | `hashAlgorithm` | String | Not Null, Default `SHA-256` | 해시 알고리즘 |
@@ -378,7 +373,7 @@ HIGH: 70 ~ 100
 
 ## 3.7 AnalysisModuleResults
 
-영상, 음성, 이미지 등 세부 모듈별 분석 결과를 저장합니다.
+영상 분석 모듈별 세부 결과를 저장합니다. **MVP는 VIDEO만** 처리합니다.
 
 | 컬럼명 | 타입 | 제약 조건 | 설명 |
 | :--- | :--- | :--- | :--- |
@@ -659,18 +654,18 @@ FAILED 존재    → 재시도 버튼 → 새 AnalysisRequests row 생성
 
 ---
 
-## 8. 분석 건수 통계
+## 8. 분석 건수 통계 (RQ-DSH-043)
 
-메인 화면 또는 관리자 대시보드에서 보여줄 수 있는 이미지/영상/음성 분석 건수는 별도 컬럼으로 저장하지 않고, 기존 테이블을 기반으로 집계합니다.
+대시보드 stats는 별도 컬럼 없이 기존 테이블을 집계합니다. **MVP는 영상(VIDEO) 전용**이며, API는 미디어 유형별 3카드가 아니라 **4카드**를 반환합니다.
 
-### 8.1 통계 항목
+### 8.1 통계 항목 (`GET /api/v1/evidences/stats`)
 
-| 항목 | 기준 |
+| 필드 | 기준 |
 | :--- | :--- |
-| 이미지 분석 건수 | `Evidences.fileType = IMAGE` 이고 분석 완료된 건수 |
-| 영상 분석 건수 | `Evidences.fileType = VIDEO` 이고 분석 완료된 건수 |
-| 음성 분석 건수 | `Evidences.fileType = AUDIO` 이고 분석 완료된 건수 |
-| 전체 분석 건수 | 분석 완료된 전체 건수 |
+| `totalAnalysisCount` | 해당 사용자의 분석 요청 전체 건수 |
+| `deepfakeDetectedCount` | COMPLETED + 위험도 HIGH/MEDIUM |
+| `completedCount` | COMPLETED 건수 |
+| `inProgressCount` | QUEUED + ANALYZING 건수 |
 
 ### 8.2 집계 기준
 
@@ -682,50 +677,29 @@ FAILED 존재    → 재시도 버튼 → 새 AnalysisRequests row 생성
 FAILED 된 분석 요청 = 실패 건수로 별도 집계 가능
 ```
 
-### 8.3 SQL 집계 예시
+### 8.3 SQL 집계 예시 (완료 건수)
 
 ```sql
-SELECT
-    e.file_type,
-    COUNT(*) AS completed_analysis_count
+SELECT COUNT(*)
 FROM analysis_requests ar
-JOIN evidences e
-    ON ar.evidence_id = e.evidence_id
-JOIN analysis_results r
-    ON ar.analysis_request_id = r.analysis_request_id
-WHERE ar.status = 'COMPLETED'
-GROUP BY e.file_type;
-```
-
-예상 결과 예시는 다음과 같습니다.
-
-```text
-IMAGE | 12
-VIDEO | 8
-AUDIO | 5
+WHERE ar.requested_by = :uploaderId
+  AND ar.status = 'COMPLETED';
 ```
 
 ### 8.4 대시보드 표시 예시
 
-```text
-이미지 분석 12건
-영상 분석 8건
-음성 분석 5건
-전체 분석 25건
+```json
+{
+  "totalAnalysisCount": 25,
+  "deepfakeDetectedCount": 3,
+  "completedCount": 20,
+  "inProgressCount": 2
+}
 ```
 
 ### 8.5 설계 판단
 
-이미지/영상/음성 분석 건수를 별도 컬럼으로 저장하지 않는 이유는 다음과 같습니다.
-
-```text
-분석 건수는 기존 데이터에서 계산 가능한 값
-별도 저장 시 실제 분석 결과와 통계 값이 불일치할 수 있음
-대시보드 조회 시 COUNT/GROUP BY로 계산하는 것이 더 안전함
-```
-
-따라서 ERD에는 별도 `imageAnalysisCount`, `videoAnalysisCount`, `audioAnalysisCount` 컬럼을 추가하지 않습니다.  
-필요 시 추후 성능 최적화를 위해 `AnalysisStatistics` 또는 캐시 테이블을 추가할 수 있습니다.
+분석 건수는 기존 데이터에서 계산 가능한 값이므로 별도 저장 컬럼을 두지 않습니다. 대시보드 조회 시 COUNT로 계산하는 것이 더 안전합니다.
 
 ---
 

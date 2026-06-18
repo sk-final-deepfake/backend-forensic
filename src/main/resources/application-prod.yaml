@@ -55,3 +55,17 @@ file:
 
 ffmpeg:
   path: /usr/bin
+
+analysis:
+  worker:
+    mode: ${ANALYSIS_WORKER_MODE:ai}
+    step-delay-ms: 0
+
+blockchain:
+  anchor:
+    enabled: ${BLOCKCHAIN_ANCHOR_ENABLED:true}
+    mode: ${BLOCKCHAIN_ANCHOR_MODE:http}
+    network: ${BLOCKCHAIN_ANCHOR_NETWORK:polygon}
+    http-url: ${BLOCKCHAIN_ANCHOR_URL:}
+    scheduler-enabled: true
+    daily-cron: "0 0 1 * * *"

@@ -19,6 +19,8 @@ public interface CustodyLogRepository extends JpaRepository<CustodyLog, Long>, J
 
     Optional<CustodyLog> findTopByOrderByLogIdDesc();
 
+    Optional<CustodyLog> findTopByLogIdLessThanOrderByLogIdDesc(Long logId);
+
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(LocalDateTime start, LocalDateTime end);
 
     long countByActionTypeIn(Collection<String> actionTypes);

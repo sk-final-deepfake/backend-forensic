@@ -2,7 +2,7 @@
 
 > **작성일:** 2026-06-17  
 > **최종 갱신:** 2026-06-18  
-> **기준:** `backend-forensic` 레포 **`main` 브랜치** · `docs/` 명세 · `docs/requirements/source/` Excel
+> **기준:** `docs/requirements/source/` Excel · **영상(VIDEO)만** 지원
 
 ---
 
@@ -34,8 +34,8 @@
 
 | 구분 | 규모 | 진행 (본 레포 BE 기준) | 비고 |
 | :--- | :---: | :---: | :--- |
-| **요구사항 (RQ)** | 162건 | **약 55~60%** | FE·AI·INF RQ는 타 레포 |
-| **기능 (FN)** | 266건 | **BE FN 약 65%** | RTM 갱신 필요 (아래 §6) |
+| **요구사항 (RQ)** | 169건 | **약 55~60%** | source Excel 재추출 (2026-06-18) |
+| **기능 (FN)** | BE 115건 | **BE FN 약 65%** | [traceability.md](./requirements/traceability.md) 재생성 |
 | **REST API (BE)** | ~40 엔드포인트 | **핵심 MVP ✅** | PDF·Compare·알림 ⬜ |
 | **팀 문서 (`docs/`)** | 23개 md + Excel source | **✅ 정비 완료** | [AGENTS.md](./AGENTS.md) 진입점 |
 | **테스트** | 14 test 클래스 | **✅ 전체 통과** | `./gradlew test` |
@@ -61,20 +61,22 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **로그인** | RQ-LOGIN-020~021 | `POST /api/auth/login` | ✅ | PENDING → 401 + `ACCOUNT_PENDING` |
 | **회원가입** | RQ-SIGNUP-* | signup · invite · username check | ✅ | Rate limit · StandardErrorResponse |
 | **대시보드** | RQ-DSH-043 | `GET /api/v1/evidences/stats` | ✅ | 4카드 통계 (2026-06-17 반영) |
-| **대시보드 차트** | RQ-DSH-044~045 | — | ⬜ | 7일 트렌드·최근 목록 API 없음 |
-| **분석 요청** | RQ-REQ-047~049 | upload · analyze · analysis-status | ✅ | RabbitMQ + Local worker |
-| **무결성·CoC** | RQ-REQ-051 | CustodyLogs 해시 체인 | ✅ | 업로드·분석·관리 감사 |
+| **대시보드 차트** | RQ-DSH-044~045 | `stats/trend` · `stats/recent` | ✅ | 7일 트렌드 · 최근 위젯 (2026-06-18) |
+| **분석 요청** | RQ-REQ-047~049 | upload · analyze · analysis-status | ✅ | **영상 MP4/MOV만** · RabbitMQ + Local worker |
+| **무결성·CoC** | RQ-REQ-051, HIS-107 | CustodyLogs · `GET .../coc/verify` | ✅ | 증거별 체인 검증 API |
+| **Recovery Score** | RQ-DTL-071~072 | `detail.integrityInfo` | ✅ | 메타데이터 기반 점수 |
 | **WORM·S3** | RQ-REQ-048, SEC-150 | S3 upload (`original/`) | 🟡 | 코드 연동 있음 · Object Lock 운영은 INF |
-| **X.509 사본 서명** | RQ-REQ-050 | — | ⬜ | ERD/명세 있음 · API/파이프라인 미구현 |
-| **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | — | ⬜ | DB/표시 필드 일부 · 앵커 Job 없음 |
-| **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | API 분할(case + evidence) · FE 합의 필요 |
-| **PDF 리포트** | RQ-DTL-084~087 | — | ⬜ | `reports` 테이블만 존재 · 생성/다운 API 없음 |
-| **비교 검증** | RQ-CMP-* | — | ⬜ | Compare API 전무 |
-| **분석 이력** | RQ-HIS-106 | `GET /api/v1/mypage/analysis-history` | 🟡 | 페이지네이션 ✅ · CoC 검증 UI는 FE |
-| **마이페이지** | RQ-MY-* | `GET/PATCH /api/v1/users/me` | 🟡 | 프로필·비밀번호 ✅ · 설정 API ⬜ |
-| **관리자** | RQ-ADMIN-* | `/api/v1/admin/**` | ✅ | 사용자·로그·초대코드·증거·대시보드 |
-| **알림** | RQ-COM-015~016 | — | ⬜ | Notifications API 없음 |
-| **환경 설정** | RQ-COM-009, MY-112 | — | ⬜ | `users/me/settings` 없음 |
+| **X.509 사본 서명** | RQ-REQ-050 | 분석 copy 파이프라인 | ✅ | Manifest + mock X.509 (2026-06-18) |
+| **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | `GET .../blockchain` | 🟡 | BE 파이프라인 ✅ · INF URL 대기 |
+| **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | API 분할 · FE 합의 필요 |
+| **PDF 리포트** | RQ-DTL-084~087 | `GET .../reports/pdf` | ✅ | QR reportHash |
+| **비교 검증** | RQ-CMP-* | `/api/v1/compare/**` | ✅ | |
+| **분석 이력** | RQ-HIS-106 | `mypage/analysis-history` | 🟡 | 페이지네이션 ✅ |
+| **마이페이지** | RQ-MY-* | users/me · settings | ✅ | |
+| **관리자** | RQ-ADMIN-* | `/api/v1/admin/**` | ✅ | |
+| **알림** | RQ-COM-015~016 | `/api/v1/notifications` | ✅ | |
+| **환경 설정** | RQ-COM-009 | `users/me/settings` | ✅ | |
+
 | **성능 NFR** | RQ-PER-* | — | 🟡 | 부하·최적화 검증 미실시 |
 
 **범례:** ✅ 완료 · 🟡 부분 · ⬜ 미구현 · — 타 파트(FE/AI/INF) 주도
@@ -102,10 +104,13 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | Method | Path | 용도 |
 | :--- | :--- | :--- |
 | GET | `/api/v1/evidences/stats` | 대시보드 통계 |
+| GET | `/api/v1/evidences/stats/trend` | 7일 분석 추이 |
+| GET | `/api/v1/evidences/stats/recent` | 최근 분석 위젯 |
 | POST | `/api/v1/evidences/upload` | 업로드 + SHA-256 |
 | POST | `/api/v1/evidences/analyze` | 분석 시작 |
 | GET | `/api/v1/evidences/{id}/analysis-status` | 진행률 polling |
-| GET | `/api/v1/evidences/{id}/detail` | 증거 상세 |
+| GET | `/api/v1/evidences/{id}/detail` | 증거 상세 (+ Recovery Score) |
+| GET | `/api/v1/evidences/{id}/coc/verify` | CoC 체인 검증 |
 | DELETE | `/api/v1/evidences/{id}` | 업로드 취소 |
 | DELETE | `/api/v1/evidences/{id}/reset` | 증거 초기화 |
 | DELETE | `/api/v1/evidences/{id}/analysis` | 분석 중단 |
@@ -159,13 +164,17 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 
 ## 6. RTM(추적 매트릭스) 주의
 
-[requirements/traceability.md](./requirements/traceability.md)는 Excel v1.1에서 자동 추출된 **BE FN 목록**이지만:
+[requirements/traceability.md](./requirements/traceability.md)는 source Excel **백엔드 시트**에서 재생성됩니다.
 
-- 일부 행에 `A[백엔드 시작]` 등 **깨진 API/컴포넌트** 표기가 있음
-- PDF·블록체인 등 **✅로 표시됐으나 실제 API 없음** — 본 문서 §2 기준이 더 정확
-- `FN-DSH-043-BE`가 FE 담당으로만 표기 — **BE stats API는 구현 완료**
+- 구현 상태 ✅/🟡/⬜는 `api/specification.md`·코드와 **교차검토** 필요
+- PDF·블록체인 등 **⬜ 유지** — 본 문서 §2·§8 기준이 코드 Gap과 더 일치
 
-**권장:** 다음 스프린트에 RTM을 코드 기준으로 **재점검·갱신**.
+**재생성:**
+
+```bash
+python scripts/extract_requirements_from_excel.py
+python scripts/generate_requirements_markdown.py
+```
 
 ---
 
@@ -244,5 +253,6 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 
 | 날짜 | 작성자 | 내용 |
 | :--- | :--- | :--- |
-| 2026-06-18 | — | develop→main 릴리스 · .env 추적 해제 · Excel source · merge 충돌 해결 |
+| 2026-06-17 | — | Recovery Score(DTL-071~072) · CoC 검증 API(HIS-107) · 문서 Gap 갱신 |
+| 2026-06-18 | — | source Excel → index/traceability 재생성 · **영상-only** 스코프 반영 (docs·코드) |
 | 2026-06-17 | — | 초판 — 코드·문서·Gap 분석 기반 진행 상황 |

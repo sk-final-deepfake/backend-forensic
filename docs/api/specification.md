@@ -16,7 +16,7 @@
 | **증거·분석 API** | ✅ v1 prefix + stats/analyze/auth **통일 완료** (legacy alias 유지) |
 | **에러 JSON·예외 Handler** | ✅ `StandardErrorResponse` 단일 |
 | **Admin 페이지네이션** | ✅ `content` / `totalElements` |
-| **비교검증·PDF·알림·설정·블록체인** | ⬜ **미구현** |
+| **비교검증·PDF·알림·설정·블록체인** | ✅ **구현 완료** (INF 게이트웨이·X.509 제외) |
 
 > **FE 연동:** [§2 현재 구현 정본](#2-현재-구현-정본-controller-기준) 사용  
 > **AI 에이전트:** [../AGENTS.md](../AGENTS.md) → 본 문서 §2
@@ -58,21 +58,21 @@
 
 ---
 
-### 0.4 기능명세서·RQ 기준 — API 미구현
+### 0.4 기능명세서·RQ 기준 — 잔여 Gap
 
-아래는 요구사항/기능명세에 있으나 **백엔드 REST가 아직 없음**:
+| 영역 | RQ (예) | API | 상태 |
+| :--- | :--- | :--- | :---: |
+| PDF 리포트 | DTL-084~087 | `GET .../reports/pdf`, `.../verify` | ✅ |
+| 비교 검증 | CMP-091~104 | `POST /api/v1/compare/verify` 등 | ✅ |
+| 알림 | COM-015~016 | `GET/PATCH /api/v1/notifications` | ✅ |
+| 환경 설정 | COM-009 | `GET/PATCH /api/v1/users/me/settings` | ✅ |
+| Recovery Score | DTL-071~072 | `detail.integrityInfo` | ✅ |
+| CoC 체인 검증 | HIS-107 | `GET .../coc/verify` | ✅ |
+| X.509 사본 서명 | REQ-050, DTL-075~076 | 분석 copy Manifest + mock 서명 | ✅ |
+| 블록체인 앵커 | REQ-052, DTL-078 | `GET .../blockchain` | 🟡 INF URL 대기 |
+| 대시보드 7일·최근 | DSH-044~045 | `stats/trend`, `stats/recent` | ✅ |
+| 로그아웃 | COM-011 | 클라이언트 sessionStorage 삭제 (서버 API 불필요) | — |
 
-| 영역 | RQ (예) | 필요 API (목표) | 상태 |
-| :--- | :--- | :--- | :--- |
-| PDF 리포트 | RQ-DTL-082~086 | `GET /api/v1/evidences/{id}/reports/pdf` 등 | ⬜ |
-| 비교 검증 | RQ-CMP-083~095 | `POST /api/v1/compare`, `GET .../result` | ⬜ |
-| 알림 | RQ-COM-015~016 | `GET /api/v1/notifications` | ⬜ |
-| 환경 설정 | RQ-COM-009 | `GET/PATCH /api/v1/users/me/settings` | ⬜ |
-| 블록체인 앵커 | RQ-REQ-052, DTL-078 | 업로드 시 앵커 + 조회 API | ⬜ |
-| X.509 사본 서명 | RQ-REQ-050 | 업로드 파이프라인 내부 | ⬜ |
-| 대시보드 7일 차트 | RQ-DSH-044 | `GET /api/v1/dashboard/analysis-trend?days=7` | ⬜ |
-| 최근 분석 목록 | RQ-DSH-045 | case/history API 확장 또는 전용 | 🟡 부분 (`mypage/analysis-history`) |
-| 로그아웃 | RQ-COM-011 | 클라이언트 sessionStorage 삭제 (서버 API 불필요) | — |
 
 ---
 
@@ -88,6 +88,8 @@
 | DELETE | `/api/evidences/{evidenceId}` | 증거 삭제 |
 | DELETE | `/api/evidences/{evidenceId}/reset` | 증거+분석 초기화 |
 | DELETE | `/api/evidences/{evidenceId}/analysis` | 분석 중단 |
+| GET | `/api/evidences/{evidenceId}/coc/verify` | CoC 해시 체인 검증 (RQ-HIS-107) |
+| GET | `/api/evidences/{evidenceId}/reports/pdf` | PDF 리포트 |
 | GET/DELETE | `/api/v1/admin/evidences/**` | 관리자 증거 관리 |
 | DELETE | `/api/v1/admin/users/{userId}` | 관리자 계정 삭제 |
 
@@ -100,7 +102,7 @@
 | 순위 | 작업 | 담당 |
 | :---: | :--- | :--- |
 | 1~4 | Evidence v1 · stats · analyze · auth errorCode | ✅ 완료 |
-| 5 | PDF / Compare API | ⬜ BE |
+| 5 | PDF / Compare / Notifications / Settings / Blockchain | ✅ BE |
 | 6 | 기능명세서 Excel FE「호출 API」열 갱신 | PM/문서 |
 
 ---
@@ -183,24 +185,14 @@
 
 ### 2.3 증거 · 분석 (Legacy prefix `/api/evidences`)
 
-#### GET `/api/evidences/stats`
+#### GET `/api/v1/evidences/stats`
 
 | | |
 |---|---|
-| **RQ** | RQ-DSH-043 (⚠️ 응답 필드 불일치) |
+| **RQ** | RQ-DSH-043 |
 | **Auth** | User |
 
-**Response 200 (현재)**
-
-```json
-{
-  "imageCount": 3,
-  "videoCount": 12,
-  "audioCount": 1
-}
-```
-
-**명세 목표 (RQ-DSH-043, 미구현 필드)**
+**Response 200**
 
 ```json
 {
@@ -210,6 +202,92 @@
   "inProgressCount": 0
 }
 ```
+
+> 업로드 미디어: **영상(VIDEO)만** 지원.
+
+---
+
+#### GET `/api/v1/evidences/stats/trend`
+
+| | |
+|---|---|
+| **RQ** | RQ-DSH-044 |
+| **Auth** | User |
+
+| Query | Required | Default | 설명 |
+| :--- | :---: | :--- | :--- |
+| `days` | ❌ | `7` | 조회 일수 (1~30). 오늘 포함 과거 N일 |
+
+**Response 200**
+
+```json
+{
+  "days": 7,
+  "points": [
+    { "date": "2026-06-12", "completedCount": 2 },
+    { "date": "2026-06-13", "completedCount": 0 }
+  ]
+}
+```
+
+- `points` 길이 = `days` (시작일~오늘, 일별)
+- `completedCount`: 해당 일 `AnalysisRequest.status = COMPLETED` 이고 `completedAt`이 그 날짜인 건수 (본인 업로드·미삭제 증거만)
+
+**Errors:** `INVALID_REQUEST` (days 범위 초과)
+
+---
+
+#### GET `/api/v1/evidences/stats/recent`
+
+| | |
+|---|---|
+| **RQ** | RQ-DSH-045 |
+| **Auth** | User |
+
+| Query | Required | Default | 설명 |
+| :--- | :---: | :--- | :--- |
+| `limit` | ❌ | `5` | 조회 건수 (3~5) |
+
+**Response 200:** `RecentAnalysisResponse`
+
+```json
+{
+  "limit": 5,
+  "items": [
+    {
+      "evidenceId": 12,
+      "analysisRequestId": 101,
+      "fileName": "sample.mp4",
+      "requestedAt": "2026-06-18T04:30:00Z",
+      "status": "COMPLETED",
+      "riskScore": 72.5,
+      "riskLevel": "HIGH",
+      "verdictIndicator": "DANGER"
+    },
+    {
+      "evidenceId": 11,
+      "analysisRequestId": 98,
+      "fileName": "pending.mp4",
+      "requestedAt": "2026-06-18T03:00:00Z",
+      "status": "PROCESSING"
+    }
+  ]
+}
+```
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `items[].fileName` | 영상 파일명 |
+| `items[].requestedAt` | 분석 요청 일시 (UTC) |
+| `items[].status` | `PENDING` · `PROCESSING` · `COMPLETED` · `FAILED` |
+| `items[].riskScore` | **COMPLETED** 시 위험 지수(%) |
+| `items[].riskLevel` | **COMPLETED** 시 `LOW` · `MEDIUM` · `HIGH` |
+| `items[].verdictIndicator` | **COMPLETED** 시 `NORMAL`(초록) · `SUSPICIOUS`(주황) · `DANGER`(빨강) |
+
+- 본인(`requestedBy`) · 미삭제 증거만 · **증거당 최신 분석 요청 1건** · `requestedAt` 내림차순
+- 진행 중·실패 건은 `riskScore` / `riskLevel` / `verdictIndicator` **미포함**
+
+**Errors:** `INVALID_REQUEST` (limit 범위 초과)
 
 ---
 
@@ -224,9 +302,11 @@
 | Field | Required |
 | :--- | :---: |
 | `file` | ✅ |
-| `caseName` | ❌ |
+| `caseName` | ✅ |
 
 **Response 200:** `FileUploadResponse` (`evidenceId`, `hashValue`, `metadata`, …)
+
+**허용 파일:** 영상 **MP4, MOV** only (`FileValidationService`)
 
 **Errors:** `FILE_NOT_FOUND`, `UNSUPPORTED_FILE_TYPE`, `FILE_SIZE_EXCEEDED`, `HASH_GENERATION_FAILED`
 
@@ -264,8 +344,34 @@
 
 #### GET `/api/evidences/{evidenceId}/analysis-status`
 
-**Auth:** User · **Response:** `AnalysisStatusResponse`  
-**Errors:** `ANALYSIS_NOT_FOUND` (404)
+| | |
+|---|---|
+| **RQ** | RQ-DTL-055, RQ-REQ-049 (polling) |
+| **Auth** | User |
+
+**Response 200:** `AnalysisStatusResponse`
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `evidenceId` | 증거 ID |
+| `analysisRequestId` | 최신 분석 요청 ID (없으면 `0`) |
+| `status` | `PENDING` · `PROCESSING` · `COMPLETED` · `FAILED` |
+| `progressPercent` | 0~100 |
+| `errorCode` | **`FAILED`일 때만** — 예: `ANALYSIS_FAILED`, `RABBITMQ_PUBLISH_FAILED` |
+| `errorMessage` | **`FAILED`일 때만** — 실패 사유 요약 |
+
+```json
+{
+  "evidenceId": 12,
+  "analysisRequestId": 101,
+  "status": "FAILED",
+  "progressPercent": 0,
+  "errorCode": "RABBITMQ_PUBLISH_FAILED",
+  "errorMessage": "분석 요청 큐 등록에 실패했습니다."
+}
+```
+
+**Errors:** `EVIDENCE_NOT_FOUND` (404) — 타 사용자 증거 또는 삭제됨
 
 ---
 
@@ -273,19 +379,69 @@
 
 | | |
 |---|---|
-| **RQ** | RQ-DTL-053~ (일부) |
+| **RQ** | RQ-DTL-053~076 |
 | **Auth** | User |
 
 **Response:** `EvidenceDetailResponse`
 
+| 필드 | 설명 |
+| :--- | :--- |
+| `manifestInfo` | **RQ-DTL-075** — 분석 사본 생성 후 Manifest 요약 (없으면 `null`) |
+| `signatureInfo` | **RQ-DTL-076** — X.509 mock 전자서명 상태 |
+
 ```json
 {
   "evidenceInfo": { },
-  "integrityInfo": { },
+  "integrityInfo": {
+    "recoveryScore": 85,
+    "dataLossPercent": 15,
+    "recoveryGrade": "HIGH",
+    "chainValid": true
+  },
+  "manifestInfo": {
+    "evidenceId": 12,
+    "caseNumber": "2026-서울-0123",
+    "originalHash": "...",
+    "copyHash": "...",
+    "manifestCreatedAt": "2026-06-18T06:00:00Z",
+    "manifestHash": "...",
+    "issuer": "ForenShield Digital Forensics"
+  },
+  "signatureInfo": {
+    "signatureStatus": "SIGNED",
+    "signatureAlgorithm": "SHA256withRSA",
+    "signedAt": "2026-06-18T06:00:00Z",
+    "signerCertificateSubject": "CN=ForenShield Forensics CA,O=SK Project,C=KR",
+    "signatureValid": true
+  },
   "analysisInfo": { },
   "cocLogs": [ ]
 }
 ```
+
+- Manifest·서명은 **분석 시작 시 사본 생성**(`RQ-REQ-050`)과 함께 생성됨
+- 업로드만 한 상태: `manifestInfo=null`, `signatureInfo.signatureStatus=UNSIGNED`
+
+#### GET `/api/evidences/{evidenceId}/coc/verify`
+
+| | |
+|---|---|
+| **RQ** | RQ-HIS-107 |
+| **Auth** | User |
+
+**Response 200**
+
+```json
+{
+  "evidenceId": 1,
+  "valid": true,
+  "logCount": 3,
+  "brokenAtLogId": null,
+  "failureReason": null,
+  "message": "CoC 해시 체인 검증에 성공했습니다."
+}
+```
+
 
 ---
 

@@ -1,5 +1,6 @@
 package com.example.demo.messaging;
 
+import com.example.demo.dto.AnalysisJobMessage;
 import com.example.demo.service.AnalysisJobEnqueuer;
 import com.example.demo.service.AnalysisWorkerService;
 import jakarta.annotation.PreDestroy;
@@ -11,7 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @Component
-@ConditionalOnExpression("'${spring.rabbitmq.host:}'.length() == 0")
+@ConditionalOnExpression("'${spring.rabbitmq.host:}'.length() == 0 || '${analysis.worker.mode:local}'.equalsIgnoreCase('local')")
 public class LocalAnalysisJobEnqueuer implements AnalysisJobEnqueuer {
 
     private final AnalysisWorkerService analysisWorkerService;
@@ -26,8 +27,8 @@ public class LocalAnalysisJobEnqueuer implements AnalysisJobEnqueuer {
     }
 
     @Override
-    public void enqueue(Long analysisRequestId, Long evidenceId) {
-        executor.submit(() -> analysisWorkerService.processJob(analysisRequestId));
+    public void enqueue(AnalysisJobMessage message) {
+        executor.submit(() -> analysisWorkerService.processJob(message.getAnalysisRequestId()));
     }
 
     @PreDestroy

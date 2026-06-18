@@ -2,7 +2,9 @@ package com.example.demo.service;
 
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.CustodyTargetType;
+import com.example.demo.domain.enums.ExtractionStatus;
 import com.example.demo.dto.FileUploadResponse;
+import com.example.demo.dto.MediaMetadata;
 import com.example.demo.dto.ValidatedFile;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.HashGenerationException;
@@ -40,7 +42,9 @@ public class FileService {
     private final EvidenceRepository evidenceRepository;
     private final FileValidationService fileValidationService;
     private final CustodyLogService custodyLogService;
+    private final EvidenceMetadataService evidenceMetadataService;
     private final ObjectMapper objectMapper;
+    private final BlockchainAnchorService blockchainAnchorService;
 
     public FileService(
             @Value("${file.upload-dir:uploads}") String uploadDir,
@@ -51,7 +55,9 @@ public class FileService {
             EvidenceRepository evidenceRepository,
             FileValidationService fileValidationService,
             CustodyLogService custodyLogService,
-            ObjectMapper objectMapper
+            EvidenceMetadataService evidenceMetadataService,
+            ObjectMapper objectMapper,
+            BlockchainAnchorService blockchainAnchorService
     ) {
         this.s3Client = s3Client;
         this.evidenceBucket = evidenceBucket;
@@ -61,7 +67,9 @@ public class FileService {
         this.evidenceRepository = evidenceRepository;
         this.fileValidationService = fileValidationService;
         this.custodyLogService = custodyLogService;
+        this.evidenceMetadataService = evidenceMetadataService;
         this.objectMapper = objectMapper;
+        this.blockchainAnchorService = blockchainAnchorService;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
@@ -88,19 +96,38 @@ public class FileService {
 
             String hashValue = hashService.generateSha256(savedPath);
 
-            Object metadata = null;
-            String extractionStatus = "SUCCESS";
+            MediaMetadata extracted = null;
+            ExtractionStatus extractionStatus = ExtractionStatus.SUCCESS;
+            String extractionError = null;
             try {
-                metadata = mediaService.extractMetadata(savedPath);
+                extracted = mediaService.extractMetadata(savedPath);
+                if (extracted.getWidth() == null && extracted.getCodec() == null) {
+                    extractionStatus = ExtractionStatus.PARTIAL;
+                }
             } catch (Exception e) {
                 log.error("Metadata extraction failed for {}: {}", originalFilename, e.getMessage());
-                metadata = "깨짐";
-                extractionStatus = "FAILED";
+                extractionStatus = ExtractionStatus.FAILED;
+                extractionError = e.getMessage();
             }
 
-            // 해시·메타데이터 추출이 끝난 로컬 파일을 S3에 업로드 (원본 보관소는 S3)
-            // 로컬에 임시 저장된 파일을 S3 버킷에 올리는 코드
-            String s3Key = "original/" + storedFileName;
+            Evidence evidence = Evidence.builder()
+                    .uploaderId(uploaderId)
+                    .caseName(trimmedCaseName)
+                    .caseNumber(trimmedCaseName)
+                    .fileName(originalFilename)
+                    .fileType(validated.fileType())
+                    .mimeType(validated.mimeType())
+                    .fileSize(validated.fileSize())
+                    .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                    .originalHashValue(hashValue)
+                    .originalStoragePath("pending")
+                    .uploadedAt(LocalDateTime.now())
+                    .build();
+
+            Evidence savedEvidence = evidenceRepository.save(evidence);
+
+            String caseKey = EvidenceStoragePaths.resolveCaseKey(savedEvidence);
+            String s3Key = EvidenceStoragePaths.originalKey(caseKey, savedEvidence.getEvidenceId(), originalFilename);
             s3Client.putObject(
                     PutObjectRequest.builder()
                             .bucket(evidenceBucket)
@@ -109,23 +136,15 @@ public class FileService {
                             .build(),
                     RequestBody.fromFile(savedPath));
 
-            Evidence evidence = Evidence.builder()
-                    .uploaderId(uploaderId)
-                    .caseName(trimmedCaseName)
-                    .fileName(originalFilename)
-                    .fileType(validated.fileType())
-                    .mimeType(validated.mimeType())
-                    .fileSize(validated.fileSize())
-                    .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
-                    .originalHashValue(hashValue)
-                    .originalStoragePath(s3Key)
-                    .uploadedAt(LocalDateTime.now())
-                    .build();
+            savedEvidence.updateOriginalStoragePath(s3Key);
+            evidenceRepository.save(savedEvidence);
 
-            Evidence savedEvidence = evidenceRepository.save(evidence);
-            recordUploadCustodyLogs(savedEvidence, uploaderId, extractionStatus);
+            evidenceMetadataService.saveFromExtraction(
+                    savedEvidence.getEvidenceId(), extracted, extractionStatus, extractionError);
 
-            // 로컬 파일은 임시 작업용 — 보관은 S3가 담당하므로 정리
+            recordUploadCustodyLogs(savedEvidence, uploaderId, extractionStatus.name());
+            blockchainAnchorService.anchorEvidenceHash(savedEvidence, uploaderId);
+
             Files.deleteIfExists(savedPath);
 
             String originalSha256 = savedEvidence.getOriginalHashValue();
@@ -139,14 +158,34 @@ public class FileService {
                     .hashAlgorithm(savedEvidence.getHashAlgorithm())
                     .hashValue(originalSha256)
                     .originalSha256(originalSha256)
-                    .metadata(metadata)
+                    .metadata(toMetadataResponse(extracted, extractionStatus, extractionError))
                     .build();
         } catch (HashGenerationException e) {
             throw e;
         } catch (Exception e) {
             log.error("FileUpload Error: ", e);
-            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "FILE_UPLOAD_FAILED", "파일 업로드에 실패했습니다.");
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "파일 업로드에 실패했습니다.");
         }
+    }
+
+    private Object toMetadataResponse(MediaMetadata extracted, ExtractionStatus status, String error) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("extractionStatus", status.name());
+        if (error != null) {
+            response.put("message", error);
+        }
+        if (extracted != null) {
+            response.put("type", extracted.getType());
+            response.put("width", extracted.getWidth());
+            response.put("height", extracted.getHeight());
+            response.put("durationSec", extracted.getDuration());
+            response.put("fps", extracted.getFps());
+            response.put("codec", extracted.getCodec());
+            response.put("sampleRate", extracted.getSampleRate());
+            response.put("channels", extracted.getChannels());
+            response.put("hasAudioTrack", extracted.getHasAudioTrack());
+        }
+        return response;
     }
 
     private void recordUploadCustodyLogs(Evidence savedEvidence, Long uploaderId, String extractionStatus) {

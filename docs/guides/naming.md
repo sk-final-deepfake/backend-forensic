@@ -92,7 +92,7 @@ UserStatus:     PENDING | APPROVED | REJECTED | SUSPENDED
 UserRole:       ROLE_USER | ROLE_ADMIN
 EvidenceStatus: UPLOADED | DELETED
 AnalysisStatus: QUEUED | ANALYZING | COMPLETED | FAILED
-FileType:       IMAGE | VIDEO | AUDIO
+FileType:       VIDEO (MVP 업로드) · IMAGE | AUDIO (DB enum 잔존, 미사용)
 RiskLevel:      LOW | MEDIUM | HIGH
 InviteStatus:   ACTIVE | USED | EXPIRED | REVOKED
 OrgType:        POLICE | PROSECUTION | NFS | PUBLIC_SECURITY | ETC
