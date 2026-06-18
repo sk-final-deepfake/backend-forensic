@@ -31,11 +31,13 @@ public class AnalysisResultPersistenceService {
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public void saveSimulatedVideoResult(Long analysisRequestId) {
-        if (analysisResultRepository.findByAnalysisRequestId(analysisRequestId).isPresent()) {
-            return;
-        }
+    public Long saveSimulatedVideoResult(Long analysisRequestId) {
+        return analysisResultRepository.findByAnalysisRequestId(analysisRequestId)
+                .map(AnalysisResult::getAnalysisResultId)
+                .orElseGet(() -> createSimulatedVideoResult(analysisRequestId));
+    }
 
+    private Long createSimulatedVideoResult(Long analysisRequestId) {
         AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId)
                 .orElseThrow(() -> new IllegalStateException("AnalysisRequest not found: " + analysisRequestId));
 
@@ -50,6 +52,7 @@ public class AnalysisResultPersistenceService {
 
         saveVideoModule(savedResult.getAnalysisResultId(), true, 0.78, true, 0.82,
                 true, 0.88, false, 0.12, false, 0.05);
+        return savedResult.getAnalysisResultId();
     }
 
     private void saveVideoModule(

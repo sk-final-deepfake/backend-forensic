@@ -9,6 +9,7 @@ import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.dto.AnalysisJobMessage;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
+import com.example.demo.exception.AnalysisCopyException;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
@@ -72,7 +73,15 @@ public class AnalysisService {
             }
 
             evidence.updateCaseInfo(trimmedCaseName);
-            evidenceCopyService.prepareCopyForAnalysis(evidence);
+            try {
+                evidenceCopyService.prepareCopyForAnalysis(evidence, user.getUserId());
+            } catch (AnalysisCopyException ex) {
+                throw new BusinessException(
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        ex.getErrorCode(),
+                        ex.getMessage()
+                );
+            }
             evidenceRepository.save(evidence);
 
             AnalysisRequest analysisRequest = new AnalysisRequest();
