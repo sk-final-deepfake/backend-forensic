@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -74,4 +75,20 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
               )
             """)
     long countDeepfakeDetectedByUploader(@Param("uploaderId") Long uploaderId);
+
+    @Query("""
+            SELECT COUNT(ar)
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE ar.requestedBy = :uploaderId
+              AND e.deletedAt IS NULL
+              AND ar.status = com.example.demo.domain.enums.AnalysisStatus.COMPLETED
+              AND ar.completedAt >= :startInclusive
+              AND ar.completedAt < :endExclusive
+            """)
+    long countCompletedByUploaderCompletedAtBetween(
+            @Param("uploaderId") Long uploaderId,
+            @Param("startInclusive") LocalDateTime startInclusive,
+            @Param("endExclusive") LocalDateTime endExclusive
+    );
 }
