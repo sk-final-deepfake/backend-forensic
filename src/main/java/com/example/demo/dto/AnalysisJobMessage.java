@@ -18,8 +18,17 @@ public class AnalysisJobMessage {
     private Long evidenceId;
     @JsonProperty("fileType")
     private String fileType;
+    /** S3 object key for analysis copy (cases/.../copy/...) */
     private String filePath;
+    /** Same as filePath — AI worker compatibility alias */
+    private String s3ObjectKey;
+    private String s3Bucket;
+    private String s3Region;
+    /** Presigned GET URL or s3:// URI for GPU worker download */
+    private String presignedDownloadUrl;
     private String originalHash;
+    /** Same as originalHash — AI worker compatibility alias */
+    private String originalSha256;
     private String caseName;
     private String requestedAt;
 }
