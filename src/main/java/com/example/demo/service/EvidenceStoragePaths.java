@@ -27,6 +27,10 @@ public final class EvidenceStoragePaths {
         return "cases/" + caseKey + "/" + evidenceId + "/copy/" + fileName;
     }
 
+    public static String manifestKey(String caseKey, Long evidenceId) {
+        return "cases/" + caseKey + "/" + evidenceId + "/manifest/evidence-manifest.json";
+    }
+
     private static String sanitize(String value) {
         return value.trim()
                 .replaceAll("[\\\\/]+", "-")

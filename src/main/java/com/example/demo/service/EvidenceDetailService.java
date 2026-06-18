@@ -1,15 +1,18 @@
 package com.example.demo.service;
 
+import com.example.demo.config.EvidenceManifestProperties;
 import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.ExtractionStatus;
+import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.dto.detail.AnalysisInfoDto;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.dto.detail.CaseEvidenceSummaryDto;
@@ -17,7 +20,9 @@ import com.example.demo.dto.detail.CocLogDto;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.dto.detail.EvidenceInfoDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
+import com.example.demo.dto.detail.ManifestInfoDto;
 import com.example.demo.dto.detail.ModuleResultDto;
+import com.example.demo.dto.detail.SignatureInfoDto;
 import com.example.demo.dto.detail.VideoMetadataDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
@@ -52,6 +57,8 @@ public class EvidenceDetailService {
     private final UserRepository userRepository;
     private final CustodyLogService custodyLogService;
     private final BlockchainAnchorService blockchainAnchorService;
+    private final EvidenceManifestService evidenceManifestService;
+    private final EvidenceManifestProperties evidenceManifestProperties;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -70,10 +77,13 @@ public class EvidenceDetailService {
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
 
         boolean isChainValid = custodyLogService.verifyChainIntegrity(CustodyTargetType.EVIDENCE, evidenceId);
+        EvidenceManifest manifest = evidenceManifestService.findByEvidenceId(evidenceId).orElse(null);
 
         return EvidenceDetailResponse.builder()
                 .evidenceInfo(toEvidenceInfo(evidence, metadata))
                 .integrityInfo(toIntegrityInfo(evidence, isChainValid))
+                .manifestInfo(toManifestInfo(evidence, manifest))
+                .signatureInfo(toSignatureInfo(manifest))
                 .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidenceId))
                 .analysisInfo(toAnalysisInfo(request, result))
                 .cocLogs(toCocLogs(custodyLogs))
@@ -169,6 +179,45 @@ public class EvidenceDetailService {
                 .chainValid(isChainValid)
                 .chainValidAlias(isChainValid)
                 .verificationStatus(isChainValid ? "VERIFIED" : "CORRUPTED")
+                .build();
+    }
+
+    private ManifestInfoDto toManifestInfo(Evidence evidence, EvidenceManifest manifest) {
+        if (manifest == null) {
+            return null;
+        }
+        return ManifestInfoDto.builder()
+                .evidenceId(evidence.getEvidenceId())
+                .caseNumber(evidence.getCaseNumber())
+                .caseName(evidence.getCaseName())
+                .fileName(evidence.getFileName())
+                .hashAlgorithm(evidence.getHashAlgorithm())
+                .originalHash(evidence.getOriginalHashValue())
+                .copyHash(evidence.getCopyHashValue())
+                .manifestCreatedAt(formatDateTime(manifest.getCreatedAt()))
+                .manifestHash(manifest.getManifestHash())
+                .issuer(evidenceManifestProperties.getIssuer())
+                .build();
+    }
+
+    private SignatureInfoDto toSignatureInfo(EvidenceManifest manifest) {
+        if (manifest == null) {
+            return SignatureInfoDto.builder()
+                    .signatureStatus(SignatureStatus.UNSIGNED.name())
+                    .build();
+        }
+        SignatureStatus status = manifest.getSignatureStatus() != null
+                ? manifest.getSignatureStatus()
+                : SignatureStatus.UNSIGNED;
+        Boolean valid = status == SignatureStatus.SIGNED
+                ? evidenceManifestService.isSignatureValid(manifest)
+                : null;
+        return SignatureInfoDto.builder()
+                .signatureStatus(status.name())
+                .signatureAlgorithm(manifest.getSignatureAlgorithm())
+                .signedAt(formatDateTime(manifest.getSignedAt()))
+                .signerCertificateSubject(manifest.getSignerCertificateSubject())
+                .signatureValid(valid)
                 .build();
     }
 

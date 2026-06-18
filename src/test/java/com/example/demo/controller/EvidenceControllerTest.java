@@ -950,8 +950,54 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.analysisInfo.status").value("PENDING"))
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isArray())
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isEmpty())
+                .andExpect(jsonPath("$.signatureInfo.signatureStatus").value("UNSIGNED"))
+                .andExpect(jsonPath("$.manifestInfo").doesNotExist())
                 .andExpect(jsonPath("$.cocLogs").isArray())
                 .andExpect(jsonPath("$.cocLogs").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("RQ-DTL-075/076: 분석 시작 후 상세 API에 Manifest·전자서명 정보가 포함된다")
+    void getEvidenceDetail_afterAnalysisStart_includesManifestAndSignature() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "manifest-detail.mp4",
+                "video/mp4",
+                "manifest detail bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String caseName = "Manifest 상세 사건";
+
+        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
+
+        mockMvc.perform(post("/api/v1/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "%s",
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(caseName, evidenceId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.manifestInfo.evidenceId").value(evidenceId))
+                .andExpect(jsonPath("$.manifestInfo.caseName").value(caseName))
+                .andExpect(jsonPath("$.manifestInfo.originalHash").isString())
+                .andExpect(jsonPath("$.manifestInfo.manifestHash").isString())
+                .andExpect(jsonPath("$.signatureInfo.signatureStatus").value("SIGNED"))
+                .andExpect(jsonPath("$.signatureInfo.signatureValid").value(true));
     }
 
     @Test

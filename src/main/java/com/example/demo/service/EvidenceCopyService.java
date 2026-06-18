@@ -25,6 +25,7 @@ public class EvidenceCopyService {
     private final HashService hashService;
     private final EvidenceRepository evidenceRepository;
     private final AnalysisCustodyLogService analysisCustodyLogService;
+    private final EvidenceManifestService evidenceManifestService;
 
     @Value("${aws.s3.evidence-bucket}")
     private String evidenceBucket;
@@ -32,6 +33,7 @@ public class EvidenceCopyService {
     @Transactional
     public void prepareCopyForAnalysis(Evidence evidence, Long actorId) {
         if (evidence.getCopyStatus() == CopyStatus.ACTIVE && evidence.getCopyStoragePath() != null) {
+            evidenceManifestService.ensureManifest(evidence);
             return;
         }
 
@@ -57,6 +59,7 @@ public class EvidenceCopyService {
 
             evidence.activateCopy(copyKey, copyHash);
             evidenceRepository.save(evidence);
+            evidenceManifestService.createAndSignManifest(evidence);
             analysisCustodyLogService.recordCopyCreated(actorId, evidence);
             analysisCustodyLogService.recordCopyVerified(actorId, evidence);
             log.info("Analysis copy prepared evidenceId={} copyKey={}", evidence.getEvidenceId(), copyKey);

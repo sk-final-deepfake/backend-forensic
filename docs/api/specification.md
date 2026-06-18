@@ -69,7 +69,7 @@
 | 알림 | RQ-COM-015~016 | `GET /api/v1/notifications` | ⬜ |
 | 환경 설정 | RQ-COM-009 | `GET/PATCH /api/v1/users/me/settings` | ⬜ |
 | 블록체인 앵커 | RQ-REQ-052, DTL-078 | 업로드 시 앵커 + 조회 API | ⬜ |
-| X.509 사본 서명 | RQ-REQ-050 | 업로드 파이프라인 내부 | ⬜ |
+| X.509 사본 서명 | RQ-REQ-050 | 분석 copy 시 Manifest + mock 서명 | ✅ |
 | 대시보드 7일 차트 | RQ-DSH-044 | `GET /api/v1/evidences/stats/trend?days=7` | ✅ |
 | 최근 분석 위젯 | RQ-DSH-045 | `GET /api/v1/evidences/stats/recent?limit=5` | ✅ |
 | 로그아웃 | RQ-COM-011 | 클라이언트 sessionStorage 삭제 (서버 API 불필요) | — |
@@ -377,19 +377,43 @@
 
 | | |
 |---|---|
-| **RQ** | RQ-DTL-053~ (일부) |
+| **RQ** | RQ-DTL-053~076 |
 | **Auth** | User |
 
 **Response:** `EvidenceDetailResponse`
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `manifestInfo` | **RQ-DTL-075** — 분석 사본 생성 후 Manifest 요약 (없으면 `null`) |
+| `signatureInfo` | **RQ-DTL-076** — X.509 mock 전자서명 상태 |
 
 ```json
 {
   "evidenceInfo": { },
   "integrityInfo": { },
+  "manifestInfo": {
+    "evidenceId": 12,
+    "caseNumber": "2026-서울-0123",
+    "originalHash": "...",
+    "copyHash": "...",
+    "manifestCreatedAt": "2026-06-18T06:00:00Z",
+    "manifestHash": "...",
+    "issuer": "ForenShield Digital Forensics"
+  },
+  "signatureInfo": {
+    "signatureStatus": "SIGNED",
+    "signatureAlgorithm": "SHA256withRSA",
+    "signedAt": "2026-06-18T06:00:00Z",
+    "signerCertificateSubject": "CN=ForenShield Forensics CA,O=SK Project,C=KR",
+    "signatureValid": true
+  },
   "analysisInfo": { },
   "cocLogs": [ ]
 }
 ```
+
+- Manifest·서명은 **분석 시작 시 사본 생성**(`RQ-REQ-050`)과 함께 생성됨
+- 업로드만 한 상태: `manifestInfo=null`, `signatureInfo.signatureStatus=UNSIGNED`
 
 ---
 

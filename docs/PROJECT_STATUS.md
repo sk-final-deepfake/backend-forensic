@@ -65,7 +65,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **분석 요청** | RQ-REQ-047~049 | upload · analyze · analysis-status | ✅ | **영상 MP4/MOV만** · RabbitMQ + Local worker |
 | **무결성·CoC** | RQ-REQ-051 | CustodyLogs 해시 체인 | ✅ | 업로드·분석·관리 감사 |
 | **WORM·S3** | RQ-REQ-048, SEC-150 | S3 upload (`original/`) | 🟡 | 코드 연동 있음 · Object Lock 운영은 INF |
-| **X.509 사본 서명** | RQ-REQ-050 | — | ⬜ | ERD/명세 있음 · API/파이프라인 미구현 |
+| **X.509 사본 서명** | RQ-REQ-050 | 분석 copy 파이프라인 | ✅ | Manifest + mock X.509 (2026-06-18) |
 | **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | — | ⬜ | DB/표시 필드 일부 · 앵커 Job 없음 |
 | **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | API 분할(case + evidence) · FE 합의 필요 |
 | **PDF 리포트** | RQ-DTL-084~087 | — | ⬜ | `reports` 테이블만 존재 · 생성/다운 API 없음 |
