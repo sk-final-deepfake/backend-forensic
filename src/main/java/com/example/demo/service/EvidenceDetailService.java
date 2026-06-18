@@ -1,15 +1,18 @@
 package com.example.demo.service;
 
+import com.example.demo.config.EvidenceManifestProperties;
 import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.ExtractionStatus;
+import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.dto.detail.AnalysisInfoDto;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.dto.detail.CaseEvidenceSummaryDto;
@@ -17,11 +20,11 @@ import com.example.demo.dto.detail.CocLogDto;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.dto.detail.EvidenceInfoDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
+import com.example.demo.dto.detail.ManifestInfoDto;
 import com.example.demo.dto.detail.ModuleResultDto;
-import com.example.demo.dto.detail.TechnicalMetadataDto;
+import com.example.demo.dto.detail.SignatureInfoDto;
+import com.example.demo.dto.detail.RecoveryScoreDto;
 import com.example.demo.dto.detail.VideoMetadataDto;
-import com.example.demo.dto.detail.AudioMetadataDto;
-import com.example.demo.dto.detail.ImageMetadataDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
@@ -30,13 +33,13 @@ import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.exception.BusinessException;
+import com.example.demo.util.ApiDateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,8 +49,6 @@ import java.util.Map;
 @Transactional(readOnly = true)
 public class EvidenceDetailService {
 
-    private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-
     private final EvidenceRepository evidenceRepository;
     private final EvidenceMetadataRepository evidenceMetadataRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
@@ -56,6 +57,10 @@ public class EvidenceDetailService {
     private final CustodyLogRepository custodyLogRepository;
     private final UserRepository userRepository;
     private final CustodyLogService custodyLogService;
+    private final BlockchainAnchorService blockchainAnchorService;
+    private final EvidenceManifestService evidenceManifestService;
+    private final EvidenceManifestProperties evidenceManifestProperties;
+    private final RecoveryScoreService recoveryScoreService;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -74,10 +79,15 @@ public class EvidenceDetailService {
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
 
         boolean isChainValid = custodyLogService.verifyChainIntegrity(CustodyTargetType.EVIDENCE, evidenceId);
+        EvidenceManifest manifest = evidenceManifestService.findByEvidenceId(evidenceId).orElse(null);
+        var recovery = recoveryScoreService.calculate(metadata);
 
         return EvidenceDetailResponse.builder()
                 .evidenceInfo(toEvidenceInfo(evidence, metadata))
-                .integrityInfo(toIntegrityInfo(evidence, isChainValid))
+                .integrityInfo(toIntegrityInfo(evidence, isChainValid, recovery))
+                .manifestInfo(toManifestInfo(evidence, manifest))
+                .signatureInfo(toSignatureInfo(manifest))
+                .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidenceId))
                 .analysisInfo(toAnalysisInfo(request, result))
                 .cocLogs(toCocLogs(custodyLogs))
                 .build();
@@ -121,7 +131,7 @@ public class EvidenceDetailService {
                 .caseId(caseId)
                 .caseName(caseName)
                 .status(aggregateStatus)
-                .createdAt(ISO_FORMATTER.format(createdAt))
+                .createdAt(ApiDateTimeFormatter.formatUtc(createdAt))
                 .evidences(summaries)
                 .build();
     }
@@ -132,16 +142,16 @@ public class EvidenceDetailService {
                 .fileName(evidence.getFileName())
                 .caseName(evidence.getCaseName())
                 .fileSize(evidence.getFileSize())
-                .uploadedAt(ISO_FORMATTER.format(evidence.getUploadedAt()))
+                .uploadedAt(ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()))
                 .mediaType(evidence.getFileType().name())
                 .fileType(evidence.getFileType().name())
                 .technicalMetadata(mapToTypeSpecificMetadata(evidence, metadata))
                 .build();
     }
 
-    private Object mapToTypeSpecificMetadata(Evidence evidence, EvidenceMetadata metadata) {
+    private VideoMetadataDto mapToTypeSpecificMetadata(Evidence evidence, EvidenceMetadata metadata) {
         if (metadata == null) {
-            return TechnicalMetadataDto.builder()
+            return VideoMetadataDto.builder()
                     .extractionStatus(ExtractionStatus.FAILED.name())
                     .build();
         }
@@ -150,42 +160,73 @@ public class EvidenceDetailService {
                 ? ExtractionStatus.FAILED.name()
                 : metadata.getExtractionStatus().name();
 
-        return switch (evidence.getFileType()) {
-            case VIDEO -> VideoMetadataDto.builder()
-                    .extractionStatus(extractionStatus)
-                    .width(metadata.getWidth())
-                    .height(metadata.getHeight())
-                    .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
-                    .fps(metadata.getFps())
-                    .codec(metadata.getCodec())
-                    .build();
-            case AUDIO -> AudioMetadataDto.builder()
-                    .extractionStatus(extractionStatus)
-                    .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
-                    .sampleRate(metadata.getSampleRate())
-                    .bitrate(null) // TODO: Extract from ffprobeJson if needed
-                    .channels(metadata.getChannels())
-                    .codec(metadata.getCodec())
-                    .build();
-            case IMAGE -> ImageMetadataDto.builder()
-                    .extractionStatus(extractionStatus)
-                    .width(metadata.getWidth())
-                    .height(metadata.getHeight())
-                    .format(null) // TODO: Extract from exifJson if needed
-                    .colorSpace(null) // TODO: Extract from exifJson if needed
-                    .deviceInfo(metadata.getDeviceInfo())
-                    .capturedAt(metadata.getCapturedAt())
-                    .build();
-        };
+        return VideoMetadataDto.builder()
+                .extractionStatus(extractionStatus)
+                .width(metadata.getWidth())
+                .height(metadata.getHeight())
+                .durationSec(metadata.getDurationSec() != null ? metadata.getDurationSec().doubleValue() : null)
+                .fps(metadata.getFps())
+                .codec(metadata.getCodec())
+                .sampleRate(metadata.getSampleRate())
+                .channels(metadata.getChannels())
+                .hasAudioTrack(metadata.getSampleRate() != null || metadata.getChannels() != null)
+                .build();
     }
 
-    private IntegrityInfoDto toIntegrityInfo(Evidence evidence, boolean isChainValid) {
+    private IntegrityInfoDto toIntegrityInfo(Evidence evidence, boolean isChainValid, RecoveryScoreDto recovery) {
         return IntegrityInfoDto.builder()
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
+                .copyHash(evidence.getCopyHashValue())
+                .copyStatus(evidence.getCopyStatus() != null ? evidence.getCopyStatus().name() : null)
                 .chainValid(isChainValid)
                 .chainValidAlias(isChainValid)
                 .verificationStatus(isChainValid ? "VERIFIED" : "CORRUPTED")
+                .recoveryScore(recovery.getRecoveryScore())
+                .dataLossPercent(recovery.getDataLossPercent())
+                .recoveryGrade(recovery.getGrade())
+                .build();
+    }
+
+    private ManifestInfoDto toManifestInfo(Evidence evidence, EvidenceManifest manifest) {
+        if (manifest == null) {
+            return null;
+        }
+        return ManifestInfoDto.builder()
+                .evidenceId(evidence.getEvidenceId())
+                .fileId(evidence.getEvidenceId())
+                .caseId(resolveCaseId(evidence))
+                .caseNumber(evidence.getCaseNumber())
+                .caseName(evidence.getCaseName())
+                .fileName(evidence.getFileName())
+                .uploadedAt(formatDateTime(evidence.getUploadedAt()))
+                .hashAlgorithm(evidence.getHashAlgorithm())
+                .originalHash(evidence.getOriginalHashValue())
+                .copyHash(evidence.getCopyHashValue())
+                .manifestCreatedAt(formatDateTime(manifest.getCreatedAt()))
+                .manifestHash(manifest.getManifestHash())
+                .issuer(evidenceManifestProperties.getIssuer())
+                .build();
+    }
+
+    private SignatureInfoDto toSignatureInfo(EvidenceManifest manifest) {
+        if (manifest == null) {
+            return SignatureInfoDto.builder()
+                    .signatureStatus(SignatureStatus.UNSIGNED.name())
+                    .build();
+        }
+        SignatureStatus status = manifest.getSignatureStatus() != null
+                ? manifest.getSignatureStatus()
+                : SignatureStatus.UNSIGNED;
+        Boolean valid = status == SignatureStatus.SIGNED
+                ? evidenceManifestService.isSignatureValid(manifest)
+                : null;
+        return SignatureInfoDto.builder()
+                .signatureStatus(status.name())
+                .signatureAlgorithm(manifest.getSignatureAlgorithm())
+                .signedAt(formatDateTime(manifest.getSignedAt()))
+                .signerCertificateSubject(manifest.getSignerCertificateSubject())
+                .signatureValid(valid)
                 .build();
     }
 
@@ -310,7 +351,17 @@ public class EvidenceDetailService {
     }
 
     private String formatDateTime(LocalDateTime value) {
-        return value == null ? null : ISO_FORMATTER.format(value);
+        return ApiDateTimeFormatter.formatUtc(value);
+    }
+
+    private String resolveCaseId(Evidence evidence) {
+        if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
+            return evidence.getCaseNumber();
+        }
+        if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
+            return evidence.getCaseName();
+        }
+        return "EVIDENCE-" + evidence.getEvidenceId();
     }
 
     private String shortHash(String hash) {

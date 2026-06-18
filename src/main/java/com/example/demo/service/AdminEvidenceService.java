@@ -203,11 +203,11 @@ public class AdminEvidenceService {
         if (fileType == null || fileType.isBlank() || "ALL".equalsIgnoreCase(fileType)) {
             return null;
         }
-        try {
-            return FileType.valueOf(fileType.trim().toUpperCase());
-        } catch (IllegalArgumentException ex) {
-            throw new AdminException(HttpStatus.BAD_REQUEST, "INVALID_FILE_TYPE", "유효하지 않은 파일 유형입니다.");
+        String normalized = fileType.trim().toUpperCase();
+        if (!"VIDEO".equals(normalized)) {
+            throw new AdminException(HttpStatus.BAD_REQUEST, "INVALID_FILE_TYPE", "MVP는 VIDEO만 지원합니다.");
         }
+        return FileType.VIDEO;
     }
 
     private Map<Long, User> resolveUploaders(List<Evidence> evidences) {
