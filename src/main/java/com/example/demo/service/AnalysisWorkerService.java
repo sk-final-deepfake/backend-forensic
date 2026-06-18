@@ -20,6 +20,7 @@ public class AnalysisWorkerService {
 
     private final AnalysisRequestRepository analysisRequestRepository;
     private final TransactionTemplate transactionTemplate;
+    private final AnalysisResultPersistenceService analysisResultPersistenceService;
 
     public void processJob(Long analysisRequestId) {
         if (!prepareJob(analysisRequestId)) {
@@ -72,13 +73,14 @@ public class AnalysisWorkerService {
     }
 
     private void completeJob(Long analysisRequestId) {
-        transactionTemplate.executeWithoutResult(status ->
-                analysisRequestRepository.findById(analysisRequestId).ifPresent(request -> {
-                    request.setStatus(AnalysisStatus.COMPLETED);
-                    request.setProgressPercent(100);
-                    request.setCompletedAt(LocalDateTime.now());
-                })
-        );
+        transactionTemplate.executeWithoutResult(status -> {
+            analysisRequestRepository.findById(analysisRequestId).ifPresent(request -> {
+                request.setStatus(AnalysisStatus.COMPLETED);
+                request.setProgressPercent(100);
+                request.setCompletedAt(LocalDateTime.now());
+            });
+            analysisResultPersistenceService.saveSimulatedVideoResult(analysisRequestId);
+        });
     }
 
     private void failJob(Long analysisRequestId, String message) {

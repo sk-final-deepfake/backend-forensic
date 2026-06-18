@@ -16,10 +16,7 @@ public class RabbitMqAnalysisJobEnqueuer implements AnalysisJobEnqueuer {
     private final RabbitTemplate rabbitTemplate;
 
     @Override
-    public void enqueue(Long analysisRequestId, Long evidenceId) {
-        rabbitTemplate.convertAndSend(
-                RabbitMqConfig.ANALYSIS_QUEUE,
-                new AnalysisJobMessage(analysisRequestId, evidenceId)
-        );
+    public void enqueue(AnalysisJobMessage message) {
+        rabbitTemplate.convertAndSend(RabbitMqConfig.ANALYSIS_QUEUE, message);
     }
 }
