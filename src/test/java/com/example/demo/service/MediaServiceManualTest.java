@@ -35,9 +35,10 @@ public class MediaServiceManualTest {
             if ("video".equals(metadata.getType())) {
                 System.out.println("해상도: " + metadata.getWidth() + "x" + metadata.getHeight());
                 System.out.println("FPS: " + metadata.getFps());
-            } else if ("audio".equals(metadata.getType())) {
-                System.out.println("샘플 레이트: " + metadata.getSampleRate() + " Hz");
-                System.out.println("채널 수: " + metadata.getChannels());
+                if (Boolean.TRUE.equals(metadata.getHasAudioTrack())) {
+                    System.out.println("내장 오디오 샘플레이트: " + metadata.getSampleRate() + " Hz");
+                    System.out.println("내장 오디오 채널 수: " + metadata.getChannels());
+                }
             }
 
             System.out.println("\n추출 성공!");

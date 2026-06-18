@@ -34,3 +34,16 @@ spring:
       password: ${REDIS_PASSWORD:}
       ssl:
         enabled: false
+
+analysis:
+  worker:
+    mode: local
+    step-delay-ms: 600
+
+blockchain:
+  anchor:
+    enabled: true
+    mode: simulated
+    network: local-simulated
+    scheduler-enabled: true
+    daily-cron: "0 0 1 * * *"

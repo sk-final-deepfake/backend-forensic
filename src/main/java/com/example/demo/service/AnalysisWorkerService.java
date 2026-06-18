@@ -1,8 +1,12 @@
 package com.example.demo.service;
 
+import com.example.demo.config.AnalysisWorkerProperties;
 import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.dto.AnalysisResponseMessage;
 import com.example.demo.repository.AnalysisRequestRepository;
+import com.example.demo.repository.EvidenceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,10 +20,15 @@ import java.time.LocalDateTime;
 public class AnalysisWorkerService {
 
     private static final int PROGRESS_STEPS = 10;
-    private static final long STEP_DELAY_MS = 600;
 
     private final AnalysisRequestRepository analysisRequestRepository;
+    private final EvidenceRepository evidenceRepository;
     private final TransactionTemplate transactionTemplate;
+    private final AnalysisResultPersistenceService analysisResultPersistenceService;
+    private final AnalysisCustodyLogService analysisCustodyLogService;
+    private final EvidenceCopyService evidenceCopyService;
+    private final NotificationService notificationService;
+    private final AnalysisWorkerProperties workerProperties;
 
     public void processJob(Long analysisRequestId) {
         if (!prepareJob(analysisRequestId)) {
@@ -27,6 +36,7 @@ public class AnalysisWorkerService {
         }
 
         try {
+            long stepDelayMs = workerProperties.getStepDelayMs();
             for (int step = 1; step <= PROGRESS_STEPS; step++) {
                 if (!isJobActive(analysisRequestId)) {
                     log.info("Analysis job {} cancelled or removed", analysisRequestId);
@@ -34,16 +44,51 @@ public class AnalysisWorkerService {
                 }
 
                 updateProgress(analysisRequestId, step * 10);
-                Thread.sleep(STEP_DELAY_MS);
+                if (stepDelayMs > 0) {
+                    Thread.sleep(stepDelayMs);
+                }
             }
 
-            completeJob(analysisRequestId);
+            Long analysisResultId = analysisResultPersistenceService.saveSimulatedVideoResult(analysisRequestId);
+            finalizeCompletedJob(analysisRequestId, analysisResultId);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             log.warn("Analysis job {} interrupted", analysisRequestId);
         } catch (Exception ex) {
             log.error("Analysis job {} failed", analysisRequestId, ex);
-            failJob(analysisRequestId, ex.getMessage());
+            finalizeFailedJob(analysisRequestId, "ANALYSIS_FAILED", ex.getMessage());
+        }
+    }
+
+    public void markDispatchedToAi(Long analysisRequestId) {
+        prepareJob(analysisRequestId);
+    }
+
+    public void applyAiResult(AnalysisResponseMessage response) {
+        if (response == null || response.getAnalysisRequestId() == null) {
+            log.warn("Ignored AI result message without analysisRequestId");
+            return;
+        }
+
+        Long analysisRequestId = response.getAnalysisRequestId();
+        if ("FAILED".equalsIgnoreCase(response.getStatus())) {
+            String errorCode = response.getErrorCode() == null ? "AI_ANALYSIS_FAILED" : response.getErrorCode();
+            String message = response.getMessage() == null ? "AI analysis failed." : response.getMessage();
+            finalizeFailedJob(analysisRequestId, errorCode, message);
+            return;
+        }
+
+        if (!"COMPLETED".equalsIgnoreCase(response.getStatus())) {
+            log.warn("Ignored AI result message with unsupported status: {}", response.getStatus());
+            return;
+        }
+
+        try {
+            Long analysisResultId = analysisResultPersistenceService.saveFromAiResponse(response);
+            finalizeCompletedJob(analysisRequestId, analysisResultId);
+        } catch (Exception ex) {
+            log.error("Failed to persist AI result for analysisRequestId={}", analysisRequestId, ex);
+            finalizeFailedJob(analysisRequestId, "AI_RESULT_PERSIST_FAILED", ex.getMessage());
         }
     }
 
@@ -57,6 +102,11 @@ public class AnalysisWorkerService {
             request.setStatus(AnalysisStatus.ANALYZING);
             request.setStartedAt(LocalDateTime.now());
             request.setProgressPercent(0);
+
+            Evidence evidence = evidenceRepository.findById(request.getEvidenceId()).orElse(null);
+            if (evidence != null) {
+                analysisCustodyLogService.recordAnalysisStarted(request, evidence);
+            }
             return true;
         }));
     }
@@ -71,25 +121,51 @@ public class AnalysisWorkerService {
         );
     }
 
-    private void completeJob(Long analysisRequestId) {
-        transactionTemplate.executeWithoutResult(status ->
-                analysisRequestRepository.findById(analysisRequestId).ifPresent(request -> {
-                    request.setStatus(AnalysisStatus.COMPLETED);
-                    request.setProgressPercent(100);
-                    request.setCompletedAt(LocalDateTime.now());
-                })
-        );
+    private void finalizeCompletedJob(Long analysisRequestId, Long analysisResultId) {
+        transactionTemplate.executeWithoutResult(status -> {
+            AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId).orElse(null);
+            if (request == null) {
+                return;
+            }
+
+            request.setStatus(AnalysisStatus.COMPLETED);
+            request.setProgressPercent(100);
+            request.setCompletedAt(LocalDateTime.now());
+
+            evidenceRepository.findById(request.getEvidenceId()).ifPresent(evidence -> {
+                analysisCustodyLogService.recordAnalysisCompleted(request, evidence, analysisResultId);
+                evidenceCopyService.deleteAnalysisCopy(evidence, request.getRequestedBy());
+                notificationService.notifyAnalysisCompleted(
+                        request.getRequestedBy(),
+                        evidence.getEvidenceId(),
+                        evidence.getFileName()
+                );
+            });
+        });
     }
 
-    private void failJob(Long analysisRequestId, String message) {
-        transactionTemplate.executeWithoutResult(status ->
-                analysisRequestRepository.findById(analysisRequestId).ifPresent(request -> {
-                    request.setStatus(AnalysisStatus.FAILED);
-                    request.setErrorCode("ANALYSIS_FAILED");
-                    request.setErrorMessage(message);
-                    request.setCompletedAt(LocalDateTime.now());
-                })
-        );
+    private void finalizeFailedJob(Long analysisRequestId, String errorCode, String message) {
+        transactionTemplate.executeWithoutResult(status -> {
+            AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId).orElse(null);
+            if (request == null) {
+                return;
+            }
+
+            request.setStatus(AnalysisStatus.FAILED);
+            request.setErrorCode(errorCode);
+            request.setErrorMessage(message);
+            request.setCompletedAt(LocalDateTime.now());
+
+            evidenceRepository.findById(request.getEvidenceId()).ifPresent(evidence -> {
+                analysisCustodyLogService.recordAnalysisFailed(request, evidence);
+                evidenceCopyService.deleteAnalysisCopy(evidence, request.getRequestedBy());
+                notificationService.notifyAnalysisFailed(
+                        request.getRequestedBy(),
+                        evidence.getEvidenceId(),
+                        evidence.getFileName()
+                );
+            });
+        });
     }
 
     private boolean isJobActive(Long analysisRequestId) {

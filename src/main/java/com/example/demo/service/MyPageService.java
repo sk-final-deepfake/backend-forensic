@@ -9,12 +9,12 @@ import com.example.demo.dto.mypage.AnalysisHistoryPageResponse;
 import com.example.demo.dto.mypage.CaseSummaryResponse;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.util.ApiDateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,7 +27,6 @@ import java.util.Map;
 @Transactional(readOnly = true)
 public class MyPageService {
 
-	private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 	private static final Map<String, Integer> STATUS_ORDER = Map.of(
 			"PROCESSING", 0,
 			"PENDING", 1,
@@ -126,7 +125,7 @@ public class MyPageService {
 				.caseId(caseId)
 				.caseName(resolveCaseName(caseId, caseEvidences))
 				.status(aggregateStatus)
-				.createdAt(ISO_FORMATTER.format(createdAt))
+				.createdAt(ApiDateTimeFormatter.formatUtc(createdAt))
 				.evidenceCount(caseEvidences.size())
 				.build();
 	}
@@ -183,6 +182,9 @@ public class MyPageService {
 			return Comparator
 					.comparing((CaseSummaryResponse item) -> STATUS_ORDER.getOrDefault(item.getStatus(), 99))
 					.thenComparing(CaseSummaryResponse::getCreatedAt, Comparator.reverseOrder());
+		}
+		if ("oldest".equalsIgnoreCase(sort)) {
+			return Comparator.comparing(CaseSummaryResponse::getCreatedAt);
 		}
 
 		return Comparator.comparing(CaseSummaryResponse::getCreatedAt, Comparator.reverseOrder());

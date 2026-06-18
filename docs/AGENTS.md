@@ -12,8 +12,9 @@
 | **서비스** | VeriForensics (ForenShield AI) — 내부망 디지털 포렌식·딥페이크 분석 |
 | **사용자** | 수사/검찰 등 내부 직원 (일반 사용자 + 관리자) |
 | **핵심 흐름** | 로그인 → 증거 업로드 → SHA-256 해시 → S3 WORM 보관 → RabbitMQ로 AI 분석 → 결과·CoC·리포트 |
-| **요구사항** | RQ **162건** (기능 143 + 비기능 19) |
+| **요구사항** | RQ **169건** (Excel 자동 추출) |
 | **기능(FN)** | **266건** (파트별: FE / BE / AI / INF) |
+| **지원 미디어** | **영상(VIDEO)만** — MP4/MOV 업로드 · 음성·이미지 제외 |
 | **본 레포** | Spring Boot 백엔드 (`backend-forensic`) |
 
 ---
@@ -56,7 +57,7 @@ guides/implementation-standards.md (에러 JSON·예외·FE 계약)
 3. [architecture/system-overview.md](./architecture/system-overview.md) — 시스템 전체 흐름
 4. [product/domain-glossary.md](./product/domain-glossary.md) — 용어·상태 Enum
 5. [requirements/overview.md](./requirements/overview.md) — RQ/FN 체계·영역 지도
-6. [requirements/index.md](./requirements/index.md) — RQ 162건 전문 색인
+6. [requirements/index.md](./requirements/index.md) — RQ 169건 전문 색인
 
 ### 4.2 프론트엔드 AI / 개발자
 
@@ -108,7 +109,7 @@ guides/implementation-standards.md (에러 JSON·예외·FE 계약)
 | [domain-glossary.md](./product/domain-glossary.md) | Evidence·Case·CoC·RiskLevel 등 용어 |
 | **requirements/** | |
 | [overview.md](./requirements/overview.md) | RQ/FN 구조·화면/API 영역 지도 |
-| [index.md](./requirements/index.md) | **RQ 162건** 전문 (Excel 추출) |
+| [index.md](./requirements/index.md) | **RQ 169건** 전문 (Excel 추출) |
 | [traceability.md](./requirements/traceability.md) | RQ ↔ FN ↔ 구현 RTM (BE 중심) |
 | **api/** | |
 | [specification.md](./api/specification.md) | REST API 정본 + 명세 Gap |

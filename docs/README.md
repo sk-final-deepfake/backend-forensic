@@ -31,7 +31,7 @@ docs/
 │
 ├── requirements/           ← Excel 명세 (Markdown + 원본)
 │   ├── overview.md         ← RQ/FN 체계·영역 지도
-│   ├── index.md            ← RQ 162건 전문
+│   ├── index.md            ← RQ 169건 전문 (Excel 추출)
 │   ├── traceability.md     ← RQ ↔ FN ↔ 구현 RTM
 │   └── source/             ← ★ Excel 정본 (.xlsx)
 │
@@ -92,9 +92,11 @@ docs/
 | :--- | :--- | :--- |
 | `기능명세서_최종.xlsx` | FN 266건 · FE/BE/AI/INF 시트 | [traceability.md](./requirements/traceability.md) |
 | `기능명세서_검토수정.xlsx` | 검토·수정본 (참고) | — |
-| `요구사항명세서_최종 (1).xlsx` | RQ 162건 *(팀 공유본 — 레포 추가 예정)* | [index.md](./requirements/index.md) |
+| `요구사항명세서_최종 (1).xlsx` | RQ **169건** | [index.md](./requirements/index.md) |
 
 충돌 시: **Excel → ERD → API 문서 → 코드**
+
+**지원 미디어:** 업로드·AI 분석은 **영상(VIDEO, MP4/MOV)만** — 음성·이미지 제외. Excel 재생성: [scripts/README.md](./scripts/README.md)
 
 ---
 
@@ -131,7 +133,7 @@ docs/
 | Admin 페이지네이션 표준 | ✅ |
 | `.env` 추적 해제 · pre-commit | ✅ |
 | `develop` → `main` 릴리스 | ✅ |
-| Excel source (`requirements/source/`) | 🟡 기능명세서 2종 · RQ xlsx 추가 예정 |
+| Excel source (`requirements/source/`) | ✅ RQ·FN xlsx · 재생성 스크립트 |
 | PDF / Compare / Notifications API | ⬜ | [PROJECT_STATUS.md §8](./PROJECT_STATUS.md) |
 
 **BE RQ 진행 (추정):** 핵심 MVP ✅ · 고급 기능(PDF·Compare·블록체인 등) ⬜ — 상세는 [PROJECT_STATUS.md §2](./PROJECT_STATUS.md)

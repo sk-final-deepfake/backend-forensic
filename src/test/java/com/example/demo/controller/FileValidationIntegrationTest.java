@@ -10,10 +10,13 @@ import com.example.demo.service.AnalysisCancelService;
 import com.example.demo.service.AnalysisJobEnqueuer;
 import com.example.demo.service.AnalysisService;
 import com.example.demo.service.AnalysisStatusService;
+import com.example.demo.service.BlockchainAnchorService;
+import com.example.demo.service.CocChainVerificationService;
 import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import com.example.demo.service.ReportPdfService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,6 +66,15 @@ class FileValidationIntegrationTest {
     private AnalysisStatusService analysisStatusService;
 
     @MockBean
+    private ReportPdfService reportPdfService;
+
+    @MockBean
+    private BlockchainAnchorService blockchainAnchorService;
+
+    @MockBean
+    private CocChainVerificationService cocChainVerificationService;
+
+    @MockBean
     private AuthUserResolver authUserResolver;
 
     @MockBean
@@ -81,7 +93,7 @@ class FileValidationIntegrationTest {
     @Test
     @DisplayName("지원하지 않는 파일 형식 업로드 시 UNSUPPORTED_FILE_TYPE 오류 반환")
     void upload_UnsupportedFileType_ReturnsError() throws Exception {
-        when(fileService.upload(any(), any(), any())).thenThrow(new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 이미지, 영상, 음성 파일만 업로드할 수 있습니다."));
+        when(fileService.upload(any(), any(), any())).thenThrow(new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 영상(MP4, MOV) 파일만 업로드할 수 있습니다."));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "test.txt", "text/plain", "unsupported content".getBytes());
@@ -91,22 +103,22 @@ class FileValidationIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("UNSUPPORTED_FILE_TYPE"))
-                .andExpect(jsonPath("$.message").value("지원하지 않는 파일 형식입니다. 이미지, 영상, 음성 파일만 업로드할 수 있습니다."));
+                .andExpect(jsonPath("$.message").value("지원하지 않는 파일 형식입니다. 영상(MP4, MOV) 파일만 업로드할 수 있습니다."));
     }
 
     @Test
     @DisplayName("파일 용량 초과 시 FILE_SIZE_EXCEEDED 오류 반환")
     void upload_FileSizeExceeded_ReturnsError() throws Exception {
-        when(fileService.upload(any(), any(), any())).thenThrow(new FileSizeExceededException("IMAGE 파일의 최대 허용 용량은 20MB입니다."));
+        when(fileService.upload(any(), any(), any())).thenThrow(new FileSizeExceededException("VIDEO 파일의 최대 허용 용량은 500MB입니다."));
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "large.jpg", "image/jpeg", new byte[1024]);
+                "file", "large.mp4", "video/mp4", new byte[1024]);
 
         mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("FILE_SIZE_EXCEEDED"))
-                .andExpect(jsonPath("$.message").value("IMAGE 파일의 최대 허용 용량은 20MB입니다."));
+                .andExpect(jsonPath("$.message").value("VIDEO 파일의 최대 허용 용량은 500MB입니다."));
     }
 }

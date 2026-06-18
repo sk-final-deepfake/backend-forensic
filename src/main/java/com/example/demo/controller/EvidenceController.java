@@ -1,8 +1,13 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.BlockchainAnchorStatusResponse;
+import com.example.demo.dto.CocChainVerifyResponse;
 import com.example.demo.dto.AnalysisStatusResponse;
+import com.example.demo.dto.AnalysisTrendResponse;
 import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.dto.FileUploadResponse;
+import com.example.demo.dto.RecentAnalysisResponse;
+import com.example.demo.dto.ReportVerifyResponse;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
@@ -14,6 +19,9 @@ import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import com.example.demo.service.BlockchainAnchorService;
+import com.example.demo.service.CocChainVerificationService;
+import com.example.demo.service.ReportPdfService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,6 +51,9 @@ public class EvidenceController {
     private final EvidenceCancelService evidenceCancelService;
     private final AnalysisCancelService analysisCancelService;
     private final AnalysisStatusService analysisStatusService;
+    private final ReportPdfService reportPdfService;
+    private final BlockchainAnchorService blockchainAnchorService;
+    private final CocChainVerificationService cocChainVerificationService;
     private final AuthUserResolver authUserResolver;
 
     @Operation(summary = "대시보드 통계", description = "RQ-DSH-043: 총 분석·딥페이크 탐지·완료·처리 중 건수를 조회합니다.")
@@ -50,6 +61,28 @@ public class EvidenceController {
     public EvidenceStatsResponse stats() {
         return evidenceStatsService.getDashboardStats(
                 authUserResolver.requireCurrentUser().getUserId()
+        );
+    }
+
+    @Operation(summary = "최근 분석 추이", description = "RQ-DSH-044: 최근 N일 일별 완료 분석 건수(꺾은선 차트용)를 조회합니다.")
+    @GetMapping("/stats/trend")
+    public AnalysisTrendResponse analysisTrend(
+            @Parameter(description = "조회 일수 (1~30, 기본 7)") @RequestParam(defaultValue = "7") int days
+    ) {
+        return evidenceStatsService.getAnalysisTrend(
+                authUserResolver.requireCurrentUser().getUserId(),
+                days
+        );
+    }
+
+    @Operation(summary = "최근 분석 이력", description = "RQ-DSH-045: 대시보드 위젯용 최근 분석 요청 목록(3~5건)을 조회합니다.")
+    @GetMapping("/stats/recent")
+    public RecentAnalysisResponse recentAnalyses(
+            @Parameter(description = "조회 건수 (3~5, 기본 5)") @RequestParam(defaultValue = "5") int limit
+    ) {
+        return evidenceStatsService.getRecentAnalyses(
+                authUserResolver.requireCurrentUser().getUserId(),
+                limit
         );
     }
 
@@ -76,7 +109,7 @@ public class EvidenceController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "분석 상태 조회", description = "증거의 큐 대기·진행·완료 상태와 진행률을 조회합니다.")
+    @Operation(summary = "분석 상태 조회", description = "증거의 큐 대기·진행·완료·실패 상태와 진행률을 조회합니다. FAILED 시 errorCode·errorMessage 포함.")
     @GetMapping("/{evidenceId}/analysis-status")
     public AnalysisStatusResponse getAnalysisStatus(@PathVariable Long evidenceId) {
         return analysisStatusService.getStatus(
@@ -120,6 +153,52 @@ public class EvidenceController {
         return analysisService.startAnalysis(
                 authUserResolver.requireCurrentUser(),
                 request
+        );
+    }
+
+    @Operation(summary = "분석 PDF 리포트 다운로드", description = "RQ-DTL-082~086: 분석 결과 PDF 리포트")
+    @GetMapping("/{evidenceId}/reports/pdf")
+    public ResponseEntity<byte[]> downloadAnalysisReport(@PathVariable Long evidenceId) {
+        ReportPdfService.ReportPdfPayload payload = reportPdfService.generateEvidenceReport(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + payload.fileName() + "\"")
+                .header("X-Report-Hash", payload.reportHash())
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(payload.content());
+    }
+
+    @Operation(summary = "PDF reportHash 검증", description = "RQ-DTL-087: 저장된 PDF reportHash 무결성 검증")
+    @GetMapping("/{evidenceId}/reports/verify")
+    public ReportVerifyResponse verifyAnalysisReport(
+            @PathVariable Long evidenceId,
+            @RequestParam("reportHash") String reportHash
+    ) {
+        return reportPdfService.verifyReportHash(
+                authUserResolver.requireCurrentUser(),
+                evidenceId,
+                reportHash
+        );
+    }
+
+    @Operation(summary = "CoC 해시 체인 검증", description = "RQ-HIS-107: 증거 감사 로그 해시 체인 무결성 검증")
+    @GetMapping("/{evidenceId}/coc/verify")
+    public CocChainVerifyResponse verifyCocChain(@PathVariable Long evidenceId) {
+        return cocChainVerificationService.verifyEvidenceChain(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
+    }
+
+    @Operation(summary = "블록체인 앵커 상태", description = "RQ-DTL-078: 원본 해시·PDF reportHash·머클 루트 앵커 상태 조회")
+    @GetMapping("/{evidenceId}/blockchain")
+    public BlockchainAnchorStatusResponse blockchainStatus(@PathVariable Long evidenceId) {
+        return blockchainAnchorService.getEvidenceAnchorStatus(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
         );
     }
 }

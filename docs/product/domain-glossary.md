@@ -61,11 +61,13 @@
 
 ### FileType
 
-| 값 | 확장자 (예) |
-| :--- | :--- |
-| `IMAGE` | jpg, png |
-| `VIDEO` | mp4, mov |
-| `AUDIO` | wav, mp3, m4a |
+> **MVP 업로드:** `VIDEO`만 허용 (MP4, MOV). DB enum에는 `IMAGE`/`AUDIO`가 남아 있으나 신규 업로드·AI 큐는 영상 전용.
+
+| 값 | 확장자 (예) | MVP |
+| :--- | :--- | :---: |
+| `VIDEO` | mp4, mov | ✅ |
+| `IMAGE` | jpg, png | — (미지원) |
+| `AUDIO` | wav, mp3, m4a | — (미지원) |
 
 ---
 

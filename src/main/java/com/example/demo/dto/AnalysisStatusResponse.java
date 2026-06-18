@@ -11,4 +11,8 @@ public class AnalysisStatusResponse {
     private Long analysisRequestId;
     private String status;
     private int progressPercent;
+    /** status=FAILED 일 때만. 예: ANALYSIS_FAILED, RABBITMQ_PUBLISH_FAILED */
+    private String errorCode;
+    /** status=FAILED 일 때 사용자/FE 표시용 요약 (시크릿 포함 금지) */
+    private String errorMessage;
 }

@@ -36,3 +36,15 @@ aws:
   region: ap-northeast-2
   s3:
     evidence-bucket: test-evidence-bucket
+
+analysis:
+  worker:
+    step-delay-ms: 0
+    mode: local
+
+blockchain:
+  anchor:
+    enabled: true
+    mode: simulated
+    network: local-simulated
+    scheduler-enabled: false
