@@ -16,7 +16,12 @@ import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.dto.AnalysisJobMessage;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
+import com.example.demo.repository.NotificationRepository;
+import com.example.demo.repository.EvidenceManifestRepository;
 import com.example.demo.repository.CustodyLogRepository;
+import com.example.demo.domain.EvidenceManifest;
+import com.example.demo.domain.enums.NotificationType;
+import com.example.demo.domain.enums.SecurityAlertCode;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.service.AnalysisJobEnqueuer;
 import com.example.demo.support.JwtTestSupport;
@@ -85,6 +90,12 @@ class EvidenceControllerTest {
     private CustodyLogRepository custodyLogRepository;
 
     @Autowired
+    private EvidenceManifestRepository evidenceManifestRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
@@ -109,6 +120,8 @@ class EvidenceControllerTest {
 
     @BeforeEach
     void obtainAccessToken() throws Exception {
+        notificationRepository.deleteAll();
+        evidenceManifestRepository.deleteAll();
         custodyLogRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
@@ -1003,7 +1016,10 @@ class EvidenceControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.manifestInfo.evidenceId").value(evidenceId))
+                .andExpect(jsonPath("$.manifestInfo.fileId").value(evidenceId))
+                .andExpect(jsonPath("$.manifestInfo.caseId").value(caseName))
                 .andExpect(jsonPath("$.manifestInfo.caseName").value(caseName))
+                .andExpect(jsonPath("$.manifestInfo.uploadedAt").isString())
                 .andExpect(jsonPath("$.manifestInfo.originalHash").isString())
                 .andExpect(jsonPath("$.manifestInfo.manifestHash").isString())
                 .andExpect(jsonPath("$.signatureInfo.signatureStatus").value("SIGNED"))
@@ -1294,5 +1310,84 @@ class EvidenceControllerTest {
         result.setSummary("test");
         result.setAnalyzedAt(request.getCompletedAt());
         analysisResultRepository.save(result);
+    }
+
+    @Test
+    @DisplayName("RQ-SEC-153/SK-632: 무결성 검증 API는 정상 증거에서 200과 valid=true를 반환한다")
+    void verifyIntegrity_validEvidence_returnsOk() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("integrity-ok.mp4", "무결성 OK 사건");
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/integrity/verify", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.evidenceId").value(evidenceId));
+    }
+
+    @Test
+    @DisplayName("RQ-SEC-153/SK-632: 서명 검증 실패 시 integrity/verify는 409와 errorCode를 반환한다")
+    void verifyIntegrity_invalidSignature_returnsConflict() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("integrity-bad-sig.mp4", "서명 실패 사건");
+
+        EvidenceManifest manifest = evidenceManifestRepository.findById(evidenceId).orElseThrow();
+        manifest.setSignatureValue("tampered-signature");
+        evidenceManifestRepository.save(manifest);
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/integrity/verify", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value(SecurityAlertCode.SIGNATURE_INVALID.name()));
+    }
+
+    @Test
+    @DisplayName("RQ-SEC-153: 상세 조회 시 무결성 실패해도 200이며 SECURITY_ALERT 알림이 생성된다")
+    void getEvidenceDetail_onIntegrityFailure_createsSecurityAlert() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("detail-alert.mp4", "상세 알림 사건");
+
+        EvidenceManifest manifest = evidenceManifestRepository.findById(evidenceId).orElseThrow();
+        manifest.setSignatureValue("tampered-signature");
+        evidenceManifestRepository.save(manifest);
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk());
+
+        assertThat(notificationRepository.findAll())
+                .anyMatch(n -> n.getType() == NotificationType.SECURITY_ALERT
+                        && n.getReferenceId().equals(evidenceId)
+                        && n.getReferenceType().equals("SEC:SIG_INVALID"));
+    }
+
+    private long uploadAndStartAnalysis(String fileName, String caseName) throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                fileName,
+                "video/mp4",
+                ("bytes-" + fileName).getBytes(StandardCharsets.UTF_8)
+        );
+
+        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
+
+        mockMvc.perform(post("/api/v1/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "%s",
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(caseName, evidenceId)))
+                .andExpect(status().isOk());
+
+        return evidenceId;
     }
 }

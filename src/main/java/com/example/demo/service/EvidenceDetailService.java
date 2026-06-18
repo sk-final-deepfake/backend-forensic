@@ -194,9 +194,12 @@ public class EvidenceDetailService {
         }
         return ManifestInfoDto.builder()
                 .evidenceId(evidence.getEvidenceId())
+                .fileId(evidence.getEvidenceId())
+                .caseId(resolveCaseId(evidence))
                 .caseNumber(evidence.getCaseNumber())
                 .caseName(evidence.getCaseName())
                 .fileName(evidence.getFileName())
+                .uploadedAt(formatDateTime(evidence.getUploadedAt()))
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
                 .copyHash(evidence.getCopyHashValue())
@@ -349,6 +352,16 @@ public class EvidenceDetailService {
 
     private String formatDateTime(LocalDateTime value) {
         return ApiDateTimeFormatter.formatUtc(value);
+    }
+
+    private String resolveCaseId(Evidence evidence) {
+        if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
+            return evidence.getCaseNumber();
+        }
+        if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
+            return evidence.getCaseName();
+        }
+        return "EVIDENCE-" + evidence.getEvidenceId();
     }
 
     private String shortHash(String hash) {

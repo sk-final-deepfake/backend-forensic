@@ -1,7 +1,9 @@
 # EKS / RDS 운영: POSTGRES_*, JWT_SECRET_KEY 환경 변수 필요
 jwt:
   secret: ${JWT_SECRET_KEY}
-  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1200000}  # 액세스 JWT 20분
+  expiration-ms: ${JWT_EXPIRATION_MS:1200000}
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}  # ElastiCache·쿠키 만료
 
 spring:
   datasource:
@@ -16,6 +18,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  # RedisConfig → RefreshTokenRedisService (K8s redis-credentials 시크릿)
   data:
     redis:
       host: ${REDIS_HOST}
