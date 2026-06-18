@@ -11,4 +11,8 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     Optional<Report> findTopByEvidenceIdOrderByCreatedAtDesc(Long evidenceId);
 
     List<Report> findByEvidenceIdOrderByCreatedAtDesc(Long evidenceId);
+
+    Optional<Report> findTopByCompareIdOrderByCreatedAtDesc(Long compareId);
+
+    Optional<Report> findByEvidenceIdAndReportHash(Long evidenceId, String reportHash);
 }

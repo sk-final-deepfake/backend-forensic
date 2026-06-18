@@ -44,6 +44,7 @@ public class FileService {
     private final CustodyLogService custodyLogService;
     private final EvidenceMetadataService evidenceMetadataService;
     private final ObjectMapper objectMapper;
+    private final BlockchainAnchorService blockchainAnchorService;
 
     public FileService(
             @Value("${file.upload-dir:uploads}") String uploadDir,
@@ -55,7 +56,8 @@ public class FileService {
             FileValidationService fileValidationService,
             CustodyLogService custodyLogService,
             EvidenceMetadataService evidenceMetadataService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            BlockchainAnchorService blockchainAnchorService
     ) {
         this.s3Client = s3Client;
         this.evidenceBucket = evidenceBucket;
@@ -67,6 +69,7 @@ public class FileService {
         this.custodyLogService = custodyLogService;
         this.evidenceMetadataService = evidenceMetadataService;
         this.objectMapper = objectMapper;
+        this.blockchainAnchorService = blockchainAnchorService;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
@@ -140,6 +143,7 @@ public class FileService {
                     savedEvidence.getEvidenceId(), extracted, extractionStatus, extractionError);
 
             recordUploadCustodyLogs(savedEvidence, uploaderId, extractionStatus.name());
+            blockchainAnchorService.anchorEvidenceHash(savedEvidence, uploaderId);
 
             Files.deleteIfExists(savedPath);
 

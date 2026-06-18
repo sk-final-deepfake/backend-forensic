@@ -1,6 +1,9 @@
 package com.example.demo.controller;
 
 import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.BlockchainAnchor;
+import com.example.demo.domain.enums.BlockchainAnchorStatus;
+import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
@@ -13,9 +16,11 @@ import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
+import com.example.demo.repository.BlockchainAnchorRepository;
 import com.example.demo.repository.CompareVerificationRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.NotificationRepository;
+import com.example.demo.repository.ReportRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.UserSettingRepository;
 import com.example.demo.service.NotificationService;
@@ -36,6 +41,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -69,6 +75,12 @@ class FeatureApiControllerTest {
     private CompareVerificationRepository compareVerificationRepository;
 
     @Autowired
+    private ReportRepository reportRepository;
+
+    @Autowired
+    private BlockchainAnchorRepository blockchainAnchorRepository;
+
+    @Autowired
     private NotificationRepository notificationRepository;
 
     @Autowired
@@ -88,6 +100,7 @@ class FeatureApiControllerTest {
     void setUp() throws Exception {
         compareVerificationRepository.deleteAll();
         notificationRepository.deleteAll();
+        blockchainAnchorRepository.deleteAll();
         userSettingRepository.deleteAll();
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
@@ -126,6 +139,7 @@ class FeatureApiControllerTest {
     void tearDown() {
         compareVerificationRepository.deleteAll();
         notificationRepository.deleteAll();
+        blockchainAnchorRepository.deleteAll();
         userSettingRepository.deleteAll();
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
@@ -211,7 +225,8 @@ class FeatureApiControllerTest {
         mockMvc.perform(get("/api/v1/compare/" + compareId + "/reports/pdf")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE));
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
+                .andExpect(header().string("X-Report-Hash", notNullValue(String.class)));
     }
 
     @Test
@@ -238,6 +253,40 @@ class FeatureApiControllerTest {
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE));
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
+                .andExpect(header().string("X-Report-Hash", notNullValue(String.class)));
+
+        String reportHash = reportRepository.findTopByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())
+                .orElseThrow()
+                .getReportHash();
+
+        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/verify")
+                        .param("reportHash", reportHash)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.reportHash").value(reportHash));
+    }
+
+    @Test
+    void evidenceBlockchain_status() throws Exception {
+        BlockchainAnchor anchor = new BlockchainAnchor();
+        anchor.setAnchorType(BlockchainAnchorType.EVIDENCE_HASH);
+        anchor.setSubjectHash(evidence.getOriginalHashValue());
+        anchor.setEvidenceId(evidence.getEvidenceId());
+        anchor.setCreatedBy(testUser.getUserId());
+        anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
+        anchor.setTransactionHash("0xabc123");
+        anchor.setNetwork("local-simulated");
+        anchor.setAnchoredAt(LocalDateTime.now());
+        anchor.setCreatedAt(LocalDateTime.now());
+        blockchainAnchorRepository.save(anchor);
+
+        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/blockchain")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidenceId").value(evidence.getEvidenceId()))
+                .andExpect(jsonPath("$.evidenceHashAnchor.status").value("ANCHORED"))
+                .andExpect(jsonPath("$.evidenceHashAnchor.transactionHash").value("0xabc123"));
     }
 }
