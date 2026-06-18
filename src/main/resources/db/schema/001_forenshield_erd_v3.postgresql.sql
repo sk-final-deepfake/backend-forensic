@@ -216,7 +216,8 @@ CREATE INDEX IF NOT EXISTS idx_analysis_module_results_analysis_result_id
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS reports (
     report_id           BIGSERIAL PRIMARY KEY,
-    analysis_result_id  BIGINT        NOT NULL REFERENCES analysis_results (analysis_result_id),
+    analysis_result_id  BIGINT        REFERENCES analysis_results (analysis_result_id),
+    compare_id          BIGINT,
     evidence_id         BIGINT        NOT NULL REFERENCES evidences (evidence_id),
     created_by          BIGINT        NOT NULL REFERENCES users (user_id),
     report_file_name    VARCHAR(500),
@@ -228,7 +229,41 @@ CREATE TABLE IF NOT EXISTS reports (
 
 CREATE INDEX IF NOT EXISTS idx_reports_evidence_id ON reports (evidence_id);
 CREATE INDEX IF NOT EXISTS idx_reports_analysis_result_id ON reports (analysis_result_id);
+CREATE INDEX IF NOT EXISTS idx_reports_compare_id ON reports (compare_id);
 CREATE INDEX IF NOT EXISTS idx_reports_created_by ON reports (created_by);
+
+-- ---------------------------------------------------------------------------
+-- 8b. blockchain_anchors
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS blockchain_anchors (
+    anchor_id           BIGSERIAL PRIMARY KEY,
+    anchor_type         VARCHAR(30)   NOT NULL,
+    subject_hash        VARCHAR(64)   NOT NULL,
+    evidence_id         BIGINT        REFERENCES evidences (evidence_id),
+    report_id           BIGINT        REFERENCES reports (report_id),
+    created_by          BIGINT        REFERENCES users (user_id),
+    merkle_batch_date   DATE,
+    merkle_leaf_count   INTEGER,
+    status              VARCHAR(20)   NOT NULL,
+    transaction_hash    VARCHAR(128),
+    block_number        BIGINT,
+    network             VARCHAR(50),
+    anchored_at         TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    error_message       TEXT,
+
+    CONSTRAINT chk_blockchain_anchors_type CHECK (
+        anchor_type IN ('EVIDENCE_HASH', 'REPORT_HASH', 'MERKLE_ROOT')
+    ),
+    CONSTRAINT chk_blockchain_anchors_status CHECK (
+        status IN ('PENDING', 'ANCHORED', 'FAILED')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_blockchain_anchors_evidence_id ON blockchain_anchors (evidence_id);
+CREATE INDEX IF NOT EXISTS idx_blockchain_anchors_report_id ON blockchain_anchors (report_id);
+CREATE INDEX IF NOT EXISTS idx_blockchain_anchors_merkle_batch ON blockchain_anchors (merkle_batch_date, anchor_type);
+CREATE INDEX IF NOT EXISTS idx_blockchain_anchors_created_at ON blockchain_anchors (created_at);
 
 -- ---------------------------------------------------------------------------
 -- 9. custody_logs

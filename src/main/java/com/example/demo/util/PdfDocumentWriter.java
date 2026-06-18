@@ -4,6 +4,7 @@ import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Font;
 import com.lowagie.text.FontFactory;
+import com.lowagie.text.Image;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.pdf.PdfWriter;
 
@@ -16,6 +17,10 @@ public final class PdfDocumentWriter {
     }
 
     public static byte[] writeReport(String title, List<String> lines) {
+        return writeReport(title, lines, null);
+    }
+
+    public static byte[] writeReport(String title, List<String> lines, String qrContent) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try {
             Document document = new Document();
@@ -29,6 +34,15 @@ public final class PdfDocumentWriter {
             document.add(new Paragraph(" "));
             for (String line : lines) {
                 document.add(new Paragraph(line == null ? "" : line, bodyFont));
+            }
+
+            if (qrContent != null && !qrContent.isBlank()) {
+                document.add(new Paragraph(" "));
+                document.add(new Paragraph("Report Integrity (SHA-256):", bodyFont));
+                Image qrImage = QrCodeImageWriter.createPdfImage(qrContent, 120);
+                qrImage.setAlignment(Image.ALIGN_LEFT);
+                document.add(qrImage);
+                document.add(new Paragraph(qrContent, bodyFont));
             }
 
             document.close();

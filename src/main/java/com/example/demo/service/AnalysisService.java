@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.config.AnalysisWorkerProperties;
 import com.example.demo.config.RabbitMqConfig;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.Evidence;
@@ -41,6 +42,8 @@ public class AnalysisService {
     private final EvidenceCopyService evidenceCopyService;
     private final CustodyLogService custodyLogService;
     private final ObjectMapper objectMapper;
+    private final AnalysisWorkerProperties workerProperties;
+    private final AnalysisWorkerService analysisWorkerService;
 
     @Transactional
     public StartAnalysisResponse startAnalysis(User user, StartAnalysisRequest request) {
@@ -104,6 +107,9 @@ public class AnalysisService {
                         .build();
                 analysisJobEnqueuer.enqueue(message);
                 recordAnalysisRequestedLog(user, evidence, savedRequest, trimmedCaseName);
+                if (workerProperties.isAiMode()) {
+                    analysisWorkerService.markDispatchedToAi(savedRequest.getAnalysisRequestId());
+                }
                 startedEvidenceIds.add(evidence.getEvidenceId());
             } catch (Exception ex) {
                 savedRequest.setStatus(AnalysisStatus.FAILED);

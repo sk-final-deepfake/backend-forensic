@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @Component
-@ConditionalOnExpression("'${spring.rabbitmq.host:}'.length() == 0")
+@ConditionalOnExpression("'${spring.rabbitmq.host:}'.length() == 0 || '${analysis.worker.mode:local}'.equalsIgnoreCase('local')")
 public class LocalAnalysisJobEnqueuer implements AnalysisJobEnqueuer {
 
     private final AnalysisWorkerService analysisWorkerService;

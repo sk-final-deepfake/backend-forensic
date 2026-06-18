@@ -32,3 +32,11 @@ aws:
 analysis:
   worker:
     step-delay-ms: 0
+    mode: local
+
+blockchain:
+  anchor:
+    enabled: true
+    mode: simulated
+    network: local-simulated
+    scheduler-enabled: false

@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.BlockchainAnchorStatusResponse;
+import com.example.demo.dto.ReportVerifyResponse;
 import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.dto.AnalysisTrendResponse;
 import com.example.demo.dto.EvidenceStatsResponse;
@@ -15,6 +17,7 @@ import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import com.example.demo.service.BlockchainAnchorService;
 import com.example.demo.service.ReportPdfService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,6 +49,7 @@ public class EvidenceController {
     private final AnalysisCancelService analysisCancelService;
     private final AnalysisStatusService analysisStatusService;
     private final ReportPdfService reportPdfService;
+    private final BlockchainAnchorService blockchainAnchorService;
     private final AuthUserResolver authUserResolver;
 
     @Operation(summary = "대시보드 통계", description = "RQ-DSH-043: 총 분석·딥페이크 탐지·완료·처리 중 건수를 조회합니다.")
@@ -147,7 +151,30 @@ public class EvidenceController {
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + payload.fileName() + "\"")
+                .header("X-Report-Hash", payload.reportHash())
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(payload.content());
+    }
+
+    @Operation(summary = "PDF reportHash 검증", description = "RQ-DTL-087: 저장된 PDF reportHash 무결성 검증")
+    @GetMapping("/{evidenceId}/reports/verify")
+    public ReportVerifyResponse verifyAnalysisReport(
+            @PathVariable Long evidenceId,
+            @RequestParam("reportHash") String reportHash
+    ) {
+        return reportPdfService.verifyReportHash(
+                authUserResolver.requireCurrentUser(),
+                evidenceId,
+                reportHash
+        );
+    }
+
+    @Operation(summary = "블록체인 앵커 상태", description = "RQ-DTL-078: 원본 해시·PDF reportHash·머클 루트 앵커 상태 조회")
+    @GetMapping("/{evidenceId}/blockchain")
+    public BlockchainAnchorStatusResponse blockchainStatus(@PathVariable Long evidenceId) {
+        return blockchainAnchorService.getEvidenceAnchorStatus(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
     }
 }
