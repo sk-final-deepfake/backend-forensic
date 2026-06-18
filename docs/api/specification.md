@@ -400,8 +400,11 @@
   },
   "manifestInfo": {
     "evidenceId": 12,
+    "fileId": 12,
+    "caseId": "2026-서울-0123",
     "caseNumber": "2026-서울-0123",
     "originalHash": "...",
+    "uploadedAt": "2026-06-18T05:00:00Z",
     "copyHash": "...",
     "manifestCreatedAt": "2026-06-18T06:00:00Z",
     "manifestHash": "...",
@@ -421,6 +424,48 @@
 
 - Manifest·서명은 **분석 시작 시 사본 생성**(`RQ-REQ-050`)과 함께 생성됨
 - 업로드만 한 상태: `manifestInfo=null`, `signatureInfo.signatureStatus=UNSIGNED`
+- **RQ-SEC-153:** 조회 시 Manifest 서명·CoC 체인·블록체인 해시를 검증하고, 실패 시 `SECURITY_ALERT` 알림 자동 생성 (응답은 200 유지)
+
+---
+
+#### GET `/api/v1/evidences/{evidenceId}/integrity/verify`
+
+| | |
+|---|---|
+| **RQ** | RQ-SEC-153, SK-632 |
+| **Auth** | User |
+
+증거 무결성·서명·블록체인 해시를 검증합니다. 실패 시 보안 알림도 발송합니다.
+
+**Response 200:** `IntegrityVerifyResponse`
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `evidenceId` | 증거 ID |
+| `valid` | 전체 검증 통과 여부 |
+| `checks` | 항목별 결과 (`SIGNATURE`, `COC_CHAIN`, `BLOCKCHAIN_HASH`) |
+
+```json
+{
+  "evidenceId": 12,
+  "valid": true,
+  "checks": [
+    { "checkType": "SIGNATURE", "valid": true, "message": "Manifest 서명이 유효합니다." },
+    { "checkType": "COC_CHAIN", "valid": true, "message": "CoC 해시 체인이 유효합니다." },
+    { "checkType": "BLOCKCHAIN_HASH", "valid": true, "message": "앵커링된 블록체인 기록이 없습니다." }
+  ]
+}
+```
+
+**Response 409:** 첫 번째 실패 항목의 `errorCode`
+
+| errorCode | 의미 |
+| :--- | :--- |
+| `SIGNATURE_INVALID` | Manifest X.509 서명 검증 실패 |
+| `CHAIN_INTEGRITY_FAILED` | CoC 해시 체인 불일치 |
+| `BLOCKCHAIN_HASH_MISMATCH` | 블록체인 앵커 해시 ≠ 현재 원본 해시 |
+
+**Errors:** `EVIDENCE_NOT_FOUND` (404)
 
 #### GET `/api/evidences/{evidenceId}/coc/verify`
 

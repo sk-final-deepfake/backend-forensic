@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.domain.Notification;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.enums.NotificationType;
+import com.example.demo.domain.enums.SecurityAlertCode;
 import com.example.demo.dto.notification.NotificationDto;
 import com.example.demo.dto.notification.NotificationListResponse;
 import com.example.demo.exception.BusinessException;
@@ -11,6 +12,7 @@ import com.example.demo.util.ApiDateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -21,6 +23,15 @@ import java.util.List;
 public class NotificationService {
 
     private static final String REF_EVIDENCE = "EVIDENCE";
+    private static final int SECURITY_ALERT_DEDUP_HOURS = 24;
+
+    private static String securityReferenceType(SecurityAlertCode alertCode) {
+        return switch (alertCode) {
+            case SIGNATURE_INVALID -> "SEC:SIG_INVALID";
+            case CHAIN_INTEGRITY_FAILED -> "SEC:CHAIN_FAIL";
+            case BLOCKCHAIN_HASH_MISMATCH -> "SEC:BC_MISMATCH";
+        };
+    }
 
     private final NotificationRepository notificationRepository;
     private final UserSettingsService userSettingsService;
@@ -90,6 +101,40 @@ public class NotificationService {
                 "블록체인 앵커링 완료",
                 label + "가 블록체인에 등록되었습니다. Tx: " + shorten(transactionHash),
                 REF_EVIDENCE, evidenceId);
+    }
+
+    /**
+     * RQ-SEC-153: 보안 경고는 분석 알림 설정과 무관하게 발송 (중복은 24h 억제).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void notifySecurityAlertIfNeeded(Long userId, Long evidenceId, SecurityAlertCode alertCode) {
+        String referenceType = securityReferenceType(alertCode);
+        LocalDateTime dedupSince = LocalDateTime.now().minusHours(SECURITY_ALERT_DEDUP_HOURS);
+        if (notificationRepository.existsByUserIdAndReferenceTypeAndReferenceIdAndCreatedAtAfter(
+                userId, referenceType, evidenceId, dedupSince)) {
+            return;
+        }
+
+        String title = "보안 경고";
+        String message = switch (alertCode) {
+            case SIGNATURE_INVALID ->
+                    "증거(ID " + evidenceId + ") Manifest X.509 서명 검증에 실패했습니다. 사본 변조가 의심됩니다.";
+            case CHAIN_INTEGRITY_FAILED ->
+                    "증거(ID " + evidenceId + ") 관리(CoC) 해시 체인 무결성 검증에 실패했습니다.";
+            case BLOCKCHAIN_HASH_MISMATCH ->
+                    "증거(ID " + evidenceId + ") 블록체인 앵커 해시와 현재 원본 해시가 일치하지 않습니다.";
+        };
+
+        Notification notification = new Notification();
+        notification.setUserId(userId);
+        notification.setType(NotificationType.SECURITY_ALERT);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setReferenceType(referenceType);
+        notification.setReferenceId(evidenceId);
+        notification.setRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+        notificationRepository.save(notification);
     }
 
     private String shorten(String transactionHash) {
