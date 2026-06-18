@@ -21,8 +21,17 @@ spring:
 jwt:
   # 운영: JWT_SECRET_KEY 환경 변수 필수 (K8s Secret 등)
   # 로컬: application-local.yaml 기본값 또는 JWT_SECRET_KEY 직접 설정
-  secret: ${JWT_SECRET_KEY:${JWT_SECRET:}}
-  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1200000}  # 액세스 JWT 20분 — JwtTokenProvider
+  expiration-ms: ${JWT_EXPIRATION_MS:1200000}
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}    # 리프레시·Redis·쿠키 7일
+
+# AuthCookieSupport — 리프레시 JWT HttpOnly 쿠키 (AuthController 로그인·재발급·로그아웃)
+auth:
+  cookie:
+    name: refreshToken
+    path: /
+    secure: ${AUTH_COOKIE_SECURE:true}
+    same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
 
 file:
   upload-dir: ${FILE_UPLOAD_DIR:uploads/original}
