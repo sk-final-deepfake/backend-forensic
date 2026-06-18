@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.AnalysisStatusResponse;
+import com.example.demo.dto.AnalysisTrendResponse;
 import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.dto.StartAnalysisRequest;
@@ -50,6 +51,17 @@ public class EvidenceController {
     public EvidenceStatsResponse stats() {
         return evidenceStatsService.getDashboardStats(
                 authUserResolver.requireCurrentUser().getUserId()
+        );
+    }
+
+    @Operation(summary = "최근 분석 추이", description = "RQ-DSH-044: 최근 N일 일별 완료 분석 건수(꺾은선 차트용)를 조회합니다.")
+    @GetMapping("/stats/trend")
+    public AnalysisTrendResponse analysisTrend(
+            @Parameter(description = "조회 일수 (1~30, 기본 7)") @RequestParam(defaultValue = "7") int days
+    ) {
+        return evidenceStatsService.getAnalysisTrend(
+                authUserResolver.requireCurrentUser().getUserId(),
+                days
         );
     }
 
