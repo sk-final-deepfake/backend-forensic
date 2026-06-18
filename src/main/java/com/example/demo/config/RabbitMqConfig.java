@@ -1,7 +1,11 @@
 package com.example.demo.config;
 
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -19,15 +23,68 @@ public class RabbitMqConfig {
 
     public static final String ANALYSIS_QUEUE = "forenshield.analysis.queue";
     public static final String RESULT_QUEUE = "backend.ai.result.queue";
+    public static final String ANALYSIS_DLQ = "forenshield.analysis.dlq";
 
     @Bean
-    Queue analysisQueue() {
-        return QueueBuilder.durable(ANALYSIS_QUEUE).build();
+    TopicExchange analysisExchange(AnalysisMessagingProperties properties) {
+        return new TopicExchange(properties.getAnalysisExchange(), true, false);
+    }
+
+    @Bean
+    TopicExchange resultExchange(AnalysisMessagingProperties properties) {
+        return new TopicExchange(properties.getResultExchange(), true, false);
+    }
+
+    @Bean
+    DirectExchange deadLetterExchange(AnalysisMessagingProperties properties) {
+        return new DirectExchange(properties.getDeadLetterExchange(), true, false);
+    }
+
+    @Bean
+    Queue analysisQueue(AnalysisMessagingProperties properties) {
+        return QueueBuilder.durable(ANALYSIS_QUEUE)
+                .withArgument("x-dead-letter-exchange", properties.getDeadLetterExchange())
+                .withArgument("x-dead-letter-routing-key", ANALYSIS_DLQ)
+                .build();
     }
 
     @Bean
     Queue analysisResultQueue() {
         return QueueBuilder.durable(RESULT_QUEUE).build();
+    }
+
+    @Bean
+    Queue analysisDeadLetterQueue() {
+        return QueueBuilder.durable(ANALYSIS_DLQ).build();
+    }
+
+    @Bean
+    Binding analysisQueueBinding(
+            Queue analysisQueue,
+            TopicExchange analysisExchange,
+            AnalysisMessagingProperties properties
+    ) {
+        return BindingBuilder.bind(analysisQueue)
+                .to(analysisExchange)
+                .with(properties.getVideoAnalysisRoutingKey());
+    }
+
+    @Bean
+    Binding analysisResultQueueBinding(
+            Queue analysisResultQueue,
+            TopicExchange resultExchange,
+            AnalysisMessagingProperties properties
+    ) {
+        return BindingBuilder.bind(analysisResultQueue)
+                .to(resultExchange)
+                .with(properties.getVideoResultRoutingKey());
+    }
+
+    @Bean
+    Binding analysisDeadLetterBinding(Queue analysisDeadLetterQueue, DirectExchange deadLetterExchange) {
+        return BindingBuilder.bind(analysisDeadLetterQueue)
+                .to(deadLetterExchange)
+                .with(ANALYSIS_DLQ);
     }
 
     @Bean

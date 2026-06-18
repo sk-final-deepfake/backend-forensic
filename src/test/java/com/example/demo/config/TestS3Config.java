@@ -13,6 +13,8 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
@@ -63,6 +65,17 @@ public class TestS3Config {
                             GetObjectResponse.builder().build(),
                             new ByteArrayInputStream(bytes)
                     );
+                });
+
+        when(client.headObject(any(HeadObjectRequest.class)))
+                .thenAnswer(invocation -> {
+                    HeadObjectRequest request = invocation.getArgument(0);
+                    if (!store.containsKey(objectKey(request.bucket(), request.key()))) {
+                        throw software.amazon.awssdk.services.s3.model.NoSuchKeyException.builder()
+                                .message("Not found")
+                                .build();
+                    }
+                    return HeadObjectResponse.builder().build();
                 });
 
         when(client.deleteObject(any(DeleteObjectRequest.class)))
