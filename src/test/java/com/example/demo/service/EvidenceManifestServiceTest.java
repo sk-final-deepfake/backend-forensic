@@ -106,5 +106,10 @@ class EvidenceManifestServiceTest {
         assertThat(manifest.getSignatureValue()).isNotBlank();
         assertThat(evidenceManifestService.isSignatureValid(manifest)).isTrue();
         assertThat(manifest.getManifestJson()).contains("\"originalHash\"");
+        assertThat(manifest.getManifestJson()).contains("\"originalSha256\"");
+        assertThat(manifest.getManifestJson()).contains("\"fileId\"");
+        assertThat(manifest.getManifestJson()).contains("\"caseId\"");
+        assertThat(manifest.getManifestJson()).contains("\"uploadedAt\"");
+        assertThat(manifest.getManifestJson()).contains("\"signer\"");
     }
 }
