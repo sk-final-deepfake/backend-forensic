@@ -40,6 +40,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -422,6 +423,67 @@ class EvidenceControllerTest {
                 .andExpect(jsonPath("$.deepfakeDetectedCount").value(0))
                 .andExpect(jsonPath("$.completedCount").value(0))
                 .andExpect(jsonPath("$.inProgressCount").value(3));
+    }
+
+    @Test
+    @DisplayName("RQ-DSH-044: 최근 7일 분석 완료 추이를 조회할 수 있다")
+    void shouldReturnAnalysisTrend() throws Exception {
+        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        LocalDateTime now = LocalDateTime.now();
+
+        Evidence evidenceToday = evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName("trend-today.mp4")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("d".repeat(64))
+                .originalStoragePath("original/trend-today.mp4")
+                .uploadedAt(now)
+                .build());
+        analysisRequestRepository.save(completedRequest(
+                evidenceToday.getEvidenceId(), user.getUserId(), now));
+
+        Evidence evidenceYesterday = evidenceRepository.save(Evidence.builder()
+                .uploaderId(user.getUserId())
+                .fileName("trend-yesterday.mp4")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
+                .fileSize(100L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("e".repeat(64))
+                .originalStoragePath("original/trend-yesterday.mp4")
+                .uploadedAt(now.minusDays(1))
+                .build());
+        analysisRequestRepository.save(completedRequest(
+                evidenceYesterday.getEvidenceId(), user.getUserId(), now.minusDays(1)));
+        analysisRequestRepository.save(completedRequest(
+                evidenceYesterday.getEvidenceId(), user.getUserId(), now.minusDays(1).minusHours(2)));
+
+        String today = LocalDate.now().toString();
+        String yesterday = LocalDate.now().minusDays(1).toString();
+
+        mockMvc.perform(get("/api/v1/evidences/stats/trend")
+                        .param("days", "7")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days").value(7))
+                .andExpect(jsonPath("$.points.length()").value(7))
+                .andExpect(jsonPath("$.points[6].date").value(today))
+                .andExpect(jsonPath("$.points[6].completedCount").value(1))
+                .andExpect(jsonPath("$.points[5].date").value(yesterday))
+                .andExpect(jsonPath("$.points[5].completedCount").value(2));
+    }
+
+    @Test
+    @DisplayName("분석 추이 days 파라미터가 범위를 벗어나면 400을 반환한다")
+    void analysisTrend_invalidDays_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/evidences/stats/trend")
+                        .param("days", "31")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
     }
 
     @Test
@@ -930,6 +992,18 @@ class EvidenceControllerTest {
 
     private String bearerToken() {
         return "Bearer " + accessToken;
+    }
+
+    private AnalysisRequest completedRequest(Long evidenceId, Long requestedBy, LocalDateTime completedAt) {
+        AnalysisRequest request = new AnalysisRequest();
+        request.setEvidenceId(evidenceId);
+        request.setRequestedBy(requestedBy);
+        request.setStatus(AnalysisStatus.COMPLETED);
+        request.setRequestedAt(completedAt.minusHours(1));
+        request.setStartedAt(completedAt.minusMinutes(30));
+        request.setCompletedAt(completedAt);
+        request.setProgressPercent(100);
+        return request;
     }
 
     private String extractHashValue(String responseBody) {
