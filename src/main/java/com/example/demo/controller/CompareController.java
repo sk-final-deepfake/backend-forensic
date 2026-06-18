@@ -34,13 +34,25 @@ public class CompareController {
     @PostMapping(value = "/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CompareVerifyResponse verify(
             @Parameter(description = "원본 증거 ID") @RequestParam("evidenceId") Long evidenceId,
+            @Parameter(description = "비교 검증 요청 ID") @RequestParam(value = "requestId", required = false) String requestId,
             @Parameter(description = "비교 대상 영상 파일") @RequestParam("file") MultipartFile file
     ) {
         return compareVerificationService.verify(
                 authUserResolver.requireCurrentUser(),
                 evidenceId,
+                requestId,
                 file
         );
+    }
+
+    @Operation(summary = "비교 검증 중단", description = "진행 중인 비교 검증 요청을 requestId 기준으로 중단합니다.")
+    @PostMapping("/cancel")
+    public ResponseEntity<Void> cancel(@RequestParam("requestId") String requestId) {
+        compareVerificationService.cancel(
+                authUserResolver.requireCurrentUser(),
+                requestId
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "비교 검증 결과 조회")

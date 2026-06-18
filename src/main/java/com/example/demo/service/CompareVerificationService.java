@@ -48,29 +48,39 @@ public class CompareVerificationService {
     private final HashService hashService;
     private final MediaService mediaService;
     private final ObjectMapper objectMapper;
+    private final CompareCancellationService compareCancellationService;
 
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
 
     @Transactional
-    public CompareVerifyResponse verify(User user, Long evidenceId, MultipartFile candidateFile) {
+    public CompareVerifyResponse verify(User user, Long evidenceId, String requestId, MultipartFile candidateFile) {
+        compareCancellationService.throwIfCancelled(user, requestId);
+
         Evidence original = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "원본 증거를 찾을 수 없습니다."));
 
         fileValidationService.validate(candidateFile);
+        compareCancellationService.throwIfCancelled(user, requestId);
+
         EvidenceMetadata originalMetadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElse(null);
 
         Path tempFile = saveTempCandidate(candidateFile);
         try {
+            compareCancellationService.throwIfCancelled(user, requestId);
             String candidateHash = hashService.generateSha256(tempFile);
+            compareCancellationService.throwIfCancelled(user, requestId);
+
             long candidateSize = candidateFile.getSize();
             Optional<FfprobeCompareHelper.ProbeSnapshot> candidateProbe = extractProbe(tempFile);
+            compareCancellationService.throwIfCancelled(user, requestId);
 
             List<CompareItemDto> items = buildComparisonItems(original, originalMetadata, candidateHash, candidateSize, candidateProbe);
             CompareSummaryDto summary = summarize(items);
             CompareVerdict verdict = determineVerdict(items, candidateHash, original.getOriginalHashValue());
+            compareCancellationService.throwIfCancelled(user, requestId);
 
             CompareVerification saved = persistVerification(
                     user.getUserId(),
@@ -86,7 +96,12 @@ public class CompareVerificationService {
             return toVerifyResponse(saved, items, summary);
         } finally {
             deleteQuietly(tempFile);
+            compareCancellationService.clear(user, requestId);
         }
+    }
+
+    public void cancel(User user, String requestId) {
+        compareCancellationService.cancel(user, requestId);
     }
 
     @Transactional(readOnly = true)
