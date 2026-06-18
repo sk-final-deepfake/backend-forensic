@@ -26,6 +26,7 @@ public class AnalysisWorkerService {
     private final AnalysisResultPersistenceService analysisResultPersistenceService;
     private final AnalysisCustodyLogService analysisCustodyLogService;
     private final EvidenceCopyService evidenceCopyService;
+    private final NotificationService notificationService;
 
     @Value("${analysis.worker.step-delay-ms:600}")
     private long stepDelayMs;
@@ -103,6 +104,11 @@ public class AnalysisWorkerService {
             evidenceRepository.findById(request.getEvidenceId()).ifPresent(evidence -> {
                 analysisCustodyLogService.recordAnalysisCompleted(request, evidence, analysisResultId);
                 evidenceCopyService.deleteAnalysisCopy(evidence, request.getRequestedBy());
+                notificationService.notifyAnalysisCompleted(
+                        request.getRequestedBy(),
+                        evidence.getEvidenceId(),
+                        evidence.getFileName()
+                );
             });
         });
     }
@@ -122,6 +128,11 @@ public class AnalysisWorkerService {
             evidenceRepository.findById(request.getEvidenceId()).ifPresent(evidence -> {
                 analysisCustodyLogService.recordAnalysisFailed(request, evidence);
                 evidenceCopyService.deleteAnalysisCopy(evidence, request.getRequestedBy());
+                notificationService.notifyAnalysisFailed(
+                        request.getRequestedBy(),
+                        evidence.getEvidenceId(),
+                        evidence.getFileName()
+                );
             });
         });
     }

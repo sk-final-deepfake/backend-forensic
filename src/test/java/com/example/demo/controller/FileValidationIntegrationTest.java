@@ -14,6 +14,7 @@ import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import com.example.demo.service.ReportPdfService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,9 @@ class FileValidationIntegrationTest {
 
     @MockBean
     private AnalysisStatusService analysisStatusService;
+
+    @MockBean
+    private ReportPdfService reportPdfService;
 
     @MockBean
     private AuthUserResolver authUserResolver;
