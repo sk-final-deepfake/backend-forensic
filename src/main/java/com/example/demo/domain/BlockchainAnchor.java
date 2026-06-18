@@ -1,0 +1,75 @@
+package com.example.demo.domain;
+
+import com.example.demo.domain.enums.BlockchainAnchorStatus;
+import com.example.demo.domain.enums.BlockchainAnchorType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "blockchain_anchors")
+@Getter
+@Setter
+@NoArgsConstructor
+public class BlockchainAnchor {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "anchor_id")
+    private Long anchorId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "anchor_type", nullable = false, length = 30)
+    private BlockchainAnchorType anchorType;
+
+    @Column(name = "subject_hash", nullable = false, length = 64)
+    private String subjectHash;
+
+    @Column(name = "evidence_id")
+    private Long evidenceId;
+
+    @Column(name = "report_id")
+    private Long reportId;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "merkle_batch_date")
+    private LocalDate merkleBatchDate;
+
+    @Column(name = "merkle_leaf_count")
+    private Integer merkleLeafCount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private BlockchainAnchorStatus status;
+
+    @Column(name = "transaction_hash", length = 128)
+    private String transactionHash;
+
+    @Column(name = "block_number")
+    private Long blockNumber;
+
+    @Column(length = 50)
+    private String network;
+
+    @Column(name = "anchored_at")
+    private LocalDateTime anchoredAt;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "error_message", columnDefinition = "clob")
+    private String errorMessage;
+}

@@ -131,4 +131,21 @@ public class Evidence {
         this.caseName = caseName;
         this.caseNumber = caseName;
     }
+
+    public void updateOriginalStoragePath(String path) {
+        this.originalStoragePath = path;
+    }
+
+    public void activateCopy(String copyStoragePath, String copyHashValue) {
+        this.copyStoragePath = copyStoragePath;
+        this.copyHashValue = copyHashValue;
+        this.copyStatus = CopyStatus.ACTIVE;
+        this.copyCreatedAt = LocalDateTime.now();
+        this.copyDeletedAt = null;
+    }
+
+    public void markCopyDeleted() {
+        this.copyStatus = CopyStatus.DELETED;
+        this.copyDeletedAt = LocalDateTime.now();
+    }
 }

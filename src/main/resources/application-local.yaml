@@ -2,11 +2,18 @@
 jwt:
   secret: ${JWT_SECRET_KEY:forenshield-local-dev-jwt-secret-key-min-32-chars}
 
+# localhost http — AuthCookieSupport secure=false (쿠키가 http에서도 전달되도록)
+auth:
+  cookie:
+    secure: false
+
 spring:
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
       - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+      # Docker Redis 없을 때 연결 타임아웃(~3초) 방지 — RefreshTokenRedisService 인메모리 폴백
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
   datasource:
     url: jdbc:h2:file:./data/demo;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
@@ -19,3 +26,24 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+  # Redis 사용 시: 위 RedisAutoConfiguration exclude 제거 후 docker run -p 6379:6379 redis:7
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: false
+
+analysis:
+  worker:
+    mode: local
+    step-delay-ms: 600
+
+blockchain:
+  anchor:
+    enabled: true
+    mode: simulated
+    network: local-simulated
+    scheduler-enabled: true
+    daily-cron: "0 0 1 * * *"

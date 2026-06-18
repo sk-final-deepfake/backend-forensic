@@ -76,7 +76,7 @@ public class MediaService {
             }
 
             JsonNode rootNode = objectMapper.readTree(output.toString());
-            return parseMetadata(rootNode);
+            return parseMetadata(rootNode, output.toString());
 
         } catch (Exception e) {
             log.error("Failed to extract metadata: ", e);
@@ -84,20 +84,16 @@ public class MediaService {
         }
     }
 
-    private MediaMetadata parseMetadata(JsonNode rootNode) {
+    private MediaMetadata parseMetadata(JsonNode rootNode, String ffprobeJson) {
         JsonNode formatNode = rootNode.get("format");
         JsonNode streamsNode = rootNode.get("streams");
 
-        MediaMetadata.MediaMetadataBuilder builder = MediaMetadata.builder();
-        
-        String formatName = "";
-        if (formatNode != null) {
-            if (formatNode.has("duration")) {
-                builder.duration(formatNode.get("duration").asDouble());
-            }
-            if (formatNode.has("format_name")) {
-                formatName = formatNode.get("format_name").asText();
-            }
+        MediaMetadata.MediaMetadataBuilder builder = MediaMetadata.builder()
+                .type("video")
+                .ffprobeJson(ffprobeJson);
+
+        if (formatNode != null && formatNode.has("duration")) {
+            builder.duration(formatNode.get("duration").asDouble());
         }
 
         boolean hasVideo = false;
@@ -108,16 +104,14 @@ public class MediaService {
                 String codecType = stream.get("codec_type").asText();
                 if ("video".equals(codecType) && !hasVideo) {
                     hasVideo = true;
-                    // image2, png_pipe etc are image formats in ffprobe
-                    if (formatName.contains("image") || formatName.contains("png") || formatName.contains("jpeg") || formatName.contains("jpg")) {
-                        builder.type("image");
-                    } else {
-                        builder.type("video");
-                    }
                     builder.codec(stream.get("codec_name").asText());
-                    builder.width(stream.get("width").asInt());
-                    builder.height(stream.get("height").asInt());
-                    
+                    if (stream.has("width")) {
+                        builder.width(stream.get("width").asInt());
+                    }
+                    if (stream.has("height")) {
+                        builder.height(stream.get("height").asInt());
+                    }
+
                     if (stream.has("avg_frame_rate")) {
                         String avgFrameRate = stream.get("avg_frame_rate").asText();
                         if (avgFrameRate.contains("/")) {
@@ -126,29 +120,24 @@ public class MediaService {
                                 double num = Double.parseDouble(parts[0]);
                                 double den = Double.parseDouble(parts[1]);
                                 builder.fps(den != 0 ? num / den : 0);
-                            } catch (NumberFormatException ignored) {}
+                            } catch (NumberFormatException ignored) {
+                            }
                         }
                     }
                 } else if ("audio".equals(codecType) && !hasAudio) {
+                    // 영상 파일 내장 오디오 트랙 메타 (별도 음성 파일 분석 아님)
                     hasAudio = true;
-                    if (!hasVideo) {
-                        builder.type("audio");
-                        builder.codec(stream.get("codec_name").asText());
-                    }
                     if (stream.has("sample_rate")) {
                         builder.sampleRate(stream.get("sample_rate").asInt());
                     }
                     if (stream.has("channels")) {
                         builder.channels(stream.get("channels").asInt());
                     }
-                    
-                    if (!hasVideo && builder.build().getDuration() == null && stream.has("duration")) {
-                        builder.duration(stream.get("duration").asDouble());
-                    }
                 }
             }
         }
 
+        builder.hasAudioTrack(hasAudio);
         return builder.build();
     }
 }

@@ -12,12 +12,26 @@ spring:
       max-request-size: 2GB
   autoconfigure:
     exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+  rabbitmq:
+    host: ${RABBITMQ_HOST:}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:}
+    password: ${RABBITMQ_PASSWORD:}
 
 jwt:
   # 운영: JWT_SECRET_KEY 환경 변수 필수 (K8s Secret 등)
   # 로컬: application-local.yaml 기본값 또는 JWT_SECRET_KEY 직접 설정
-  secret: ${JWT_SECRET_KEY:${JWT_SECRET:}}
-  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1200000}  # 액세스 JWT 20분 — JwtTokenProvider
+  expiration-ms: ${JWT_EXPIRATION_MS:1200000}
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}    # 리프레시·Redis·쿠키 7일
+
+# AuthCookieSupport — 리프레시 JWT HttpOnly 쿠키 (AuthController 로그인·재발급·로그아웃)
+auth:
+  cookie:
+    name: refreshToken
+    path: /
+    secure: ${AUTH_COOKIE_SECURE:true}
+    same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
 
 file:
   upload-dir: ${FILE_UPLOAD_DIR:uploads/original}
@@ -51,3 +65,24 @@ aws:
   region: ${AWS_REGION:ap-northeast-2}
   s3:
     evidence-bucket: ${S3_EVIDENCE_BUCKET:forenshield-evidence-877044078824}
+
+analysis:
+  worker:
+    mode: ${ANALYSIS_WORKER_MODE:local}
+    step-delay-ms: ${ANALYSIS_WORKER_STEP_DELAY_MS:600}
+  messaging:
+    analysis-exchange: ${ANALYSIS_EXCHANGE:ai.analysis.exchange}
+    result-exchange: ${AI_RESULT_EXCHANGE:ai.result.exchange}
+    dead-letter-exchange: ${ANALYSIS_DLX:ai.dead.exchange}
+    video-analysis-routing-key: ${ANALYSIS_ROUTING_KEY:analyze.video}
+    video-result-routing-key: ${AI_RESULT_ROUTING_KEY:result.video}
+    presign-duration-minutes: ${ANALYSIS_PRESIGN_MINUTES:120}
+
+blockchain:
+  anchor:
+    enabled: ${BLOCKCHAIN_ANCHOR_ENABLED:true}
+    mode: ${BLOCKCHAIN_ANCHOR_MODE:simulated}
+    network: ${BLOCKCHAIN_ANCHOR_NETWORK:local-simulated}
+    http-url: ${BLOCKCHAIN_ANCHOR_URL:}
+    scheduler-enabled: ${BLOCKCHAIN_ANCHOR_SCHEDULER_ENABLED:true}
+    daily-cron: ${BLOCKCHAIN_ANCHOR_DAILY_CRON:0 0 1 * * *}

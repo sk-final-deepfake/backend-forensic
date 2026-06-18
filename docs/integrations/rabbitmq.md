@@ -15,9 +15,19 @@ Spring Boot는 **단일 durable 큐**를 사용합니다.
 | Config | `RabbitMqConfig.ANALYSIS_QUEUE` |
 | Publisher | `RabbitMqAnalysisJobEnqueuer` |
 | Consumer (dev) | `RabbitMqAnalysisQueueConsumer` |
+| Result Queue | `backend.ai.result.queue` |
+| Result Consumer | `RabbitMqAnalysisResultConsumer` |
 | Prefetch | `1` (무거운 영상 분석 1건씩) |
 
-활성 조건: `spring.rabbitmq.host` 설정 시 (`@ConditionalOnExpression`)
+### Worker mode (`analysis.worker.mode`)
+
+| mode | RabbitMQ host | 동작 |
+| :--- | :--- | :--- |
+| `local` (기본) | 없음 또는 있음 | `LocalAnalysisJobEnqueuer` — BE 내부 시뮬레이션 (RabbitMQ 있어도 local이면 큐 미사용) |
+| `simulated` | 있음 | `RabbitMqAnalysisQueueConsumer` — 큐 수신 후 BE 내부 시뮬레이션 |
+| `ai` | 있음 | 큐 publish + `markDispatchedToAi` → 외부 AI 결과는 `backend.ai.result.queue` 수신 |
+
+활성 조건: `spring.rabbitmq.host` 설정 시 RabbitMQ 빈 활성 (`@ConditionalOnExpression`)
 
 ---
 
