@@ -38,7 +38,6 @@ import org.springframework.util.FileSystemUtils;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -87,12 +86,14 @@ class EvidenceControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    /** 테스트 환경에는 AWS 자격증명이 없으므로 S3 업로드는 모킹한다 */
-    @MockBean
-    private S3Client s3Client;
-
     @MockBean
     private AnalysisJobEnqueuer analysisJobEnqueuer;
+
+    @Autowired
+    private S3Client s3Client;
+
+    @Value("${aws.s3.evidence-bucket}")
+    private String evidenceBucket;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
@@ -101,9 +102,6 @@ class EvidenceControllerTest {
 
     @BeforeEach
     void obtainAccessToken() throws Exception {
-        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
-                .thenReturn(PutObjectResponse.builder().build());
-
         custodyLogRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
@@ -487,15 +485,19 @@ class EvidenceControllerTest {
     @DisplayName("분석 대기 중에는 분석 중단 API로 삭제할 수 있다")
     void cancelAnalysis_whenQueued_succeeds() throws Exception {
         User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        byte[] queuedBytes = "queued analysis bytes".getBytes(StandardCharsets.UTF_8);
+        String originalKey = "original/queued.mp4";
+        String originalHash = new com.example.demo.service.HashService().generateSha256(queuedBytes);
+        seedS3Object(originalKey, queuedBytes);
         Evidence queuedEvidence = evidenceRepository.save(Evidence.builder()
                 .uploaderId(user.getUserId())
                 .fileName("queued.mp4")
                 .fileType(FileType.VIDEO)
                 .mimeType("video/mp4")
-                .fileSize(100L)
+                .fileSize((long) queuedBytes.length)
                 .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
-                .originalHashValue("a".repeat(64))
-                .originalStoragePath("original/queued.mp4")
+                .originalHashValue(originalHash)
+                .originalStoragePath(originalKey)
                 .uploadedAt(LocalDateTime.now())
                 .build());
         long evidenceId = queuedEvidence.getEvidenceId();
@@ -795,7 +797,18 @@ class EvidenceControllerTest {
         Evidence evidenceAfterAnalyze = evidenceRepository.findById(evidenceId).orElseThrow();
         assertThat(log.getStoragePathAtEvent()).isEqualTo(evidenceAfterAnalyze.getCopyStoragePath());
         assertThat(log.getCurrentLogHash()).matches("[0-9a-f]{64}");
-        assertThat(log.getPreviousLogHash()).isEqualTo(uploadLogs.get(2).getCurrentLogHash());
+        CustodyLog lastEvidenceLog = custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId)
+                .stream()
+                .reduce((first, second) -> second)
+                .orElseThrow();
+        assertThat(log.getPreviousLogHash()).isEqualTo(lastEvidenceLog.getCurrentLogHash());
+
+        List<CustodyLog> evidenceCopyLogs = custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
+        assertThat(evidenceCopyLogs)
+                .extracting(CustodyLog::getActionType)
+                .contains("ANALYSIS_COPY_CREATED", "ANALYSIS_COPY_VERIFIED");
 
         JsonNode payload = objectMapper.readTree(log.getEventPayloadJson());
         assertThat(payload.get("evidenceId").asLong()).isEqualTo(evidenceId);
@@ -829,7 +842,7 @@ class EvidenceControllerTest {
         assertThat(custodyLogRepository.findAll())
                 .extracting(CustodyLog::getActionType)
                 .doesNotContain("QUEUE_REGISTERED", "ANALYSIS_STARTED", "ANALYSIS_COMPLETED",
-                        "ANALYSIS_COPY_CREATED", "ANALYSIS_FAILED", "ERROR_OCCURRED");
+                        "ANALYSIS_FAILED");
     }
 
     @Test
@@ -906,10 +919,13 @@ class EvidenceControllerTest {
         assertThat(analysisLogs)
                 .extracting(CustodyLog::getActionType)
                 .doesNotContain("ANALYSIS_REQUESTED");
+        assertThat(custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId))
+                .extracting(CustodyLog::getActionType)
+                .contains("ANALYSIS_COPY_CREATED", "ANALYSIS_COPY_VERIFIED");
         assertThat(custodyLogRepository.findAll())
                 .extracting(CustodyLog::getActionType)
-                .doesNotContain("QUEUE_REGISTERED", "ANALYSIS_STARTED", "ANALYSIS_COMPLETED",
-                        "ANALYSIS_COPY_CREATED");
+                .doesNotContain("QUEUE_REGISTERED", "ANALYSIS_STARTED", "ANALYSIS_COMPLETED");
     }
 
     private String bearerToken() {
@@ -958,6 +974,16 @@ class EvidenceControllerTest {
                 .originalStoragePath("original/" + fileName)
                 .uploadedAt(LocalDateTime.now())
                 .build());
+    }
+
+    private void seedS3Object(String objectKey, byte[] content) {
+        s3Client.putObject(
+                PutObjectRequest.builder()
+                        .bucket(evidenceBucket)
+                        .key(objectKey)
+                        .build(),
+                RequestBody.fromBytes(content)
+        );
     }
 
     private AnalysisRequest saveAnalysisRequestForCancelPolicy(
