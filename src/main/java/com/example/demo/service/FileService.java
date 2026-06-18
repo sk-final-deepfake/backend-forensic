@@ -128,6 +128,7 @@ public class FileService {
             // 로컬 파일은 임시 작업용 — 보관은 S3가 담당하므로 정리
             Files.deleteIfExists(savedPath);
 
+            String originalSha256 = savedEvidence.getOriginalHashValue();
             return FileUploadResponse.builder()
                     .success(true)
                     .message("파일 업로드 완료")
@@ -136,7 +137,8 @@ public class FileService {
                     .caseName(savedEvidence.getCaseName())
                     .fileSize(validated.fileSize())
                     .hashAlgorithm(savedEvidence.getHashAlgorithm())
-                    .hashValue(savedEvidence.getOriginalHashValue())
+                    .hashValue(originalSha256)
+                    .originalSha256(originalSha256)
                     .metadata(metadata)
                     .build();
         } catch (HashGenerationException e) {
