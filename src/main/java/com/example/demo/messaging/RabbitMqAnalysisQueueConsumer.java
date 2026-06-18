@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-@ConditionalOnExpression("'${spring.rabbitmq.host:}'.length() > 0")
+@ConditionalOnExpression("'${spring.rabbitmq.host:}'.length() > 0 && '${analysis.worker.mode:local}'.equalsIgnoreCase('simulated')")
 public class RabbitMqAnalysisQueueConsumer {
 
     private final AnalysisWorkerService analysisWorkerService;

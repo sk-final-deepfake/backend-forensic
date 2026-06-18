@@ -11,6 +11,7 @@ public class EvidenceDetailResponse {
 
     private EvidenceInfoDto evidenceInfo;
     private IntegrityInfoDto integrityInfo;
+    private BlockchainInfoDto blockchainInfo;
     private AnalysisInfoDto analysisInfo;
     private List<CocLogDto> cocLogs;
 }

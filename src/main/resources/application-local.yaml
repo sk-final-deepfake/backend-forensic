@@ -19,3 +19,16 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+
+analysis:
+  worker:
+    mode: local
+    step-delay-ms: 600
+
+blockchain:
+  anchor:
+    enabled: true
+    mode: simulated
+    network: local-simulated
+    scheduler-enabled: true
+    daily-cron: "0 0 1 * * *"

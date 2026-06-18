@@ -51,6 +51,7 @@ public class EvidenceDetailService {
     private final CustodyLogRepository custodyLogRepository;
     private final UserRepository userRepository;
     private final CustodyLogService custodyLogService;
+    private final BlockchainAnchorService blockchainAnchorService;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -73,6 +74,7 @@ public class EvidenceDetailService {
         return EvidenceDetailResponse.builder()
                 .evidenceInfo(toEvidenceInfo(evidence, metadata))
                 .integrityInfo(toIntegrityInfo(evidence, isChainValid))
+                .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidenceId))
                 .analysisInfo(toAnalysisInfo(request, result))
                 .cocLogs(toCocLogs(custodyLogs))
                 .build();

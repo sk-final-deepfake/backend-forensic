@@ -1,13 +1,14 @@
 package com.example.demo.service;
 
+import com.example.demo.config.AnalysisWorkerProperties;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.dto.AnalysisResponseMessage;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -27,9 +28,7 @@ public class AnalysisWorkerService {
     private final AnalysisCustodyLogService analysisCustodyLogService;
     private final EvidenceCopyService evidenceCopyService;
     private final NotificationService notificationService;
-
-    @Value("${analysis.worker.step-delay-ms:600}")
-    private long stepDelayMs;
+    private final AnalysisWorkerProperties workerProperties;
 
     public void processJob(Long analysisRequestId) {
         if (!prepareJob(analysisRequestId)) {
@@ -37,6 +36,7 @@ public class AnalysisWorkerService {
         }
 
         try {
+            long stepDelayMs = workerProperties.getStepDelayMs();
             for (int step = 1; step <= PROGRESS_STEPS; step++) {
                 if (!isJobActive(analysisRequestId)) {
                     log.info("Analysis job {} cancelled or removed", analysisRequestId);
@@ -49,13 +49,46 @@ public class AnalysisWorkerService {
                 }
             }
 
-            completeJob(analysisRequestId);
+            Long analysisResultId = analysisResultPersistenceService.saveSimulatedVideoResult(analysisRequestId);
+            finalizeCompletedJob(analysisRequestId, analysisResultId);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             log.warn("Analysis job {} interrupted", analysisRequestId);
         } catch (Exception ex) {
             log.error("Analysis job {} failed", analysisRequestId, ex);
-            failJob(analysisRequestId, ex.getMessage());
+            finalizeFailedJob(analysisRequestId, "ANALYSIS_FAILED", ex.getMessage());
+        }
+    }
+
+    public void markDispatchedToAi(Long analysisRequestId) {
+        prepareJob(analysisRequestId);
+    }
+
+    public void applyAiResult(AnalysisResponseMessage response) {
+        if (response == null || response.getAnalysisRequestId() == null) {
+            log.warn("Ignored AI result message without analysisRequestId");
+            return;
+        }
+
+        Long analysisRequestId = response.getAnalysisRequestId();
+        if ("FAILED".equalsIgnoreCase(response.getStatus())) {
+            String errorCode = response.getErrorCode() == null ? "AI_ANALYSIS_FAILED" : response.getErrorCode();
+            String message = response.getMessage() == null ? "AI analysis failed." : response.getMessage();
+            finalizeFailedJob(analysisRequestId, errorCode, message);
+            return;
+        }
+
+        if (!"COMPLETED".equalsIgnoreCase(response.getStatus())) {
+            log.warn("Ignored AI result message with unsupported status: {}", response.getStatus());
+            return;
+        }
+
+        try {
+            Long analysisResultId = analysisResultPersistenceService.saveFromAiResponse(response);
+            finalizeCompletedJob(analysisRequestId, analysisResultId);
+        } catch (Exception ex) {
+            log.error("Failed to persist AI result for analysisRequestId={}", analysisRequestId, ex);
+            finalizeFailedJob(analysisRequestId, "AI_RESULT_PERSIST_FAILED", ex.getMessage());
         }
     }
 
@@ -88,7 +121,7 @@ public class AnalysisWorkerService {
         );
     }
 
-    private void completeJob(Long analysisRequestId) {
+    private void finalizeCompletedJob(Long analysisRequestId, Long analysisResultId) {
         transactionTemplate.executeWithoutResult(status -> {
             AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId).orElse(null);
             if (request == null) {
@@ -98,8 +131,6 @@ public class AnalysisWorkerService {
             request.setStatus(AnalysisStatus.COMPLETED);
             request.setProgressPercent(100);
             request.setCompletedAt(LocalDateTime.now());
-
-            Long analysisResultId = analysisResultPersistenceService.saveSimulatedVideoResult(analysisRequestId);
 
             evidenceRepository.findById(request.getEvidenceId()).ifPresent(evidence -> {
                 analysisCustodyLogService.recordAnalysisCompleted(request, evidence, analysisResultId);
@@ -113,7 +144,7 @@ public class AnalysisWorkerService {
         });
     }
 
-    private void failJob(Long analysisRequestId, String message) {
+    private void finalizeFailedJob(Long analysisRequestId, String errorCode, String message) {
         transactionTemplate.executeWithoutResult(status -> {
             AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId).orElse(null);
             if (request == null) {
@@ -121,7 +152,7 @@ public class AnalysisWorkerService {
             }
 
             request.setStatus(AnalysisStatus.FAILED);
-            request.setErrorCode("ANALYSIS_FAILED");
+            request.setErrorCode(errorCode);
             request.setErrorMessage(message);
             request.setCompletedAt(LocalDateTime.now());
 
