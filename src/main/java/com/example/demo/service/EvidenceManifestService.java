@@ -115,17 +115,32 @@ public class EvidenceManifestService {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("manifestVersion", MANIFEST_VERSION);
         body.put("evidenceId", evidence.getEvidenceId());
+        body.put("fileId", evidence.getEvidenceId());
+        body.put("caseId", resolveCaseId(evidence));
         body.put("caseNumber", evidence.getCaseNumber());
         body.put("caseName", evidence.getCaseName());
         body.put("fileName", evidence.getFileName());
         body.put("fileType", evidence.getFileType().name());
+        body.put("uploadedAt", ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()));
         body.put("hashAlgorithm", evidence.getHashAlgorithm());
         body.put("originalHash", evidence.getOriginalHashValue());
+        body.put("originalSha256", evidence.getOriginalHashValue());
         body.put("copyHash", evidence.getCopyHashValue());
         body.put("copyStoragePath", evidence.getCopyStoragePath());
         body.put("issuer", manifestProperties.getIssuer());
+        body.put("signer", manifestProperties.getIssuer());
         body.put("issuedAt", ApiDateTimeFormatter.formatUtc(issuedAt));
         return body;
+    }
+
+    private String resolveCaseId(Evidence evidence) {
+        if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
+            return evidence.getCaseNumber();
+        }
+        if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
+            return evidence.getCaseName();
+        }
+        return "EVIDENCE-" + evidence.getEvidenceId();
     }
 
     private String toCanonicalJson(Map<String, Object> manifestBody) {

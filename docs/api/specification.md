@@ -393,8 +393,11 @@
   "integrityInfo": { },
   "manifestInfo": {
     "evidenceId": 12,
+    "fileId": 12,
+    "caseId": "2026-서울-0123",
     "caseNumber": "2026-서울-0123",
     "originalHash": "...",
+    "uploadedAt": "2026-06-18T05:00:00Z",
     "copyHash": "...",
     "manifestCreatedAt": "2026-06-18T06:00:00Z",
     "manifestHash": "...",
