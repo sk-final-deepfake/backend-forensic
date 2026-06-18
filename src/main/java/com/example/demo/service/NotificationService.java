@@ -1,0 +1,107 @@
+package com.example.demo.service;
+
+import com.example.demo.domain.Notification;
+import com.example.demo.domain.enums.NotificationType;
+import com.example.demo.dto.notification.NotificationDto;
+import com.example.demo.dto.notification.NotificationListResponse;
+import com.example.demo.exception.BusinessException;
+import com.example.demo.repository.NotificationRepository;
+import com.example.demo.util.ApiDateTimeFormatter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class NotificationService {
+
+    private static final String REF_EVIDENCE = "EVIDENCE";
+
+    private final NotificationRepository notificationRepository;
+    private final UserSettingsService userSettingsService;
+
+    @Transactional(readOnly = true)
+    public NotificationListResponse listNotifications(Long userId, int limit) {
+        int effectiveLimit = Math.min(Math.max(limit, 1), 50);
+        List<Notification> notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .limit(effectiveLimit)
+                .toList();
+
+        int unreadCount = (int) notifications.stream().filter(notification -> !notification.isRead()).count();
+
+        return NotificationListResponse.builder()
+                .notifications(notifications.stream().map(this::toDto).toList())
+                .unreadCount(unreadCount)
+                .build();
+    }
+
+    @Transactional
+    public NotificationDto markAsRead(Long userId, Long notificationId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .filter(item -> item.getUserId().equals(userId))
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND", "알림을 찾을 수 없습니다."));
+        notification.setRead(true);
+        return toDto(notificationRepository.save(notification));
+    }
+
+    @Transactional
+    public void notifyAnalysisCompleted(Long userId, Long evidenceId, String fileName) {
+        if (!userSettingsService.isAnalysisNotificationEnabled(userId)) {
+            return;
+        }
+        create(userId, NotificationType.ANALYSIS_COMPLETED,
+                "분석 완료",
+                fileName + " 분석이 완료되었습니다.",
+                REF_EVIDENCE, evidenceId);
+    }
+
+    @Transactional
+    public void notifyAnalysisFailed(Long userId, Long evidenceId, String fileName) {
+        if (!userSettingsService.isAnalysisNotificationEnabled(userId)) {
+            return;
+        }
+        create(userId, NotificationType.ANALYSIS_FAILED,
+                "분석 실패",
+                fileName + " 분석이 실패했습니다.",
+                REF_EVIDENCE, evidenceId);
+    }
+
+    private void create(
+            Long userId,
+            NotificationType type,
+            String title,
+            String message,
+            String referenceType,
+            Long referenceId
+    ) {
+        Notification notification = new Notification();
+        notification.setUserId(userId);
+        notification.setType(type);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setReferenceType(referenceType);
+        notification.setReferenceId(referenceId);
+        notification.setRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+        notificationRepository.save(notification);
+    }
+
+    private NotificationDto toDto(Notification notification) {
+        return NotificationDto.builder()
+                .notificationId(notification.getNotificationId())
+                .type(notification.getType())
+                .title(notification.getTitle())
+                .message(notification.getMessage())
+                .referenceType(notification.getReferenceType())
+                .referenceId(notification.getReferenceId())
+                .read(notification.isRead())
+                .createdAt(ApiDateTimeFormatter.formatUtc(notification.getCreatedAt()))
+                .build();
+    }
+}

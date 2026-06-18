@@ -14,6 +14,7 @@ import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import com.example.demo.service.ReportPdfService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,6 +44,7 @@ public class EvidenceController {
     private final EvidenceCancelService evidenceCancelService;
     private final AnalysisCancelService analysisCancelService;
     private final AnalysisStatusService analysisStatusService;
+    private final ReportPdfService reportPdfService;
     private final AuthUserResolver authUserResolver;
 
     @Operation(summary = "대시보드 통계", description = "RQ-DSH-043: 총 분석·딥페이크 탐지·완료·처리 중 건수를 조회합니다.")
@@ -121,5 +123,19 @@ public class EvidenceController {
                 authUserResolver.requireCurrentUser(),
                 request
         );
+    }
+
+    @Operation(summary = "분석 PDF 리포트 다운로드", description = "RQ-DTL-082~086: 분석 결과 PDF 리포트")
+    @GetMapping("/{evidenceId}/reports/pdf")
+    public ResponseEntity<byte[]> downloadAnalysisReport(@PathVariable Long evidenceId) {
+        ReportPdfService.ReportPdfPayload payload = reportPdfService.generateEvidenceReport(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + payload.fileName() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(payload.content());
     }
 }
