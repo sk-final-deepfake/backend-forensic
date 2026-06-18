@@ -701,6 +701,22 @@ WHERE ar.requested_by = :uploaderId
 
 분석 건수는 기존 데이터에서 계산 가능한 값이므로 별도 저장 컬럼을 두지 않습니다. 대시보드 조회 시 COUNT로 계산하는 것이 더 안전합니다.
 
+### 8.6 관리자 분석 통계 (`GET /api/v1/admin/dashboard/analysis-stats`, RQ-ADMIN-150)
+
+사용자 대시보드(§8.1)와 동일한 **COMPLETED 기준**을 전체 시스템에 적용합니다.
+
+| 필드 | 집계 범위 | 기준 |
+| :--- | :--- | :--- |
+| `weeklyTotalCount` | 이번 주(월~일) | `status = COMPLETED` AND `completedAt` 해당 주 |
+| `deepfakeDetectionRate` | 이번 주 완료 건 | `riskLevel IN (MEDIUM, HIGH)` / 완료 건수 × 100 |
+| `averageAnalysisMinutes` | 이번 주 완료 건 | `AVG(completedAt - COALESCE(startedAt, requestedAt))` |
+| `weeklyPoints[].requestedCount` | 일별 | `requestedAt` 해당 일 |
+| `weeklyPoints[].completedCount` | 일별 | `completedAt` 해당 일, COMPLETED |
+| `riskDistribution.*` | 전체 완료 분석 | `riskScore` 0~49 / 50~79 / 80~100 |
+
+- 대상: **모든 사용자** 업로드·미삭제(`deletedAt IS NULL`) 증거
+- 업로드만 되고 분석이 완료되지 않은 건은 분석 건수에 **포함하지 않음** (§8.2 동일)
+
 ---
 
 ## 9. 발표/문서용 요약 문장

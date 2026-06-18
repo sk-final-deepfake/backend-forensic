@@ -483,7 +483,8 @@
 
 | Method | Path | 설명 |
 | :--- | :--- | :--- |
-| GET | `/api/v1/admin/dashboard/stats` | `AdminDashboardStatsResponse` |
+| GET | `/api/v1/admin/dashboard/stats` | `AdminDashboardStatsResponse` · **RQ-ADMIN-120** |
+| GET | `/api/v1/admin/dashboard/analysis-stats` | `AdminAnalysisStatsResponse` · **RQ-ADMIN-150** |
 | GET | `/api/v1/admin/users` | 목록 (`search`, `status`, `page`, `size`) |
 | POST | `/api/v1/admin/users/{userId}/approve` | 가입 승인 |
 | POST | `/api/v1/admin/users/{userId}/reject` | 가입 반려 |
@@ -503,6 +504,49 @@
 
 **Admin 페이지 Response (페이지네이션):** `content`, `page`, `size`, `totalElements`, `totalPages` ([implementation-standards.md §7](../guides/implementation-standards.md))
 
+#### GET `/api/v1/admin/dashboard/analysis-stats`
+
+| | |
+|---|---|
+| **RQ** | RQ-ADMIN-150 |
+| **Auth** | `ROLE_ADMIN` |
+
+관리자 **통계 분석** 화면용 집계 API. 사용자별 `GET /api/v1/evidences/stats`와 달리 **전체 사용자·미삭제 증거**를 대상으로 합니다.  
+분석 건수 집계 기준은 [erd.md §8.2](../database/erd.md)와 동일하게 **COMPLETED** 완료 건수를 사용합니다.
+
+**Response 200:** `AdminAnalysisStatsResponse`
+
+```json
+{
+  "weeklyTotalCount": 12,
+  "deepfakeDetectionRate": 15.6,
+  "averageAnalysisMinutes": 3.2,
+  "weeklyPoints": [
+    {
+      "label": "월",
+      "date": "2026-06-16",
+      "requestedCount": 4,
+      "completedCount": 3
+    }
+  ],
+  "riskDistribution": {
+    "safeCount": 8,
+    "cautionCount": 2,
+    "dangerCount": 2
+  }
+}
+```
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `weeklyTotalCount` | **이번 주(월~일)** `COMPLETED` 건수 (`completedAt` 기준, 미삭제 증거) |
+| `deepfakeDetectionRate` | 이번 주 완료 분석 중 `riskLevel` MEDIUM·HIGH 비율 (%, 소수 1자리) |
+| `averageAnalysisMinutes` | 이번 주 완료 분석 평균 소요 시간(분). `startedAt` 없으면 `requestedAt`~`completedAt` |
+| `weeklyPoints` | 이번 주 7일(월~일) 일별 추이 |
+| `weeklyPoints[].requestedCount` | 해당 일 `requestedAt` 기준 분석 요청 건수 |
+| `weeklyPoints[].completedCount` | 해당 일 `completedAt` 기준 완료 건수 |
+| `riskDistribution` | 전체 완료 분석의 `riskScore` 구간별 건수 (0~49 적합, 50~79 주의, 80~100 위험) |
+
 ---
 
 ## 3. 기능명세서 목표 API (향후 정렬)
@@ -514,7 +558,9 @@
 | POST | `/api/auth/login` | LOGIN-020 | ✅ |
 | POST | `/api/v1/auth/signup` | SIGNUP-037 | ✅ |
 | POST | `/api/v1/invite-codes/validate` | SIGNUP-034 | ✅ |
-| GET | `/api/v1/evidences/stats` | DSH-043 | 🟡 path+body |
+| GET | `/api/v1/evidences/stats` | DSH-043 | ✅ |
+| GET | `/api/v1/evidences/stats/trend` | DSH-044 | ✅ |
+| GET | `/api/v1/admin/dashboard/analysis-stats` | ADMIN-150 | ✅ |
 | GET | `/api/v1/mypage/analysis-history` | DSH-045, HIS | ✅ |
 | POST | `/api/v1/evidences/upload` | REQ-047~048 | 🟡 path |
 | POST | `/api/v1/evidences/analyze` | REQ-049 | 🟡 path+body |
@@ -540,7 +586,7 @@
 
 ---
 
-## 6. Quick Reference — 현재 구현 전체 (35 endpoints)
+## 6. Quick Reference — 현재 구현 전체 (36 endpoints)
 
 | # | Method | Path | Auth |
 | :---: | :--- | :--- | :--- |
@@ -563,22 +609,23 @@
 | 17 | DELETE | `/api/evidences/{evidenceId}/reset` | User |
 | 18 | DELETE | `/api/evidences/{evidenceId}/analysis` | User |
 | 19 | GET | `/api/v1/admin/dashboard/stats` | Admin |
-| 20 | GET | `/api/v1/admin/users` | Admin |
-| 21 | POST | `/api/v1/admin/users/{userId}/approve` | Admin |
-| 22 | POST | `/api/v1/admin/users/{userId}/reject` | Admin |
-| 23 | PATCH | `/api/v1/admin/users/{userId}` | Admin |
-| 24 | PATCH | `/api/v1/admin/users/{userId}/password` | Admin |
-| 25 | DELETE | `/api/v1/admin/users/{userId}` | Admin |
-| 26 | GET | `/api/v1/admin/invite-codes` | Admin |
-| 27 | POST | `/api/v1/admin/invite-codes` | Admin |
-| 28 | GET | `/api/v1/admin/evidences` | Admin |
-| 29 | GET | `/api/v1/admin/evidences/{evidenceId}` | Admin |
-| 30 | DELETE | `/api/v1/admin/evidences/{evidenceId}` | Admin |
-| 31 | GET | `/api/v1/admin/logs` | Admin |
-| 32 | GET | `/api/v1/admin/logs/export` | Admin |
-| 33 | GET | `/api/v1/admin/me` | Admin |
-| 34 | PATCH | `/api/v1/admin/me` | Admin |
-| 35 | PATCH | `/api/v1/admin/me/password` | Admin |
+| 20 | GET | `/api/v1/admin/dashboard/analysis-stats` | Admin |
+| 21 | GET | `/api/v1/admin/users` | Admin |
+| 22 | POST | `/api/v1/admin/users/{userId}/approve` | Admin |
+| 23 | POST | `/api/v1/admin/users/{userId}/reject` | Admin |
+| 24 | PATCH | `/api/v1/admin/users/{userId}` | Admin |
+| 25 | PATCH | `/api/v1/admin/users/{userId}/password` | Admin |
+| 26 | DELETE | `/api/v1/admin/users/{userId}` | Admin |
+| 27 | GET | `/api/v1/admin/invite-codes` | Admin |
+| 28 | POST | `/api/v1/admin/invite-codes` | Admin |
+| 29 | GET | `/api/v1/admin/evidences` | Admin |
+| 30 | GET | `/api/v1/admin/evidences/{evidenceId}` | Admin |
+| 31 | DELETE | `/api/v1/admin/evidences/{evidenceId}` | Admin |
+| 32 | GET | `/api/v1/admin/logs` | Admin |
+| 33 | GET | `/api/v1/admin/logs/export` | Admin |
+| 34 | GET | `/api/v1/admin/me` | Admin |
+| 35 | PATCH | `/api/v1/admin/me` | Admin |
+| 36 | PATCH | `/api/v1/admin/me/password` | Admin |
 
 ---
 
@@ -586,6 +633,7 @@
 
 | 날짜 | 버전 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-18 | v1.3 | `GET /api/v1/admin/dashboard/analysis-stats` 추가 (RQ-ADMIN-150) |
 | 2026-06-17 | v1.2 | 기능명세서 대비 Gap 분석 + 현재 코드 정본 분리 |
 | 2026-06-17 | v1.1 | Excel 명세 반영 초안 |
 | 2026-06-09 | v1.0 | upload 중심 초안 |

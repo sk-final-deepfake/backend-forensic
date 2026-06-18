@@ -96,6 +96,7 @@ fetch 래퍼 예: [implementation-standards.md §11](../guides/implementation-st
 | 사건 상세 | `GET /api/v1/cases/{caseId}` | `CaseDetailResponse` |
 | 분석 이력 | `GET /api/v1/mypage/analysis-history` | `content`, `totalElements` |
 | 관리자 사용자 | `GET /api/v1/admin/users` | `content`, `totalElements` |
+| 관리자 통계 분석 | `GET /api/v1/admin/dashboard/analysis-stats` | `weeklyTotalCount`, `deepfakeDetectionRate`, `weeklyPoints`, `riskDistribution` |
 
 전체: [specification.md](../api/specification.md)
 

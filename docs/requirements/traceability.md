@@ -47,6 +47,7 @@
 | `FN-ADMIN-147-BE` | `RQ-ADMIN-147` | 증거 검색·필터 | — | 🟡 |
 | `FN-ADMIN-148-BE` | `RQ-ADMIN-148` | 증거 상세 조회 | — | 🟡 |
 | `FN-ADMIN-149-BE` | `RQ-ADMIN-149` | 해시값 복사 | — | 🟡 |
+| `FN-ADMIN-150-BE` | `RQ-ADMIN-150` | 관리자 분석 통계 조회 | `AdminAnalysisStatsService` | ✅ |
 | `FN-CMP-091-BE` | `RQ-CMP-091` | 원본 증거 선택 | `controller/` · `service/` | 🟡 |
 | `FN-CMP-092-BE` | `RQ-CMP-092` | 검증 대상 파일 업로드 | `controller/` · `service/` | 🟡 |
 | `FN-CMP-093-BE` | `RQ-CMP-093` | 비교 검증 실행 | `controller/` · `service/` | ⬜ |
