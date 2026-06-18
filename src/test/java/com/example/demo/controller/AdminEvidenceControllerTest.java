@@ -122,8 +122,8 @@ class AdminEvidenceControllerTest {
         mockMvc.perform(get("/api/v1/admin/evidences")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(1))
-                .andExpect(jsonPath("$.items[0].fileName").value("sample_video.mp4"));
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].fileName").value("sample_video.mp4"));
     }
 
     @Test

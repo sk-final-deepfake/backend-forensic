@@ -1,14 +1,25 @@
 package com.example.demo.exception;
 
-import lombok.Getter;
+import com.example.demo.dto.StandardErrorResponse;
+import org.springframework.http.HttpStatus;
 
-@Getter
-public class DuplicateSignupFieldException extends RuntimeException {
+import java.util.List;
 
-    private final String field;
+public class DuplicateSignupFieldException extends BusinessException {
 
     public DuplicateSignupFieldException(String field, String message) {
-        super(message);
-        this.field = field;
+        super(
+                HttpStatus.CONFLICT,
+                resolveErrorCode(field),
+                message,
+                List.of(StandardErrorResponse.FieldErrorDetail.builder()
+                        .field(field)
+                        .reason(message)
+                        .build())
+        );
+    }
+
+    private static String resolveErrorCode(String field) {
+        return "email".equals(field) ? "DUPLICATE_EMAIL" : "DUPLICATE_LOGIN_ID";
     }
 }

@@ -85,18 +85,20 @@ class AuthControllerTest {
                                 {"loginId":"1111","password":"wrong"}
                                 """))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false));
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"));
     }
 
     @Test
-    @DisplayName("승인 대기 사용자는 403")
+    @DisplayName("승인 대기 사용자는 401 + ACCOUNT_PENDING")
     void loginFailsWhenPending() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"loginId":"5555","password":"6666"}
                                 """))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("ACCOUNT_PENDING"))
                 .andExpect(jsonPath("$.message").value("관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다."));
     }
 

@@ -29,7 +29,9 @@ import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,7 +60,8 @@ public class EvidenceDetailService {
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("증거를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "증거를 찾을 수 없습니다."));
 
         AnalysisRequest request = analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidenceId)
@@ -83,7 +86,7 @@ public class EvidenceDetailService {
     public CaseDetailResponse getCaseDetail(User user, String caseId) {
         List<Evidence> evidences = evidenceRepository.findByUploaderIdAndCaseKey(user.getUserId(), caseId);
         if (evidences.isEmpty()) {
-            throw new IllegalArgumentException("사건을 찾을 수 없습니다.");
+            throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
         }
 
         List<AnalysisRequest> requests = analysisRequestRepository.findByEvidenceIdInOrderByRequestedAtDesc(

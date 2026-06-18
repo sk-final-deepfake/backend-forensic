@@ -23,6 +23,56 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
     void deleteByEvidenceId(Long evidenceId);
 
     @Query("""
+            SELECT COUNT(ar)
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE ar.requestedBy = :uploaderId
+              AND e.deletedAt IS NULL
+            """)
+    long countTotalByUploader(@Param("uploaderId") Long uploaderId);
+
+    @Query("""
+            SELECT COUNT(ar)
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE ar.requestedBy = :uploaderId
+              AND e.deletedAt IS NULL
+              AND ar.status = :status
+            """)
+    long countByUploaderAndStatus(
+            @Param("uploaderId") Long uploaderId,
+            @Param("status") AnalysisStatus status
+    );
+
+    @Query("""
+            SELECT COUNT(ar)
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE ar.requestedBy = :uploaderId
+              AND e.deletedAt IS NULL
+              AND ar.status IN :statuses
+            """)
+    long countByUploaderAndStatusIn(
+            @Param("uploaderId") Long uploaderId,
+            @Param("statuses") List<AnalysisStatus> statuses
+    );
+
+    @Query("""
+            SELECT COUNT(ar)
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            JOIN AnalysisResult r ON r.analysisRequestId = ar.analysisRequestId
+            WHERE ar.requestedBy = :uploaderId
+              AND e.deletedAt IS NULL
+              AND ar.status = com.example.demo.domain.enums.AnalysisStatus.COMPLETED
+              AND r.riskLevel IN (
+                  com.example.demo.domain.enums.RiskLevel.HIGH,
+                  com.example.demo.domain.enums.RiskLevel.MEDIUM
+              )
+            """)
+    long countDeepfakeDetectedByUploader(@Param("uploaderId") Long uploaderId);
+
+    @Query("""
             SELECT COUNT(DISTINCT e.evidenceId)
             FROM Evidence e
             WHERE e.deletedAt IS NULL
