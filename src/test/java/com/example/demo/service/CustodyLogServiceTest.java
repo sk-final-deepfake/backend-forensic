@@ -201,6 +201,45 @@ class CustodyLogServiceTest {
         assertThat(log.getCurrentLogHash()).matches(SHA_256_HEX_PATTERN);
     }
 
+    @Test
+    void verifyTargetChain_returnsValidForLinkedEvidenceLogs() {
+        CustodyLog first = custodyLogService.record(
+                1L, CustodyTargetType.EVIDENCE, 100L, "EVIDENCE_UPLOADED",
+                "a".repeat(64), "/storage/original/100", "업로드", null, null
+        );
+        CustodyLog second = custodyLogService.record(
+                1L, CustodyTargetType.EVIDENCE, 100L, "HASH_CREATED",
+                "a".repeat(64), "/storage/original/100", "해시", null, null
+        );
+
+        assertThat(second.getPreviousLogHash()).isEqualTo(first.getCurrentLogHash());
+
+        CustodyLogService.TargetChainVerifyResult result =
+                custodyLogService.verifyTargetChain(CustodyTargetType.EVIDENCE, 100L);
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.logCount()).isEqualTo(2);
+        assertThat(custodyLogService.verifyChainIntegrity(CustodyTargetType.EVIDENCE, 100L)).isTrue();
+    }
+
+    @Test
+    void verifyTargetChain_ignoresLogsFromOtherTargets() {
+        custodyLogService.record(
+                1L, CustodyTargetType.EVIDENCE, 100L, "EVIDENCE_UPLOADED",
+                null, null, "업로드", null, null
+        );
+        custodyLogService.record(
+                1L, CustodyTargetType.REPORT, 300L, "REPORT_CREATED",
+                null, null, "보고서", null, null
+        );
+
+        CustodyLogService.TargetChainVerifyResult result =
+                custodyLogService.verifyTargetChain(CustodyTargetType.EVIDENCE, 100L);
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.logCount()).isEqualTo(1);
+    }
+
     private User user(String loginId, String email, UserRole role) {
         return User.builder()
                 .loginId(loginId)
