@@ -66,7 +66,8 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **무결성·CoC** | RQ-REQ-051 | CustodyLogs 해시 체인 | ✅ | 업로드·분석·관리 감사 |
 | **WORM·S3** | RQ-REQ-048, SEC-150 | S3 upload (`original/`) | 🟡 | 코드 연동 있음 · Object Lock 운영은 INF |
 | **X.509 사본 서명** | RQ-REQ-050 | 분석 copy 파이프라인 | ✅ | Manifest + mock X.509 (2026-06-18) |
-| **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | — | ⬜ | DB/표시 필드 일부 · 앵커 Job 없음 |
+| **보안 무결성 알림** | RQ-SEC-153, SK-632 | detail 자동검증 · `integrity/verify` | ✅ | 서명·CoC·블록체인 불일치 시 SECURITY_ALERT (2026-06-18) |
+| **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | anchor API · 검증 연동 | 🟡 | 앵커 저장·조회 ✅ · Job/운영은 INF |
 | **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | API 분할(case + evidence) · FE 합의 필요 |
 | **PDF 리포트** | RQ-DTL-084~087 | — | ⬜ | `reports` 테이블만 존재 · 생성/다운 API 없음 |
 | **비교 검증** | RQ-CMP-* | — | ⬜ | Compare API 전무 |
@@ -107,7 +108,8 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | POST | `/api/v1/evidences/upload` | 업로드 + SHA-256 |
 | POST | `/api/v1/evidences/analyze` | 분석 시작 |
 | GET | `/api/v1/evidences/{id}/analysis-status` | 진행률 polling |
-| GET | `/api/v1/evidences/{id}/detail` | 증거 상세 |
+| GET | `/api/v1/evidences/{id}/detail` | 증거 상세 (RQ-SEC-153 자동 무결성 검증·알림) |
+| GET | `/api/v1/evidences/{id}/integrity/verify` | 무결성·서명·블록체인 검증 (SK-632) |
 | DELETE | `/api/v1/evidences/{id}` | 업로드 취소 |
 | DELETE | `/api/v1/evidences/{id}/reset` | 증거 초기화 |
 | DELETE | `/api/v1/evidences/{id}/analysis` | 분석 중단 |
@@ -250,5 +252,6 @@ python scripts/generate_requirements_markdown.py
 
 | 날짜 | 작성자 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-18 | — | RQ-SEC-153/SK-632: detail 자동 무결성 검증·`SECURITY_ALERT` · `GET .../integrity/verify` |
 | 2026-06-18 | — | source Excel → index/traceability 재생성 · **영상-only** 스코프 반영 (docs·코드) |
 | 2026-06-17 | — | 초판 — 코드·문서·Gap 분석 기반 진행 상황 |
