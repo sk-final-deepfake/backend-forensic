@@ -16,6 +16,7 @@ import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
+import com.example.demo.service.IntegrityVerificationService;
 import com.example.demo.service.ReportPdfService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -70,6 +71,9 @@ class FileValidationIntegrationTest {
 
     @MockBean
     private BlockchainAnchorService blockchainAnchorService;
+
+    @MockBean
+    private IntegrityVerificationService integrityVerificationService;
 
     @MockBean
     private CocChainVerificationService cocChainVerificationService;

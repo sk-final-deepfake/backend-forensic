@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @Configuration
 @Profile("!test")
@@ -19,6 +20,13 @@ public class S3Config {
         // 자격증명 명시 안 함 — Default Credentials Chain 사용
         // 로컬: AWS_PROFILE 환경변수 → EKS: IRSA(ServiceAccount) 자동 인식
         return S3Client.builder()
+                .region(Region.of(region))
+                .build();
+    }
+
+    @Bean
+    public S3Presigner s3Presigner() {
+        return S3Presigner.builder()
                 .region(Region.of(region))
                 .build();
     }

@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.BlockchainAnchorStatusResponse;
 import com.example.demo.dto.CocChainVerifyResponse;
+import com.example.demo.dto.IntegrityVerifyResponse;
 import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.dto.AnalysisTrendResponse;
 import com.example.demo.dto.EvidenceStatsResponse;
@@ -21,6 +22,7 @@ import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
 import com.example.demo.service.BlockchainAnchorService;
 import com.example.demo.service.CocChainVerificationService;
+import com.example.demo.service.IntegrityVerificationService;
 import com.example.demo.service.ReportPdfService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -53,6 +55,7 @@ public class EvidenceController {
     private final AnalysisStatusService analysisStatusService;
     private final ReportPdfService reportPdfService;
     private final BlockchainAnchorService blockchainAnchorService;
+    private final IntegrityVerificationService integrityVerificationService;
     private final CocChainVerificationService cocChainVerificationService;
     private final AuthUserResolver authUserResolver;
 
@@ -138,10 +141,18 @@ public class EvidenceController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "증거 상세", description = "증거 ID로 상세 분석·메타데이터·무결성 정보를 조회합니다.")
+    @Operation(summary = "증거 상세", description = "증거 ID로 상세 분석·메타데이터·무결성 정보를 조회합니다. RQ-SEC-153: 조회 시 무결성 실패면 보안 알림 자동 발송.")
     @GetMapping("/{evidenceId}/detail")
     public EvidenceDetailResponse getEvidenceDetail(@PathVariable Long evidenceId) {
-        return evidenceDetailService.getEvidenceDetail(
+        var user = authUserResolver.requireCurrentUser();
+        integrityVerificationService.verifyAndNotifySecurityIssues(user, evidenceId);
+        return evidenceDetailService.getEvidenceDetail(user, evidenceId);
+    }
+
+    @Operation(summary = "무결성·서명 검증", description = "RQ-SEC-153 / SK-632: Manifest 서명·CoC 체인·블록체인 해시 검증. 실패 시 409 + errorCode.")
+    @GetMapping("/{evidenceId}/integrity/verify")
+    public IntegrityVerifyResponse verifyIntegrity(@PathVariable Long evidenceId) {
+        return integrityVerificationService.verifyIntegrityOrThrow(
                 authUserResolver.requireCurrentUser(),
                 evidenceId
         );
