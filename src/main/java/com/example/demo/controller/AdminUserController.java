@@ -57,6 +57,12 @@ public class AdminUserController {
         return adminUserService.reject(authUserResolver.requireCurrentUser(), userId);
     }
 
+    @Operation(summary = "계정 정지", description = "RQ-ADMIN-126 · SK-784: APPROVED 계정을 SUSPENDED로 변경")
+    @PostMapping("/{userId}/suspend")
+    public AdminUserStatusResponse suspend(@PathVariable Long userId) {
+        return adminUserService.suspend(authUserResolver.requireCurrentUser(), userId);
+    }
+
     @Operation(summary = "계정 정보 수정")
     @PatchMapping("/{userId}")
     public AdminUserItemResponse updateUser(

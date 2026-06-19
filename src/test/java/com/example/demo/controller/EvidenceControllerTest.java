@@ -618,6 +618,36 @@ class EvidenceControllerTest {
     }
 
     @Test
+    @DisplayName("RQ-DSH-041: 서비스 소개 및 바로가기 카드 정보를 조회할 수 있다")
+    void shouldReturnDashboardIntro() throws Exception {
+        mockMvc.perform(get("/api/v1/evidences/dashboard/intro")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.badgeLabel").value("디지털 포렌식 증거 검증 플랫폼"))
+                .andExpect(jsonPath("$.titleLine1").value("디지털 미디어 파일"))
+                .andExpect(jsonPath("$.titleLine2").value("분석 대시보드"))
+                .andExpect(jsonPath("$.description").isNotEmpty())
+                .andExpect(jsonPath("$.shortcuts.length()").value(2))
+                .andExpect(jsonPath("$.shortcuts[0].label").value("분석 시작하기"))
+                .andExpect(jsonPath("$.shortcuts[0].actionType").value("IN_APP"))
+                .andExpect(jsonPath("$.shortcuts[0].actionTarget").value("#new-analysis"))
+                .andExpect(jsonPath("$.shortcuts[1].label").value("비교 검증"))
+                .andExpect(jsonPath("$.shortcuts[1].actionType").value("ROUTE"))
+                .andExpect(jsonPath("$.shortcuts[1].actionTarget").value("/compare"))
+                .andExpect(jsonPath("$.trustHighlights.length()").value(3))
+                .andExpect(jsonPath("$.trustHighlights[0].label").value("CoC 감사 추적"))
+                .andExpect(jsonPath("$.trustHighlights[0].iconKey").value("history"));
+    }
+
+    @Test
+    @DisplayName("서비스 소개 조회는 인증이 필요하다")
+    void dashboardIntro_requiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/evidences/dashboard/intro"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+    }
+
+    @Test
     @DisplayName("업로드 시 사건명이 없고 분석 요청에도 사건명이 없으면 400을 반환한다")
     void startAnalysis_withoutCaseName_returnsBadRequest() throws Exception {
         User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
@@ -1062,7 +1092,9 @@ class EvidenceControllerTest {
                                 """.formatted(caseName, evidenceId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.startedCount").value(1));
+                .andExpect(jsonPath("$.startedCount").value(1))
+                .andExpect(jsonPath("$.results[0].queueRegistered").value(true))
+                .andExpect(jsonPath("$.results[0].queueStatus").value("WAITING"));
 
         AnalysisRequest analysisRequest = analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidenceId)

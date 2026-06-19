@@ -9,4 +9,5 @@ public class AdminUserStatusResponse {
 
     private String userId;
     private String status;
+    private String processedByUserId;
 }

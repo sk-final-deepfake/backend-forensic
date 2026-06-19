@@ -137,7 +137,7 @@ class AnalysisAiResultIntegrationTest {
         assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.HIGH);
         assertThat(result.getRiskScore()).isEqualTo(88.0);
         assertThat(analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId()))
-                .hasSize(1);
+                .hasSizeGreaterThanOrEqualTo(5);
     }
 
     @Test

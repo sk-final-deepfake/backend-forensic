@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.notification.MarkAllNotificationsReadResponse;
 import com.example.demo.dto.notification.NotificationDto;
 import com.example.demo.dto.notification.NotificationListResponse;
 import com.example.demo.security.AuthUserResolver;
@@ -41,5 +42,16 @@ public class NotificationController {
                 authUserResolver.requireCurrentUser().getUserId(),
                 notificationId
         );
+    }
+
+    @Operation(summary = "알림 전체 읽음 처리", description = "RQ-COM-015: 헤더 알림 일괄 확인")
+    @PatchMapping("/read-all")
+    public MarkAllNotificationsReadResponse markAllAsRead() {
+        int markedCount = notificationService.markAllAsRead(
+                authUserResolver.requireCurrentUser().getUserId()
+        );
+        return MarkAllNotificationsReadResponse.builder()
+                .markedCount(markedCount)
+                .build();
     }
 }

@@ -48,3 +48,4 @@ blockchain:
     mode: simulated
     network: local-simulated
     scheduler-enabled: false
+    explorer-url-template: https://explorer.test/tx/{txHash}

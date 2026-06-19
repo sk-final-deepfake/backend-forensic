@@ -1,7 +1,7 @@
 # VeriForensics 프로젝트 진행 상황
 
 > **작성일:** 2026-06-17  
-> **최종 갱신:** 2026-06-19 (X.509 플랫폼 CA 연동)  
+> **최종 갱신:** 2026-06-19 (완료 WBS 감사·BE 갭 보완)  
 > **기준:** `docs/requirements/source/` Excel · **영상(VIDEO)만** 지원
 
 ---
@@ -68,13 +68,13 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **WORM·S3** | RQ-REQ-048, SEC-150 | S3 upload (`original/`) | 🟡 | 코드 연동 있음 · Object Lock 운영은 INF |
 | **X.509 사본 서명** | RQ-REQ-050, DTL-075~076 | 분석 copy Manifest + `signatureInfo` | ✅ | **단일 플랫폼 CA** (`Pkcs8ManifestSignatureService`) · PEM/Secrets Manager · INF 운영 CA 등록 🟡 |
 | **보안 무결성 알림** | RQ-SEC-153, SK-632 | detail 자동검증 · `integrity/verify` | ✅ | 서명·CoC·블록체인 불일치 시 SECURITY_ALERT (2026-06-18) |
-| **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | `GET .../blockchain` | 🟡 | BE 파이프라인 ✅ · INF URL 대기 |
-| **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | API 분할 · FE 합의 필요 |
+| **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | `GET .../blockchain` | 🟡 | BE 파이프라인 ✅ · `hashValid`·`verificationMessage`·compare 해시 대조 · INF explorer URL 대기 |
+| **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | `moduleResults` **modelName/modelVersion/confidence** 노출 (DTL-082) · FE 합의 필요 |
 | **PDF 리포트** | RQ-DTL-084~087 | `GET .../reports/pdf` | ✅ | QR reportHash |
-| **비교 검증** | RQ-CMP-* | `/api/v1/compare/**` | ✅ | |
+| **비교 검증** | RQ-CMP-* | `/api/v1/compare/**` | ✅ | originals 목록·파일정보 API · PDF 원본/대조본 섹션 |
 | **분석 이력** | RQ-HIS-106 | `mypage/analysis-history` | 🟡 | 페이지네이션 ✅ |
 | **마이페이지** | RQ-MY-* | users/me · settings | ✅ | |
-| **관리자** | RQ-ADMIN-* | `/api/v1/admin/**` | ✅ | |
+| **관리자** | RQ-ADMIN-* | `/api/v1/admin/**` | ✅ | `POST .../users/{id}/suspend` · 승인/반려/정지 `processedByUserId` |
 | **알림** | RQ-COM-015~016 | `/api/v1/notifications` | ✅ | |
 | **환경 설정** | RQ-COM-009 | `users/me/settings` | ✅ | |
 | **성능 NFR** | RQ-PER-* | — | 🟡 | 부하·최적화 검증 미실시 |
@@ -124,13 +124,24 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | :--- | :--- | :--- |
 | GET | `/api/v1/admin/dashboard/stats` | 관리자 대시보드 통계 (RQ-ADMIN-120) |
 | GET | `/api/v1/admin/dashboard/analysis-stats` | 관리자 분석 통계 (RQ-ADMIN-150) |
-| GET/PATCH/POST/DELETE | `/api/v1/admin/users/**` | 계정 관리 |
+| GET/PATCH/POST/DELETE | `/api/v1/admin/users/**` | 계정 관리 (`approve` · `reject` · **`suspend`**) |
 | GET/POST | `/api/v1/admin/invite-codes/**` | 초대코드 |
 | GET | `/api/v1/admin/logs` | 감사 로그 (+ CSV export) |
 | GET/DELETE | `/api/v1/admin/evidences/**` | 증거 관리 |
 | GET/PATCH | `/api/v1/admin/me/**` | 관리자 프로필 |
 
 **상세 스키마:** [api/specification.md §2](./api/specification.md)
+
+### 3.4 Compare (`/api/v1/compare/**`)
+
+| Method | Path | 용도 |
+| :--- | :--- | :--- |
+| GET | `/api/v1/compare/originals` | 비교용 원본 증거 목록·검색 (RQ-CMP-091) |
+| GET | `/api/v1/compare/originals/{evidenceId}` | 원본 파일 기본정보 (SK-954) |
+| POST | `/api/v1/compare/verify` | 비교 검증 실행 |
+| GET | `/api/v1/compare/{compareId}` | 비교 결과 조회 |
+| GET | `/api/v1/compare/{compareId}/candidate` | 대조본 파일 기본정보 (SK-955) |
+| GET | `/api/v1/compare/{compareId}/reports/pdf` | 비교 PDF (원본/대조본 섹션) |
 
 ---
 
@@ -183,6 +194,16 @@ python scripts/generate_requirements_markdown.py
 ---
 
 ## 7. 최근 완료 작업
+
+### 2026-06-19 (완료 WBS 감사 · BE 갭 보완)
+
+| # | 작업 | 영향 |
+| :---: | :--- | :--- |
+| 1 | 상세 `moduleResults`에 **modelName · modelVersion · confidence** | SK-402 / DTL-082 |
+| 2 | **`POST /api/v1/admin/users/{userId}/suspend`** + `processedByUserId` | SK-404 / SK-784 · SK-790 |
+| 3 | Compare **originals · candidate** 조회 API 3종 | SK-465 / RQ-CMP-091 · SK-954 · SK-955 |
+| 4 | Compare PDF **원본/대조본 기본정보** 섹션 | SK-466 / SK-988 · SK-986 |
+| 5 | 블록체인 **`hashValid` · `verificationMessage` · compare 앵커 해시 대조** · explorer URL 템플릿 | SK-468 / DTL-079 · CMP-103 · DTL-080 |
 
 ### 2026-06-18 (`develop` → `main`)
 
@@ -258,6 +279,8 @@ python scripts/generate_requirements_markdown.py
 
 | 날짜 | 작성자 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-19 | — | **완료 WBS 18건 감사 후 BE 갭 보완:** detail `moduleResults` modelName/modelVersion/confidence · admin **suspend** API + `processedByUserId` · compare **originals/candidate** API · compare PDF 원본/대조본 섹션 · §2·§3.4·§7 갱신 |
+| 2026-06-19 | — | 블록체인 상세 **`hashValid`/`verificationMessage`** · compare **BLOCKCHAIN_HASH** 앵커 해시 대조 · **`transactionExplorerUrl`** 템플릿 (`blockchain.anchor.explorer-url-template`) |
 | 2026-06-19 | — | X.509 mock 제거 → **단일 플랫폼 CA** (`Pkcs8ManifestSignatureService`) · PEM/Secrets Manager · §1·§2·§4·§8·§9·§10 갱신 |
 | 2026-06-19 | — | `main` PR #25 반영 · §1·§8 outdated(PDF/Compare) 정리 · X.509 mock 상태 명시 |
 | 2026-06-18 | — | RQ-SEC-153/SK-632: detail 자동 무결성 검증·`SECURITY_ALERT` · `GET .../integrity/verify` |

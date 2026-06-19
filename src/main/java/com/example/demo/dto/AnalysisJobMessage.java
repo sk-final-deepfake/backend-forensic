@@ -1,5 +1,6 @@
 package com.example.demo.dto;
 
+import com.example.demo.dto.FrameAnalysisSpecDto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,4 +32,7 @@ public class AnalysisJobMessage {
     private String originalSha256;
     private String caseName;
     private String requestedAt;
+
+    /** SK-401: AI 워커 프레임 분석 입력 스펙 */
+    private FrameAnalysisSpecDto frameAnalysis;
 }

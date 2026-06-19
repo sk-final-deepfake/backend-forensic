@@ -10,6 +10,8 @@ public class AnalysisStatusResponse {
     private Long evidenceId;
     private Long analysisRequestId;
     private String status;
+    /** SK-923: WAITING · ANALYZING · COMPLETED · FAILED */
+    private String queueStatus;
     private int progressPercent;
     /** status=FAILED 일 때만. 예: ANALYSIS_FAILED, RABBITMQ_PUBLISH_FAILED */
     private String errorCode;

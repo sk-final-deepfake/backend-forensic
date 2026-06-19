@@ -28,6 +28,24 @@ public class AnalysisResponseMessage {
     private String analyzedAt;
     private String errorCode;
     private String message;
+    private String modelName;
+    private String modelVersion;
+    private List<ModelScoreItem> modelScores;
+    private List<String> evidence;
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ModelScoreItem {
+        private String moduleName;
+        private Boolean detected;
+        private Double score;
+        private String modelName;
+        private String modelVersion;
+    }
 
     @Getter
     @Setter
@@ -48,5 +66,36 @@ public class AnalysisResponseMessage {
         private Double splicingScore;
         private Boolean reEncodingDetected;
         private Double reEncodingScore;
+        private List<FrameRiskItem> frameRisks;
+        private List<SuspiciousSegmentItem> suspiciousSegments;
+        private String modelName;
+        private String modelVersion;
+        private List<ModelScoreItem> modelScores;
+        private List<String> evidence;
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class FrameRiskItem {
+            private Integer frameIndex;
+            private Double timestampSec;
+            private Double riskScore;
+        }
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class SuspiciousSegmentItem {
+            private Double startTime;
+            private Double endTime;
+            private Double maxRiskScore;
+            private String reason;
+        }
     }
 }

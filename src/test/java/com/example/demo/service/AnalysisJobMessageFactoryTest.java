@@ -4,6 +4,7 @@ import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.FileType;
 import com.example.demo.dto.AnalysisJobMessage;
+import com.example.demo.dto.FrameAnalysisSpecDto;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -12,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -21,6 +23,9 @@ class AnalysisJobMessageFactoryTest {
 
     @Mock
     private S3AnalysisAccessService s3AnalysisAccessService;
+
+    @Mock
+    private VideoFrameExtractionService videoFrameExtractionService;
 
     @InjectMocks
     private AnalysisJobMessageFactory factory;
@@ -50,6 +55,16 @@ class AnalysisJobMessageFactoryTest {
                 .thenReturn("https://s3.example.com/presigned");
         when(s3AnalysisAccessService.getEvidenceBucket()).thenReturn("forenshield-evidence");
         when(s3AnalysisAccessService.getAwsRegion()).thenReturn("ap-northeast-2");
+        when(videoFrameExtractionService.buildSpecForDuration(0.0)).thenReturn(
+                FrameAnalysisSpecDto.builder()
+                        .extractionIntervalSec(1.0)
+                        .highRiskFrameScoreThreshold(0.70)
+                        .minSuspiciousSegmentSec(0.5)
+                        .pixelFormat("RGB24")
+                        .imageEncoding("jpeg")
+                        .sampleTimestampsSec(List.of(0.0))
+                        .build()
+        );
 
         AnalysisJobMessage message = factory.buildForGpuDispatch(evidence, request, "테스트 사건");
 
@@ -63,5 +78,7 @@ class AnalysisJobMessageFactoryTest {
         assertThat(message.getOriginalHash()).isEqualTo("abc123");
         assertThat(message.getOriginalSha256()).isEqualTo("abc123");
         assertThat(message.getFileType()).isEqualTo("video");
+        assertThat(message.getFrameAnalysis()).isNotNull();
+        assertThat(message.getFrameAnalysis().getPixelFormat()).isEqualTo("RGB24");
     }
 }

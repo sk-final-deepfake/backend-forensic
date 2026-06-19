@@ -19,4 +19,9 @@ public class IntegrityInfoDto {
     private Integer recoveryScore;
     private Integer dataLossPercent;
     private String recoveryGrade;
+    /** SK-1017: CoC 로그 건수 */
+    private int cocLogCount;
+    /** SK-1017: CoC 해시 체인 검증 통과 여부 */
+    private boolean cocChainVerified;
+    private String cocVerificationMessage;
 }

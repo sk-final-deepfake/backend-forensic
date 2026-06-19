@@ -8,6 +8,7 @@ import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.util.AnalysisStatusMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,8 @@ public class AnalysisStatusService {
                     AnalysisStatusResponse.AnalysisStatusResponseBuilder builder = AnalysisStatusResponse.builder()
                             .evidenceId(evidence.getEvidenceId())
                             .analysisRequestId(request.getAnalysisRequestId())
-                            .status(toApiStatus(request.getStatus()))
+                            .status(AnalysisStatusMapper.toApiStatus(request.getStatus()))
+                            .queueStatus(AnalysisStatusMapper.toQueueStatus(request.getStatus()))
                             .progressPercent(request.getProgressPercent());
                     if (request.getStatus() == AnalysisStatus.FAILED) {
                         builder.errorCode(request.getErrorCode())
@@ -45,16 +47,8 @@ public class AnalysisStatusService {
                         .evidenceId(evidence.getEvidenceId())
                         .analysisRequestId(0L)
                         .status("PENDING")
+                        .queueStatus("WAITING")
                         .progressPercent(0)
                         .build());
-    }
-
-    private String toApiStatus(AnalysisStatus status) {
-        return switch (status) {
-            case QUEUED -> "PENDING";
-            case ANALYZING -> "PROCESSING";
-            case COMPLETED -> "COMPLETED";
-            case FAILED -> "FAILED";
-        };
     }
 }

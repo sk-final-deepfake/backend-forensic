@@ -16,7 +16,7 @@
 | **증거·분석 API** | ✅ v1 prefix + stats/analyze/auth **통일 완료** (legacy alias 유지) |
 | **에러 JSON·예외 Handler** | ✅ `StandardErrorResponse` 단일 |
 | **Admin 페이지네이션** | ✅ `content` / `totalElements` |
-| **비교검증·PDF·알림·설정·블록체인** | ✅ **구현 완료** (INF 게이트웨이·X.509 제외) |
+| **비교검증·PDF·알림·설정·블록체인** | ✅ **구현 완료** (INF 블록체인 http · Manifest **운영 CA Secret** 대기) |
 
 > **FE 연동:** [§2 현재 구현 정본](#2-현재-구현-정본-controller-기준) 사용  
 > **AI 에이전트:** [../AGENTS.md](../AGENTS.md) → 본 문서 §2
@@ -68,7 +68,7 @@
 | 환경 설정 | COM-009 | `GET/PATCH /api/v1/users/me/settings` | ✅ |
 | Recovery Score | DTL-071~072 | `detail.integrityInfo` | ✅ |
 | CoC 체인 검증 | HIS-107 | `GET .../coc/verify` | ✅ |
-| X.509 사본 서명 | REQ-050, DTL-075~076 | 분석 copy Manifest + mock 서명 | ✅ |
+| X.509 사본 서명 | REQ-050, DTL-075~076 | 분석 copy Manifest + **플랫폼 PKCS#8** 서명 | ✅ |
 | 블록체인 앵커 | REQ-052, DTL-078 | `GET .../blockchain` | 🟡 INF URL 대기 |
 | 대시보드 7일·최근 | DSH-044~045 | `stats/trend`, `stats/recent` | ✅ |
 | 로그아웃 | COM-011 | 클라이언트 sessionStorage 삭제 (서버 API 불필요) | — |
@@ -92,6 +92,9 @@
 | GET | `/api/evidences/{evidenceId}/reports/pdf` | PDF 리포트 |
 | GET/DELETE | `/api/v1/admin/evidences/**` | 관리자 증거 관리 |
 | DELETE | `/api/v1/admin/users/{userId}` | 관리자 계정 삭제 |
+| GET | `/api/v1/compare/originals` | 비교용 원본 증거 목록 (RQ-CMP-091) |
+| GET | `/api/v1/compare/originals/{evidenceId}` | 원본 파일 기본정보 (SK-954) |
+| GET | `/api/v1/compare/{compareId}/candidate` | 대조본 파일 기본정보 (SK-955) |
 
 → **유지 권장** (실사용·테스트 존재). 명세 Excel FE 시트에 경로 추가 반영 필요.
 
@@ -184,6 +187,45 @@
 ---
 
 ### 2.3 증거 · 분석 (Legacy prefix `/api/evidences`)
+
+#### GET `/api/v1/evidences/dashboard/intro`
+
+| | |
+|---|---|
+| **RQ** | RQ-DSH-041 |
+| **Auth** | User |
+
+**Response 200:** `DashboardIntroResponse` — 메인 대시보드 히어로 배너·CTA·핵심 가치 카드 (FE `HeroPanel`과 동일 문구)
+
+```json
+{
+  "badgeLabel": "디지털 포렌식 증거 검증 플랫폼",
+  "titleLine1": "디지털 미디어 파일",
+  "titleLine2": "분석 대시보드",
+  "description": "업로드된 영상 파일의 딥페이크 여부를 AI로 분석하고, ...",
+  "shortcuts": [
+    {
+      "label": "분석 시작하기",
+      "actionType": "IN_APP",
+      "actionTarget": "#new-analysis",
+      "variant": "primary"
+    },
+    {
+      "label": "비교 검증",
+      "actionType": "ROUTE",
+      "actionTarget": "/compare",
+      "variant": "outline"
+    }
+  ],
+  "trustHighlights": [
+    { "label": "CoC 감사 추적", "iconKey": "history" },
+    { "label": "SHA-256 해시 검증", "iconKey": "check-circle" },
+    { "label": "영상 딥페이크 분석", "iconKey": "layers" }
+  ]
+}
+```
+
+---
 
 #### GET `/api/v1/evidences/stats`
 
@@ -332,6 +374,8 @@
 
 **Response 200:** `StartAnalysisResponse` (`success`, `startedCount`, `evidenceIds`, …)
 
+**RQ-REQ-050 (분석 시작 시 선행):** 각 evidence에 대해 S3 증명 사본 생성 → SHA-256 검증 → Evidence Manifest 생성·X.509 서명 → CoC 기록 후 분석 큐 등록. 사본 생성 실패 시 **422** + `ANALYSIS_COPY_CREATE_FAILED` / `ANALYSIS_COPY_VERIFY_FAILED`.
+
 **명세 목표 Request**
 
 ```json
@@ -387,7 +431,7 @@
 | 필드 | 설명 |
 | :--- | :--- |
 | `manifestInfo` | **RQ-DTL-075** — 분석 사본 생성 후 Manifest 요약 (없으면 `null`) |
-| `signatureInfo` | **RQ-DTL-076** — X.509 mock 전자서명 상태 |
+| `signatureInfo` | **RQ-DTL-076** — X.509 전자서명 상태 (`signatureStatus` · `signatureValid`) |
 
 ```json
 {
@@ -414,10 +458,31 @@
     "signatureStatus": "SIGNED",
     "signatureAlgorithm": "SHA256withRSA",
     "signedAt": "2026-06-18T06:00:00Z",
-    "signerCertificateSubject": "CN=ForenShield Forensics CA,O=SK Project,C=KR",
+    "signerCertificateSubject": "CN=ForenShield Forensics CA,O=ForenShield Platform,C=KR",
     "signatureValid": true
   },
-  "analysisInfo": { },
+  "analysisInfo": {
+    "riskScore": 85.5,
+    "confidenceScore": 0.94,
+    "riskLevel": "HIGH",
+    "modelScores": [
+      { "moduleName": "deepfake", "detected": true, "score": 0.92, "modelName": "ForenShield-DF", "modelVersion": "1.2.0" }
+    ],
+    "evidenceItems": ["Deepfake face detection score is exceptionally high (0.92)"],
+    "frameRisks": [{ "frameIndex": 0, "timestampSec": 12.0, "riskScore": 0.82 }],
+    "suspiciousSegments": [{ "startTime": 12.0, "endTime": 15.0, "maxRiskScore": 0.82, "reason": "high risk frames" }],
+    "moduleResults": [
+      {
+        "moduleName": "deepfake",
+        "detected": true,
+        "score": 0.92,
+        "confidence": 0.88,
+        "modelName": "ForenShield-DF",
+        "modelVersion": "1.2.0",
+        "details": "{}"
+      }
+    ]
+  },
   "cocLogs": [ ]
 }
 ```
@@ -457,7 +522,15 @@
 }
 ```
 
-**Response 409:** 첫 번째 실패 항목의 `errorCode`
+**Response 409:** `StandardErrorResponse` — 첫 번째 실패 항목의 `errorCode`
+
+```json
+{
+  "success": false,
+  "errorCode": "SIGNATURE_INVALID",
+  "message": "Evidence Manifest X.509 서명 검증에 실패했습니다."
+}
+```
 
 | errorCode | 의미 |
 | :--- | :--- |
@@ -533,6 +606,7 @@
 | GET | `/api/v1/admin/users` | 목록 (`search`, `status`, `page`, `size`) |
 | POST | `/api/v1/admin/users/{userId}/approve` | 가입 승인 |
 | POST | `/api/v1/admin/users/{userId}/reject` | 가입 반려 |
+| POST | `/api/v1/admin/users/{userId}/suspend` | 계정 정지 (APPROVED → SUSPENDED) · **RQ-ADMIN-126** |
 | PATCH | `/api/v1/admin/users/{userId}` | 정보 수정 |
 | PATCH | `/api/v1/admin/users/{userId}/password` | 비밀번호 재설정 |
 | DELETE | `/api/v1/admin/users/{userId}` | 계정 삭제 |
@@ -592,6 +666,25 @@
 | `weeklyPoints[].completedCount` | 해당 일 `completedAt` 기준 완료 건수 |
 | `riskDistribution` | 전체 완료 분석의 `riskScore` 구간별 건수 (0~49 적합, 50~79 주의, 80~100 위험) |
 
+승인·반려·정지 응답 `AdminUserStatusResponse`에 **`processedByUserId`** (처리 관리자 ID) 포함.
+
+---
+
+### 2.6 비교 검증 (`/api/v1/compare/**`)
+
+**Auth:** User · **RQ:** RQ-CMP-091~104
+
+| Method | Path | 설명 |
+| :--- | :--- | :--- |
+| GET | `/api/v1/compare/originals` | 원본 증거 목록·검색 (`search`, `page`, `size`) |
+| GET | `/api/v1/compare/originals/{evidenceId}` | 원본 파일 기본정보 |
+| POST | `/api/v1/compare/verify` | 비교 검증 실행 (`evidenceId`, `file`) |
+| GET | `/api/v1/compare/{compareId}` | 비교 결과 조회 |
+| GET | `/api/v1/compare/{compareId}/candidate` | 대조본 파일 기본정보 |
+| GET | `/api/v1/compare/{compareId}/reports/pdf` | 비교 PDF (원본/대조본 기본정보 섹션) |
+
+**Response `CompareFileInfoDto`:** `evidenceId`, `fileName`, `fileSize`, `sha256`, `caseName`, `mimeType`, `uploadedAt` 등
+
 ---
 
 ## 3. 기능명세서 목표 API (향후 정렬)
@@ -612,10 +705,11 @@
 | GET | `/api/v1/cases/{caseId}` | DTL-* | ✅ |
 | GET/PATCH | `/api/v1/users/me` | MYP | ✅ |
 | * | `/api/v1/admin/*` | ADMIN-* | ✅ |
-| GET | `/api/v1/evidences/{evidenceId}/reports/pdf` | DTL-082 | ⬜ |
-| POST | `/api/v1/compare/verify` | CMP-* | ⬜ |
-| GET | `/api/v1/notifications` | COM-015 | ⬜ |
-| GET/PATCH | `/api/v1/users/me/settings` | COM-009 | ⬜ |
+| GET | `/api/v1/evidences/{evidenceId}/reports/pdf` | DTL-084~087 | ✅ |
+| GET | `/api/v1/compare/originals` | CMP-091 | ✅ |
+| POST | `/api/v1/compare/verify` | CMP-092~104 | ✅ |
+| GET | `/api/v1/notifications` | COM-015 | ✅ |
+| GET/PATCH | `/api/v1/users/me/settings` | COM-009 | ✅ |
 
 ---
 
@@ -658,19 +752,20 @@
 | 21 | GET | `/api/v1/admin/users` | Admin |
 | 22 | POST | `/api/v1/admin/users/{userId}/approve` | Admin |
 | 23 | POST | `/api/v1/admin/users/{userId}/reject` | Admin |
-| 24 | PATCH | `/api/v1/admin/users/{userId}` | Admin |
-| 25 | PATCH | `/api/v1/admin/users/{userId}/password` | Admin |
-| 26 | DELETE | `/api/v1/admin/users/{userId}` | Admin |
-| 27 | GET | `/api/v1/admin/invite-codes` | Admin |
-| 28 | POST | `/api/v1/admin/invite-codes` | Admin |
-| 29 | GET | `/api/v1/admin/evidences` | Admin |
-| 30 | GET | `/api/v1/admin/evidences/{evidenceId}` | Admin |
-| 31 | DELETE | `/api/v1/admin/evidences/{evidenceId}` | Admin |
-| 32 | GET | `/api/v1/admin/logs` | Admin |
-| 33 | GET | `/api/v1/admin/logs/export` | Admin |
-| 34 | GET | `/api/v1/admin/me` | Admin |
-| 35 | PATCH | `/api/v1/admin/me` | Admin |
-| 36 | PATCH | `/api/v1/admin/me/password` | Admin |
+| 24 | POST | `/api/v1/admin/users/{userId}/suspend` | Admin |
+| 25 | PATCH | `/api/v1/admin/users/{userId}` | Admin |
+| 26 | PATCH | `/api/v1/admin/users/{userId}/password` | Admin |
+| 27 | DELETE | `/api/v1/admin/users/{userId}` | Admin |
+| 28 | GET | `/api/v1/admin/invite-codes` | Admin |
+| 29 | POST | `/api/v1/admin/invite-codes` | Admin |
+| 30 | GET | `/api/v1/admin/evidences` | Admin |
+| 31 | GET | `/api/v1/admin/evidences/{evidenceId}` | Admin |
+| 32 | DELETE | `/api/v1/admin/evidences/{evidenceId}` | Admin |
+| 33 | GET | `/api/v1/admin/logs` | Admin |
+| 34 | GET | `/api/v1/admin/logs/export` | Admin |
+| 35 | GET | `/api/v1/admin/me` | Admin |
+| 36 | PATCH | `/api/v1/admin/me` | Admin |
+| 37 | PATCH | `/api/v1/admin/me/password` | Admin |
 
 ---
 
@@ -678,6 +773,8 @@
 
 | 날짜 | 버전 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-19 | v1.5 | analysis-history **증거 단위 필드** · analyze `results[].queueRegistered` · status **`queueStatus`**(WAITING/ANALYZING) · detail CoC 검증 필드 |
+| 2026-06-19 | v1.4 | compare **originals/candidate** API · admin **suspend** · detail `moduleResults` modelName/modelVersion/confidence · §2.6 추가 |
 | 2026-06-18 | v1.3 | `GET /api/v1/admin/dashboard/analysis-stats` 추가 (RQ-ADMIN-150) |
 | 2026-06-17 | v1.2 | 기능명세서 대비 Gap 분석 + 현재 코드 정본 분리 |
 | 2026-06-17 | v1.1 | Excel 명세 반영 초안 |

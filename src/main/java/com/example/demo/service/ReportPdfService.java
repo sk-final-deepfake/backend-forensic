@@ -9,6 +9,7 @@ import com.example.demo.domain.Report;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.dto.ReportVerifyResponse;
+import com.example.demo.dto.compare.CompareFileInfoDto;
 import com.example.demo.dto.compare.CompareItemDto;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisModuleResultRepository;
@@ -77,17 +78,34 @@ public class ReportPdfService {
     public ReportPdfPayload generateCompareReport(User user, Long compareId) {
         CompareVerification verification = compareVerificationService.requireOwnedVerification(user, compareId);
         List<CompareItemDto> items = deserializeItems(verification.getResultJson());
+        Evidence original = evidenceRepository
+                .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(
+                        verification.getOriginalEvidenceId(),
+                        user.getUserId()
+                )
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "원본 증거를 찾을 수 없습니다."));
+        CompareFileInfoDto originalInfo = compareVerificationService.getOriginalFileInfo(
+                user,
+                verification.getOriginalEvidenceId()
+        );
+        CompareFileInfoDto candidateInfo = compareVerificationService.getCandidateFileInfo(user, compareId);
 
         List<String> lines = new ArrayList<>();
         lines.add("Compare ID: " + verification.getCompareId());
-        lines.add("Original Evidence ID: " + verification.getOriginalEvidenceId());
-        lines.add("Candidate File: " + verification.getCandidateFileName());
         lines.add("Verdict: " + verification.getVerdict());
         lines.add("Match Count: " + verification.getMatchCount());
         lines.add("Mismatch Count: " + verification.getMismatchCount());
         lines.add("Skipped Count: " + verification.getSkippedCount());
         lines.add("Created At: " + ApiDateTimeFormatter.formatUtc(verification.getCreatedAt()));
         lines.add(" ");
+        lines.add("=== Original File Information ===");
+        appendCompareFileInfoLines(lines, originalInfo);
+        lines.add(" ");
+        lines.add("=== Candidate File Information ===");
+        appendCompareFileInfoLines(lines, candidateInfo);
+        lines.add(" ");
+        lines.add("=== Comparison Results ===");
         for (CompareItemDto item : items) {
             lines.add(item.getLabel() + " | original=" + item.getOriginalValue()
                     + " | candidate=" + item.getCandidateValue()
@@ -96,7 +114,7 @@ public class ReportPdfService {
 
         Report report = persistCompareReport(
                 compareId,
-                verification.getOriginalEvidenceId(),
+                original.getEvidenceId(),
                 user.getUserId(),
                 "compare-report-" + compareId + ".pdf",
                 lines,
@@ -104,6 +122,33 @@ public class ReportPdfService {
         );
         byte[] pdfBytes = readStoredPdf(report.getStoragePath());
         return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
+    }
+
+    private void appendCompareFileInfoLines(List<String> lines, CompareFileInfoDto info) {
+        if (info.getEvidenceId() != null) {
+            lines.add("Evidence ID: " + info.getEvidenceId());
+        }
+        if (info.getCompareId() != null) {
+            lines.add("Compare ID: " + info.getCompareId());
+        }
+        lines.add("File Name: " + info.getFileName());
+        lines.add("File Size: " + info.getFileSize());
+        lines.add("SHA-256: " + info.getSha256());
+        if (info.getCaseName() != null) {
+            lines.add("Case Name: " + info.getCaseName());
+        }
+        if (info.getCaseNumber() != null) {
+            lines.add("Case Number: " + info.getCaseNumber());
+        }
+        if (info.getFileType() != null) {
+            lines.add("File Type: " + info.getFileType());
+        }
+        if (info.getMimeType() != null) {
+            lines.add("MIME Type: " + info.getMimeType());
+        }
+        if (info.getUploadedAt() != null) {
+            lines.add("Uploaded At: " + info.getUploadedAt());
+        }
     }
 
     @Transactional(readOnly = true)

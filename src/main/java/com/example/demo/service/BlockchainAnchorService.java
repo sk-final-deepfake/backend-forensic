@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -165,14 +166,38 @@ public class BlockchainAnchorService {
     }
 
     @Transactional(readOnly = true)
-    public BlockchainInfoDto getEvidenceBlockchainInfo(Long evidenceId) {
+    public BlockchainInfoDto getEvidenceBlockchainInfo(Evidence evidence) {
+        if (evidence == null || evidence.getEvidenceId() == null) {
+            return notAnchoredInfo();
+        }
+        return anchorRepository
+                .findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
+                        evidence.getEvidenceId(),
+                        BlockchainAnchorType.EVIDENCE_HASH
+                )
+                .map(anchor -> toInfoDto(anchor, evidence))
+                .orElseGet(this::notAnchoredInfo);
+    }
+
+    /** RQ-CMP-103: compare uses registered hash from blockchain_anchors.subject_hash */
+    @Transactional(readOnly = true)
+    public Optional<String> findAnchoredEvidenceSubjectHash(Long evidenceId) {
+        if (evidenceId == null) {
+            return Optional.empty();
+        }
         return anchorRepository
                 .findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(evidenceId, BlockchainAnchorType.EVIDENCE_HASH)
-                .map(this::toInfoDto)
-                .orElse(BlockchainInfoDto.builder()
-                        .status("NOT_ANCHORED")
-                        .anchorType(BlockchainAnchorType.EVIDENCE_HASH.name())
-                        .build());
+                .filter(anchor -> anchor.getStatus() == BlockchainAnchorStatus.ANCHORED)
+                .map(BlockchainAnchor::getSubjectHash);
+    }
+
+    private BlockchainInfoDto notAnchoredInfo() {
+        return BlockchainInfoDto.builder()
+                .status("NOT_ANCHORED")
+                .anchorType(BlockchainAnchorType.EVIDENCE_HASH.name())
+                .hashValid(null)
+                .verificationMessage("블록체인에 등록된 원본 해시 앵커가 없습니다.")
+                .build();
     }
 
     private BlockchainAnchor executeAnchor(
@@ -250,10 +275,12 @@ public class BlockchainAnchorService {
                         : anchor.getMerkleBatchDate().toString())
                 .merkleLeafCount(anchor.getMerkleLeafCount())
                 .message(resolveMessage(anchor))
+                .transactionExplorerUrl(buildTransactionExplorerUrl(anchor.getTransactionHash()))
                 .build();
     }
 
-    private BlockchainInfoDto toInfoDto(BlockchainAnchor anchor) {
+    private BlockchainInfoDto toInfoDto(BlockchainAnchor anchor, Evidence evidence) {
+        HashIntegrityEvaluation integrity = evaluateEvidenceHashIntegrity(anchor, evidence);
         return BlockchainInfoDto.builder()
                 .status(anchor.getStatus().name())
                 .anchorType(anchor.getAnchorType().name())
@@ -261,8 +288,50 @@ public class BlockchainAnchorService {
                 .transactionHash(anchor.getTransactionHash())
                 .anchoredAt(ApiDateTimeFormatter.formatUtc(anchor.getAnchoredAt()))
                 .network(anchor.getNetwork())
+                .hashValid(integrity.hashValid())
+                .verificationMessage(integrity.verificationMessage())
+                .transactionExplorerUrl(buildTransactionExplorerUrl(anchor.getTransactionHash()))
                 .build();
     }
+
+    private HashIntegrityEvaluation evaluateEvidenceHashIntegrity(BlockchainAnchor anchor, Evidence evidence) {
+        if (anchor.getStatus() != BlockchainAnchorStatus.ANCHORED) {
+            return new HashIntegrityEvaluation(
+                    null,
+                    switch (anchor.getStatus()) {
+                        case PENDING -> "블록체인 앵커링이 진행 중입니다.";
+                        case FAILED -> anchor.getErrorMessage() == null
+                                ? "블록체인 앵커링에 실패했습니다."
+                                : anchor.getErrorMessage();
+                        case ANCHORED -> null;
+                    }
+            );
+        }
+        String currentHash = evidence == null ? null : evidence.getOriginalHashValue();
+        if (currentHash != null && currentHash.equalsIgnoreCase(anchor.getSubjectHash())) {
+            return new HashIntegrityEvaluation(
+                    true,
+                    "블록체인 등록 해시와 현재 원본 해시가 일치합니다."
+            );
+        }
+        return new HashIntegrityEvaluation(
+                false,
+                "블록체인 등록 해시와 현재 원본 해시가 일치하지 않습니다."
+        );
+    }
+
+    private String buildTransactionExplorerUrl(String transactionHash) {
+        if (transactionHash == null || transactionHash.isBlank()) {
+            return null;
+        }
+        String template = properties.getExplorerUrlTemplate();
+        if (template == null || template.isBlank()) {
+            return null;
+        }
+        return template.replace("{txHash}", transactionHash);
+    }
+
+    private record HashIntegrityEvaluation(Boolean hashValid, String verificationMessage) {}
 
     private String resolveMessage(BlockchainAnchor anchor) {
         return switch (anchor.getStatus()) {
