@@ -8,6 +8,7 @@ import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.util.AnalysisStatusMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class AnalysisStatusService {
 
     private final EvidenceRepository evidenceRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
+    private final AnalysisQueueMetricsResolver queueMetricsResolver;
 
     public AnalysisStatusResponse getStatus(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -29,32 +31,33 @@ public class AnalysisStatusService {
 
         return analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
-                .map(request -> {
-                    AnalysisStatusResponse.AnalysisStatusResponseBuilder builder = AnalysisStatusResponse.builder()
-                            .evidenceId(evidence.getEvidenceId())
-                            .analysisRequestId(request.getAnalysisRequestId())
-                            .status(toApiStatus(request.getStatus()))
-                            .progressPercent(request.getProgressPercent());
-                    if (request.getStatus() == AnalysisStatus.FAILED) {
-                        builder.errorCode(request.getErrorCode())
-                                .errorMessage(request.getErrorMessage());
-                    }
-                    return builder.build();
-                })
+                .map(this::toResponse)
                 .orElseGet(() -> AnalysisStatusResponse.builder()
                         .evidenceId(evidence.getEvidenceId())
                         .analysisRequestId(0L)
                         .status("PENDING")
+                        .queueStatus("WAITING")
                         .progressPercent(0)
                         .build());
     }
 
-    private String toApiStatus(AnalysisStatus status) {
-        return switch (status) {
-            case QUEUED -> "PENDING";
-            case ANALYZING -> "PROCESSING";
-            case COMPLETED -> "COMPLETED";
-            case FAILED -> "FAILED";
-        };
+    private AnalysisStatusResponse toResponse(AnalysisRequest request) {
+        AnalysisStatusResponse.AnalysisStatusResponseBuilder builder = AnalysisStatusResponse.builder()
+                .evidenceId(request.getEvidenceId())
+                .analysisRequestId(request.getAnalysisRequestId())
+                .status(AnalysisStatusMapper.toApiStatus(request.getStatus()))
+                .queueStatus(AnalysisStatusMapper.toQueueStatus(request.getStatus()))
+                .progressPercent(request.getProgressPercent());
+
+        if (request.getStatus() == AnalysisStatus.FAILED) {
+            builder.errorCode(request.getErrorCode())
+                    .errorMessage(request.getErrorMessage());
+        }
+        AnalysisQueueMetricsResolver.QueueMetrics queueMetrics = queueMetricsResolver.resolve(request);
+        if (queueMetrics != null) {
+            builder.queueDepth(queueMetrics.queueDepth())
+                    .queuePosition(queueMetrics.queuePosition());
+        }
+        return builder.build();
     }
 }

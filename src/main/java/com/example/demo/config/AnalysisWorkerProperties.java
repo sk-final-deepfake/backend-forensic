@@ -16,6 +16,13 @@ public class AnalysisWorkerProperties {
 
     private long stepDelayMs = 600;
 
+    /** QUEUED/ANALYZING 상태가 이 시간(분)을 초과하면 실패 처리 */
+    private long staleTimeoutMinutes = 120;
+
+    private boolean staleReaperEnabled = true;
+
+    private long staleReaperIntervalMs = 300_000;
+
     public boolean isAiMode() {
         return "ai".equalsIgnoreCase(mode);
     }

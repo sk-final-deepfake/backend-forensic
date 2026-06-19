@@ -8,6 +8,8 @@ import com.example.demo.domain.enums.CompareItemResult;
 import com.example.demo.domain.enums.CompareVerdict;
 import com.example.demo.dto.MediaMetadata;
 import com.example.demo.dto.compare.CompareItemDto;
+import com.example.demo.dto.compare.CompareFileInfoDto;
+import com.example.demo.dto.compare.CompareOriginalPageResponse;
 import com.example.demo.dto.compare.CompareResultResponse;
 import com.example.demo.dto.compare.CompareSummaryDto;
 import com.example.demo.dto.compare.CompareVerifyResponse;
@@ -22,6 +24,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +51,7 @@ public class CompareVerificationService {
     private final FileValidationService fileValidationService;
     private final HashService hashService;
     private final MediaService mediaService;
+    private final BlockchainAnchorService blockchainAnchorService;
     private final ObjectMapper objectMapper;
 
     @Value("${file.upload-dir:uploads}")
@@ -54,6 +59,10 @@ public class CompareVerificationService {
 
     @Transactional
     public CompareVerifyResponse verify(User user, Long evidenceId, MultipartFile candidateFile) {
+        return verify(user, evidenceId, candidateFile, null);
+    }
+
+    public CompareVerifyResponse verify(User user, Long evidenceId, MultipartFile candidateFile, String requestId) {
         Evidence original = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
                 .orElseThrow(() -> new BusinessException(
@@ -120,6 +129,58 @@ public class CompareVerificationService {
         return compareVerificationRepository.findByCompareIdAndUserId(compareId, user.getUserId())
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.NOT_FOUND, "COMPARE_NOT_FOUND", "비교 검증 결과를 찾을 수 없습니다."));
+    }
+
+    @Transactional(readOnly = true)
+    public CompareOriginalPageResponse listOriginals(User user, String search, int page, int size) {
+        Page<Evidence> result = evidenceRepository.findCompareOriginals(
+                user.getUserId(),
+                search,
+                PageRequest.of(page, size)
+        );
+
+        return CompareOriginalPageResponse.builder()
+                .content(result.getContent().stream().map(this::toOriginalFileInfo).toList())
+                .page(result.getNumber())
+                .size(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public CompareFileInfoDto getOriginalFileInfo(User user, Long evidenceId) {
+        Evidence original = evidenceRepository
+                .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "원본 증거를 찾을 수 없습니다."));
+        return toOriginalFileInfo(original);
+    }
+
+    @Transactional(readOnly = true)
+    public CompareFileInfoDto getCandidateFileInfo(User user, Long compareId) {
+        CompareVerification verification = requireOwnedVerification(user, compareId);
+        return CompareFileInfoDto.builder()
+                .compareId(verification.getCompareId())
+                .fileName(verification.getCandidateFileName())
+                .fileSize(verification.getCandidateFileSize())
+                .sha256(verification.getCandidateHash())
+                .uploadedAt(ApiDateTimeFormatter.formatUtc(verification.getCreatedAt()))
+                .build();
+    }
+
+    private CompareFileInfoDto toOriginalFileInfo(Evidence evidence) {
+        return CompareFileInfoDto.builder()
+                .evidenceId(evidence.getEvidenceId())
+                .fileName(evidence.getFileName())
+                .fileSize(evidence.getFileSize())
+                .sha256(evidence.getOriginalHashValue())
+                .caseName(evidence.getCaseName())
+                .caseNumber(evidence.getCaseNumber())
+                .fileType(evidence.getFileType() != null ? evidence.getFileType().name() : null)
+                .mimeType(evidence.getMimeType())
+                .uploadedAt(ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()))
+                .build();
     }
 
     private CompareVerification persistVerification(
@@ -211,10 +272,10 @@ public class CompareVerificationService {
                 candidateProbe.map(FfprobeCompareHelper.ProbeSnapshot::getStreamFingerprint).orElse(null)
         ));
 
-        items.add(compareValues(
+        items.add(compareOptional(
                 "BLOCKCHAIN_HASH",
                 "등록 해시 대조",
-                original.getOriginalHashValue(),
+                blockchainAnchorService.findAnchoredEvidenceSubjectHash(original.getEvidenceId()).orElse(null),
                 candidateHash
         ));
 
@@ -363,5 +424,13 @@ public class CompareVerificationService {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("비교 결과 역직렬화에 실패했습니다.", ex);
         }
+    }
+
+    /**
+     * FE compare flow sends a client-side cancellation token.
+     * Verification runs synchronously, so there is no server-side job to abort.
+     */
+    public void cancel(String requestId) {
+        // acknowledged no-op for API compatibility
     }
 }

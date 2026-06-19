@@ -4,6 +4,7 @@ import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.EvidenceDetailService;
+import com.example.demo.util.CaseKeyNormalizer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,7 @@ public class CaseController {
             @PathVariable(required = false) String caseId,
             @RequestParam(required = false) String caseKey
     ) {
-        String finalId = caseKey != null ? caseKey : caseId;
+        String finalId = CaseKeyNormalizer.normalize(caseKey != null ? caseKey : caseId);
 
         if (finalId == null || finalId.isBlank()) {
             throw new BusinessException(

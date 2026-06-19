@@ -63,6 +63,17 @@ public class NotificationService {
     }
 
     @Transactional
+    public int markAllAsRead(Long userId) {
+        List<Notification> unread = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .filter(notification -> !notification.isRead())
+                .toList();
+        unread.forEach(notification -> notification.setRead(true));
+        notificationRepository.saveAll(unread);
+        return unread.size();
+    }
+
+    @Transactional
     public void notifyAnalysisCompleted(Long userId, Long evidenceId, String fileName) {
         if (!userSettingsService.isAnalysisNotificationEnabled(userId)) {
             return;

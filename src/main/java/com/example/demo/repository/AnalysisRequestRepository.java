@@ -166,4 +166,28 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
             @Param("startInclusive") LocalDateTime startInclusive,
             @Param("endExclusive") LocalDateTime endExclusive
     );
+
+    List<AnalysisRequest> findByStatusAndStartedAtBefore(AnalysisStatus status, LocalDateTime cutoff);
+
+    List<AnalysisRequest> findByStatusAndRequestedAtBefore(AnalysisStatus status, LocalDateTime cutoff);
+
+    long countByStatus(AnalysisStatus status);
+
+    long countByStatusAndRequestedAtBefore(AnalysisStatus status, LocalDateTime requestedAt);
+
+    @Query("""
+            SELECT ar
+            FROM AnalysisRequest ar
+            JOIN Evidence e ON e.evidenceId = ar.evidenceId
+            WHERE ar.requestedBy = :uploaderId
+              AND e.deletedAt IS NULL
+              AND ar.status = com.example.demo.domain.enums.AnalysisStatus.COMPLETED
+              AND ar.completedAt >= :startInclusive
+              AND ar.completedAt < :endExclusive
+            """)
+    List<AnalysisRequest> findCompletedByUploaderCompletedAtBetween(
+            @Param("uploaderId") Long uploaderId,
+            @Param("startInclusive") LocalDateTime startInclusive,
+            @Param("endExclusive") LocalDateTime endExclusive
+    );
 }

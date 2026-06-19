@@ -22,4 +22,6 @@ public class BlockchainAnchorRecordDto {
     private String merkleBatchDate;
     private Integer merkleLeafCount;
     private String message;
+    /** RQ-DTL-080 */
+    private String transactionExplorerUrl;
 }

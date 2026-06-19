@@ -143,6 +143,10 @@ public class User {
         this.status = status;
     }
 
+    public void updateDarkMode(boolean darkMode) {
+        this.darkMode = darkMode;
+    }
+
     /** 로컬 개발용 계정(1111/3333) 로그인 보장 */
     public void syncDevCredentials(UserRole role, String encodedPassword) {
         this.role = role;

@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.BlockchainAnchor;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
@@ -14,6 +15,7 @@ import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.RiskLevel;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
+import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.BlockchainAnchorRepository;
@@ -23,6 +25,7 @@ import com.example.demo.repository.NotificationRepository;
 import com.example.demo.repository.ReportRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.UserSettingRepository;
+import com.example.demo.service.HashService;
 import com.example.demo.service.NotificationService;
 import com.example.demo.support.JwtTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +41,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -72,6 +78,9 @@ class FeatureApiControllerTest {
     private AnalysisResultRepository analysisResultRepository;
 
     @Autowired
+    private AnalysisModuleResultRepository analysisModuleResultRepository;
+
+    @Autowired
     private CompareVerificationRepository compareVerificationRepository;
 
     @Autowired
@@ -92,6 +101,9 @@ class FeatureApiControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private HashService hashService;
+
     private String accessToken;
     private User testUser;
     private Evidence evidence;
@@ -102,6 +114,7 @@ class FeatureApiControllerTest {
         notificationRepository.deleteAll();
         blockchainAnchorRepository.deleteAll();
         userSettingRepository.deleteAll();
+        analysisModuleResultRepository.deleteAll();
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
@@ -141,6 +154,7 @@ class FeatureApiControllerTest {
         notificationRepository.deleteAll();
         blockchainAnchorRepository.deleteAll();
         userSettingRepository.deleteAll();
+        analysisModuleResultRepository.deleteAll();
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
@@ -154,7 +168,8 @@ class FeatureApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dateDisplayFormat").value("ISO"))
                 .andExpect(jsonPath("$.analysisCompleteNotificationEnabled").value(true))
-                .andExpect(jsonPath("$.listViewMode").value("TABLE"));
+                .andExpect(jsonPath("$.listViewMode").value("TABLE"))
+                .andExpect(jsonPath("$.themeMode").value("SYSTEM"));
 
         mockMvc.perform(patch("/api/v1/users/me/settings")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
@@ -163,13 +178,22 @@ class FeatureApiControllerTest {
                                 {
                                   "dateDisplayFormat": "KR",
                                   "analysisCompleteNotificationEnabled": false,
-                                  "listViewMode": "CARD"
+                                  "listViewMode": "CARD",
+                                  "themeMode": "DARK"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dateDisplayFormat").value("KR"))
                 .andExpect(jsonPath("$.analysisCompleteNotificationEnabled").value(false))
-                .andExpect(jsonPath("$.listViewMode").value("CARD"));
+                .andExpect(jsonPath("$.listViewMode").value("CARD"))
+                .andExpect(jsonPath("$.themeMode").value("DARK"));
+
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").isNotEmpty())
+                .andExpect(jsonPath("$.themeMode").value("DARK"))
+                .andExpect(jsonPath("$.darkMode").value(true));
     }
 
     @Test
@@ -193,6 +217,46 @@ class FeatureApiControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.read").value(true));
+    }
+
+    @Test
+    void notifications_markAllAsRead() throws Exception {
+        notificationService.notifyAnalysisCompleted(
+                testUser.getUserId(),
+                evidence.getEvidenceId(),
+                evidence.getFileName()
+        );
+        notificationService.notifyAnalysisFailed(
+                testUser.getUserId(),
+                evidence.getEvidenceId(),
+                evidence.getFileName()
+        );
+
+        mockMvc.perform(patch("/api/v1/notifications/read-all")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.markedCount").value(2));
+
+        mockMvc.perform(get("/api/v1/notifications")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unreadCount").value(0));
+    }
+
+    @Test
+    void compare_listOriginalsAndFileInfo() throws Exception {
+        mockMvc.perform(get("/api/v1/compare/originals")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].evidenceId").value(evidence.getEvidenceId()))
+                .andExpect(jsonPath("$.content[0].fileName").value("sample.mp4"));
+
+        mockMvc.perform(get("/api/v1/compare/originals/" + evidence.getEvidenceId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sha256").value(evidence.getOriginalHashValue()))
+                .andExpect(jsonPath("$.fileSize").value(12));
     }
 
     @Test
@@ -222,11 +286,26 @@ class FeatureApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.compareId").value(compareId));
 
+        mockMvc.perform(get("/api/v1/compare/" + compareId + "/candidate")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fileName").value("candidate.mp4"))
+                .andExpect(jsonPath("$.compareId").value(compareId));
+
         mockMvc.perform(get("/api/v1/compare/" + compareId + "/reports/pdf")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
                 .andExpect(header().string("X-Report-Hash", notNullValue(String.class)));
+    }
+
+    @Test
+    void compare_cancel_returnsNoContent() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/v1/compare/cancel")
+                        .param("requestId", "client-token-123")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -269,6 +348,94 @@ class FeatureApiControllerTest {
     }
 
     @Test
+    void evidenceDetail_includesModuleModelFields() throws Exception {
+        AnalysisRequest request = new AnalysisRequest();
+        request.setEvidenceId(evidence.getEvidenceId());
+        request.setRequestedBy(testUser.getUserId());
+        request.setStatus(AnalysisStatus.COMPLETED);
+        request.setProgressPercent(100);
+        request.setRequestedAt(LocalDateTime.now());
+        request.setCompletedAt(LocalDateTime.now());
+        request = analysisRequestRepository.save(request);
+
+        AnalysisResult result = new AnalysisResult();
+        result.setAnalysisRequestId(request.getAnalysisRequestId());
+        result.setRiskScore(72.0);
+        result.setConfidenceScore(0.91);
+        result.setRiskLevel(RiskLevel.HIGH);
+        result.setSummary("deepfake suspected");
+        result.setAnalyzedAt(LocalDateTime.now());
+        result = analysisResultRepository.save(result);
+
+        AnalysisModuleResult module = new AnalysisModuleResult();
+        module.setAnalysisResultId(result.getAnalysisResultId());
+        module.setModuleName("deepfake");
+        module.setDetected(true);
+        module.setScore(0.92);
+        module.setConfidence(0.88);
+        module.setModelName("ForenShield-DF");
+        module.setModelVersion("1.2.0");
+        module.setDetailsJson("{\"deepfakeScore\":0.92}");
+        module.setCreatedAt(LocalDateTime.now());
+        analysisModuleResultRepository.save(module);
+
+        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/detail")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisInfo.moduleResults[0].modelName").value("ForenShield-DF"))
+                .andExpect(jsonPath("$.analysisInfo.moduleResults[0].modelVersion").value("1.2.0"))
+                .andExpect(jsonPath("$.analysisInfo.moduleResults[0].confidence").value(0.88))
+                .andExpect(jsonPath("$.analysisInfo.modelScores[0].moduleName").value("deepfake"))
+                .andExpect(jsonPath("$.analysisInfo.modelScores[0].score").value(0.92));
+    }
+
+    @Test
+    void evidenceDetail_includesVisualizationFields() throws Exception {
+        AnalysisRequest request = new AnalysisRequest();
+        request.setEvidenceId(evidence.getEvidenceId());
+        request.setRequestedBy(testUser.getUserId());
+        request.setStatus(AnalysisStatus.COMPLETED);
+        request.setProgressPercent(100);
+        request.setRequestedAt(LocalDateTime.now());
+        request.setCompletedAt(LocalDateTime.now());
+        request = analysisRequestRepository.save(request);
+
+        AnalysisResult result = new AnalysisResult();
+        result.setAnalysisRequestId(request.getAnalysisRequestId());
+        result.setRiskScore(72.0);
+        result.setConfidenceScore(0.91);
+        result.setRiskLevel(RiskLevel.HIGH);
+        result.setSummary("deepfake suspected");
+        result.setAnalyzedAt(LocalDateTime.now());
+        result = analysisResultRepository.save(result);
+
+        AnalysisModuleResult timeline = new AnalysisModuleResult();
+        timeline.setAnalysisResultId(result.getAnalysisResultId());
+        timeline.setModuleName("video_timeline");
+        timeline.setDetected(true);
+        timeline.setScore(0.0);
+        timeline.setConfidence(0.91);
+        timeline.setModelName("ForenShield-DF");
+        timeline.setModelVersion("1.2.0");
+        timeline.setDetailsJson("""
+                {
+                  "frameRisks":[{"frameIndex":0,"timestampSec":0.0,"riskScore":0.82}],
+                  "suspiciousSegments":[{"startTime":12.0,"endTime":15.0,"maxRiskScore":0.82,"reason":"high risk"}],
+                  "analysisReasons":["Deepfake face mismatch detected"]
+                }
+                """);
+        timeline.setCreatedAt(LocalDateTime.now());
+        analysisModuleResultRepository.save(timeline);
+
+        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/detail")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisInfo.frameRisks[0].riskScore").value(0.82))
+                .andExpect(jsonPath("$.analysisInfo.suspiciousSegments[0].startTime").value(12.0))
+                .andExpect(jsonPath("$.analysisInfo.evidenceItems[0]").value("Deepfake face mismatch detected"));
+    }
+
+    @Test
     void evidenceBlockchain_status() throws Exception {
         BlockchainAnchor anchor = new BlockchainAnchor();
         anchor.setAnchorType(BlockchainAnchorType.EVIDENCE_HASH);
@@ -287,6 +454,67 @@ class FeatureApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidenceId").value(evidence.getEvidenceId()))
                 .andExpect(jsonPath("$.evidenceHashAnchor.status").value("ANCHORED"))
-                .andExpect(jsonPath("$.evidenceHashAnchor.transactionHash").value("0xabc123"));
+                .andExpect(jsonPath("$.evidenceHashAnchor.transactionHash").value("0xabc123"))
+                .andExpect(jsonPath("$.evidenceHashAnchor.transactionExplorerUrl")
+                        .value("https://explorer.test/tx/0xabc123"));
+    }
+
+    @Test
+    void evidenceDetail_blockchainIntegrityAndExplorerUrl() throws Exception {
+        BlockchainAnchor anchor = new BlockchainAnchor();
+        anchor.setAnchorType(BlockchainAnchorType.EVIDENCE_HASH);
+        anchor.setSubjectHash(evidence.getOriginalHashValue());
+        anchor.setEvidenceId(evidence.getEvidenceId());
+        anchor.setCreatedBy(testUser.getUserId());
+        anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
+        anchor.setTransactionHash("0xabc123");
+        anchor.setNetwork("local-simulated");
+        anchor.setAnchoredAt(LocalDateTime.now());
+        anchor.setCreatedAt(LocalDateTime.now());
+        blockchainAnchorRepository.save(anchor);
+
+        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/detail")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.blockchainInfo.status").value("ANCHORED"))
+                .andExpect(jsonPath("$.blockchainInfo.hashValid").value(true))
+                .andExpect(jsonPath("$.blockchainInfo.transactionExplorerUrl")
+                        .value("https://explorer.test/tx/0xabc123"));
+    }
+
+    @Test
+    void compare_verifyUsesAnchoredBlockchainHash() throws Exception {
+        byte[] content = "fake-video-content".getBytes(StandardCharsets.UTF_8);
+        Path tempFile = Files.createTempFile("compare-candidate", ".mp4");
+        Files.write(tempFile, content);
+        String candidateHash = hashService.generateSha256(tempFile);
+        Files.deleteIfExists(tempFile);
+
+        BlockchainAnchor anchor = new BlockchainAnchor();
+        anchor.setAnchorType(BlockchainAnchorType.EVIDENCE_HASH);
+        anchor.setSubjectHash(candidateHash);
+        anchor.setEvidenceId(evidence.getEvidenceId());
+        anchor.setCreatedBy(testUser.getUserId());
+        anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
+        anchor.setTransactionHash("0xcompare");
+        anchor.setNetwork("local-simulated");
+        anchor.setAnchoredAt(LocalDateTime.now());
+        anchor.setCreatedAt(LocalDateTime.now());
+        blockchainAnchorRepository.save(anchor);
+
+        MockMultipartFile sameHashFile = new MockMultipartFile(
+                "file",
+                "candidate.mp4",
+                "video/mp4",
+                content
+        );
+
+        mockMvc.perform(multipart("/api/v1/compare/verify")
+                        .file(sameHashFile)
+                        .param("evidenceId", String.valueOf(evidence.getEvidenceId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.itemKey=='BLOCKCHAIN_HASH')].result").value("MATCH"))
+                .andExpect(jsonPath("$.items[?(@.itemKey=='BLOCKCHAIN_HASH')].originalValue").value(candidateHash));
     }
 }

@@ -24,6 +24,9 @@ public class BlockchainAnchorProperties {
 
     private boolean schedulerEnabled = true;
 
+    /** RQ-DTL-080: `{txHash}` placeholder — e.g. `https://polygonscan.com/tx/{txHash}` */
+    private String explorerUrlTemplate = "";
+
     public boolean isHttpMode() {
         return "http".equalsIgnoreCase(mode);
     }

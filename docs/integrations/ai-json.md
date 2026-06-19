@@ -83,6 +83,19 @@
 | `splicingScore` | Double | |
 | `reEncodingDetected` | Boolean | 재인코딩 흔적 |
 | `reEncodingScore` | Double | |
+| `frameRisks[]` | Array | 프레임별 위험 점수 (`frameIndex`, `timestampSec`, `riskScore` 0.0~1.0) |
+| `suspiciousSegments[]` | Array | 의심 구간 (`startTime`, `endTime`, `maxRiskScore`, `reason`) |
+
+### 4.1 Analysis Request `frameAnalysis` (BE → AI, SK-401)
+
+| 필드 | 타입 | 설명 |
+| :--- | :--- | :--- |
+| `extractionIntervalSec` | Double | 프레임 샘플링 간격(초) |
+| `highRiskFrameScoreThreshold` | Double | 고위험 프레임 기준 (0.0~1.0) |
+| `minSuspiciousSegmentSec` | Double | 의심 구간 최소 길이(초) |
+| `pixelFormat` | String | 모델 입력 (`RGB24`) |
+| `imageEncoding` | String | 프레임 인코딩 (`jpeg`) |
+| `sampleTimestampsSec` | Double[] | 추출·분석 대상 시각(초) |
 
 > RQ-DTL-062~065, RQ-DTL-063(립싱크) 등 **상세 화면**은 위 필드를 API DTO로 매핑합니다.
 

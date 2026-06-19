@@ -1,4 +1,4 @@
--- RQ-REQ-050: Evidence Manifest + X.509 mock signature metadata
+-- RQ-REQ-050: Evidence Manifest + 플랫폼 X.509(PKCS#8) 서명 메타데이터
 CREATE TABLE IF NOT EXISTS evidence_manifests (
     evidence_id                 BIGINT PRIMARY KEY REFERENCES evidences (evidence_id) ON DELETE CASCADE,
     manifest_json               TEXT          NOT NULL,

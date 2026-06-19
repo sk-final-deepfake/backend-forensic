@@ -9,6 +9,7 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.enums.FileType;
+import com.example.demo.dto.detail.BlockchainInfoDto;
 import com.example.demo.repository.BlockchainAnchorRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
@@ -28,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -126,5 +128,70 @@ class BlockchainAnchorServiceTest {
         assertThat(result.getStatus()).isEqualTo(BlockchainAnchorStatus.ANCHORED);
         assertThat(result.getMerkleLeafCount()).isEqualTo(1);
         assertThat(result.getSubjectHash()).isEqualTo(log.getCurrentLogHash());
+    }
+
+    @Test
+    void getEvidenceBlockchainInfo_reportsHashIntegrityAndExplorerUrl() {
+        when(properties.getExplorerUrlTemplate()).thenReturn("https://explorer.test/tx/{txHash}");
+
+        Evidence evidence = mock(Evidence.class);
+        when(evidence.getEvidenceId()).thenReturn(7L);
+        when(evidence.getOriginalHashValue()).thenReturn("abc");
+
+        BlockchainAnchor anchor = new BlockchainAnchor();
+        anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
+        anchor.setAnchorType(BlockchainAnchorType.EVIDENCE_HASH);
+        anchor.setSubjectHash("abc");
+        anchor.setTransactionHash("0xabc123");
+        anchor.setNetwork("local-simulated");
+        anchor.setAnchoredAt(LocalDateTime.now());
+
+        when(anchorRepository.findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
+                7L,
+                BlockchainAnchorType.EVIDENCE_HASH
+        )).thenReturn(Optional.of(anchor));
+
+        BlockchainInfoDto info = blockchainAnchorService.getEvidenceBlockchainInfo(evidence);
+
+        assertThat(info.getHashValid()).isTrue();
+        assertThat(info.getVerificationMessage()).contains("일치");
+        assertThat(info.getTransactionExplorerUrl()).isEqualTo("https://explorer.test/tx/0xabc123");
+    }
+
+    @Test
+    void getEvidenceBlockchainInfo_reportsMismatchWhenHashesDiffer() {
+        Evidence evidence = mock(Evidence.class);
+        when(evidence.getEvidenceId()).thenReturn(8L);
+        when(evidence.getOriginalHashValue()).thenReturn("current-hash");
+
+        BlockchainAnchor anchor = new BlockchainAnchor();
+        anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
+        anchor.setAnchorType(BlockchainAnchorType.EVIDENCE_HASH);
+        anchor.setSubjectHash("anchored-hash");
+
+        when(anchorRepository.findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
+                8L,
+                BlockchainAnchorType.EVIDENCE_HASH
+        )).thenReturn(Optional.of(anchor));
+
+        BlockchainInfoDto info = blockchainAnchorService.getEvidenceBlockchainInfo(evidence);
+
+        assertThat(info.getHashValid()).isFalse();
+        assertThat(info.getVerificationMessage()).contains("일치하지 않습니다");
+    }
+
+    @Test
+    void findAnchoredEvidenceSubjectHash_returnsLatestAnchoredHash() {
+        BlockchainAnchor anchor = new BlockchainAnchor();
+        anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
+        anchor.setSubjectHash("registered-hash");
+
+        when(anchorRepository.findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
+                9L,
+                BlockchainAnchorType.EVIDENCE_HASH
+        )).thenReturn(Optional.of(anchor));
+
+        assertThat(blockchainAnchorService.findAnchoredEvidenceSubjectHash(9L))
+                .contains("registered-hash");
     }
 }

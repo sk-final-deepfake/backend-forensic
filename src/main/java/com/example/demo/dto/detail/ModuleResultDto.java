@@ -10,5 +10,8 @@ public class ModuleResultDto {
     private String moduleName;
     private boolean detected;
     private double score;
+    private Double confidence;
+    private String modelName;
+    private String modelVersion;
     private String details;
 }

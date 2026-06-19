@@ -41,6 +41,7 @@ analysis:
   worker:
     step-delay-ms: 0
     mode: local
+    stale-reaper-enabled: false
 
 blockchain:
   anchor:
@@ -48,3 +49,4 @@ blockchain:
     mode: simulated
     network: local-simulated
     scheduler-enabled: false
+    explorer-url-template: https://explorer.test/tx/{txHash}

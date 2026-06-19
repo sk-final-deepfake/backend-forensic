@@ -6,6 +6,7 @@ import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.repository.EvidenceManifestRepository;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.EvidenceCaseIdResolver;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -32,7 +33,7 @@ public class EvidenceManifestService {
 
     private final EvidenceManifestRepository evidenceManifestRepository;
     private final HashService hashService;
-    private final MockX509SignatureService mockX509SignatureService;
+    private final ManifestSignatureService manifestSignatureService;
     private final EvidenceManifestProperties manifestProperties;
     private final S3Client s3Client;
     private final ObjectMapper objectMapper;
@@ -68,13 +69,13 @@ public class EvidenceManifestService {
         LocalDateTime signedAt = null;
 
         try {
-            signatureValue = mockX509SignatureService.signManifest(manifestJson);
-            signatureAlgorithm = MockX509SignatureService.SIGNATURE_ALGORITHM;
-            signerSubject = manifestProperties.getSignerCertificateSubject();
+            signatureValue = manifestSignatureService.signManifest(manifestJson);
+            signatureAlgorithm = manifestSignatureService.getSignatureAlgorithm();
+            signerSubject = manifestSignatureService.getSignerCertificateSubject();
             signedAt = now;
             signatureStatus = SignatureStatus.SIGNED;
         } catch (Exception ex) {
-            log.warn("Manifest X.509 mock signing failed evidenceId={}", evidence.getEvidenceId(), ex);
+            log.warn("Manifest X.509 signing failed evidenceId={}", evidence.getEvidenceId(), ex);
             signatureStatus = SignatureStatus.FAILED;
         }
 
@@ -108,7 +109,7 @@ public class EvidenceManifestService {
                 || manifest.getManifestJson() == null) {
             return false;
         }
-        return mockX509SignatureService.verifyManifest(manifest.getManifestJson(), manifest.getSignatureValue());
+        return manifestSignatureService.verifyManifest(manifest.getManifestJson(), manifest.getSignatureValue());
     }
 
     private Map<String, Object> buildManifestBody(Evidence evidence, LocalDateTime issuedAt) {
@@ -116,7 +117,7 @@ public class EvidenceManifestService {
         body.put("manifestVersion", MANIFEST_VERSION);
         body.put("evidenceId", evidence.getEvidenceId());
         body.put("fileId", evidence.getEvidenceId());
-        body.put("caseId", resolveCaseId(evidence));
+        body.put("caseId", EvidenceCaseIdResolver.resolve(evidence));
         body.put("caseNumber", evidence.getCaseNumber());
         body.put("caseName", evidence.getCaseName());
         body.put("fileName", evidence.getFileName());
@@ -131,16 +132,6 @@ public class EvidenceManifestService {
         body.put("signer", manifestProperties.getIssuer());
         body.put("issuedAt", ApiDateTimeFormatter.formatUtc(issuedAt));
         return body;
-    }
-
-    private String resolveCaseId(Evidence evidence) {
-        if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
-            return evidence.getCaseNumber();
-        }
-        if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
-            return evidence.getCaseName();
-        }
-        return "EVIDENCE-" + evidence.getEvidenceId();
     }
 
     private String toCanonicalJson(Map<String, Object> manifestBody) {
