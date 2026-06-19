@@ -160,6 +160,8 @@ public class EvidenceStatsService {
 
         return RecentAnalysisItem.builder()
                 .evidenceId(request.getEvidenceId())
+                .caseId(evidence != null ? evidence.getCaseNumber() : null)
+                .caseName(evidence != null ? evidence.getCaseName() : null)
                 .analysisRequestId(request.getAnalysisRequestId())
                 .fileName(evidence != null ? evidence.getFileName() : null)
                 .requestedAt(ApiDateTimeFormatter.formatUtc(request.getRequestedAt()))
