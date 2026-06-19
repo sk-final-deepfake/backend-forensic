@@ -69,3 +69,10 @@ blockchain:
     http-url: ${BLOCKCHAIN_ANCHOR_URL:}
     scheduler-enabled: true
     daily-cron: "0 0 1 * * *"
+
+evidence:
+  manifest:
+    signing:
+      secrets-manager-secret-id: ${MANIFEST_SIGNING_SECRET_ID:}
+      private-key-pem: ${MANIFEST_SIGNING_PRIVATE_KEY_PEM:}
+      certificate-pem: ${MANIFEST_SIGNING_CERTIFICATE_PEM:}

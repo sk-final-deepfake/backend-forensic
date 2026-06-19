@@ -86,3 +86,14 @@ blockchain:
     http-url: ${BLOCKCHAIN_ANCHOR_URL:}
     scheduler-enabled: ${BLOCKCHAIN_ANCHOR_SCHEDULER_ENABLED:true}
     daily-cron: ${BLOCKCHAIN_ANCHOR_DAILY_CRON:0 0 1 * * *}
+
+# RQ-REQ-050: 단일 플랫폼 CA Manifest 서명 (PKCS#8 + X.509)
+evidence:
+  manifest:
+    issuer: ${MANIFEST_ISSUER:ForenShield Digital Forensics}
+    signing:
+      private-key-pem: ${MANIFEST_SIGNING_PRIVATE_KEY_PEM:}
+      private-key-location: ${MANIFEST_SIGNING_KEY_LOCATION:classpath:crypto/platform-signing-key.pem}
+      certificate-pem: ${MANIFEST_SIGNING_CERTIFICATE_PEM:}
+      certificate-location: ${MANIFEST_SIGNING_CERT_LOCATION:classpath:crypto/platform-signing-cert.pem}
+      secrets-manager-secret-id: ${MANIFEST_SIGNING_SECRET_ID:}

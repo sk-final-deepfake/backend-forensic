@@ -11,9 +11,6 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "evidence.manifest")
 public class EvidenceManifestProperties {
 
-    /** Manifest 발급 기관 표시명 */
+    /** Manifest 발급 기관 표시명 (단일 플랫폼 CA) */
     private String issuer = "ForenShield Digital Forensics";
-
-    /** Mock X.509 인증서 Subject (개발·시연용) */
-    private String signerCertificateSubject = "CN=ForenShield Forensics CA,O=SK Project,C=KR";
 }

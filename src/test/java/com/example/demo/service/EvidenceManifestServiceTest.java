@@ -60,7 +60,7 @@ class EvidenceManifestServiceTest {
     }
 
     @Test
-    @DisplayName("RQ-REQ-050: 분석 사본 생성 시 Manifest가 생성되고 X.509 mock 서명된다")
+    @DisplayName("RQ-REQ-050: 분석 사본 생성 시 Manifest가 생성되고 플랫폼 X.509로 서명된다")
     void prepareCopy_createsSignedManifest() {
         User user = userRepository.save(User.builder()
                 .loginId("manifest-user")

@@ -32,7 +32,7 @@ public class EvidenceManifestService {
 
     private final EvidenceManifestRepository evidenceManifestRepository;
     private final HashService hashService;
-    private final MockX509SignatureService mockX509SignatureService;
+    private final ManifestSignatureService manifestSignatureService;
     private final EvidenceManifestProperties manifestProperties;
     private final S3Client s3Client;
     private final ObjectMapper objectMapper;
@@ -68,13 +68,13 @@ public class EvidenceManifestService {
         LocalDateTime signedAt = null;
 
         try {
-            signatureValue = mockX509SignatureService.signManifest(manifestJson);
-            signatureAlgorithm = MockX509SignatureService.SIGNATURE_ALGORITHM;
-            signerSubject = manifestProperties.getSignerCertificateSubject();
+            signatureValue = manifestSignatureService.signManifest(manifestJson);
+            signatureAlgorithm = manifestSignatureService.getSignatureAlgorithm();
+            signerSubject = manifestSignatureService.getSignerCertificateSubject();
             signedAt = now;
             signatureStatus = SignatureStatus.SIGNED;
         } catch (Exception ex) {
-            log.warn("Manifest X.509 mock signing failed evidenceId={}", evidence.getEvidenceId(), ex);
+            log.warn("Manifest X.509 signing failed evidenceId={}", evidence.getEvidenceId(), ex);
             signatureStatus = SignatureStatus.FAILED;
         }
 
@@ -108,7 +108,7 @@ public class EvidenceManifestService {
                 || manifest.getManifestJson() == null) {
             return false;
         }
-        return mockX509SignatureService.verifyManifest(manifest.getManifestJson(), manifest.getSignatureValue());
+        return manifestSignatureService.verifyManifest(manifest.getManifestJson(), manifest.getSignatureValue());
     }
 
     private Map<String, Object> buildManifestBody(Evidence evidence, LocalDateTime issuedAt) {

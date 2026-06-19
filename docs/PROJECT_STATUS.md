@@ -1,7 +1,7 @@
 # VeriForensics 프로젝트 진행 상황
 
 > **작성일:** 2026-06-17  
-> **최종 갱신:** 2026-06-18  
+> **최종 갱신:** 2026-06-19 (X.509 플랫폼 CA 연동)  
 > **기준:** `docs/requirements/source/` Excel · **영상(VIDEO)만** 지원
 
 ---
@@ -36,10 +36,10 @@
 | :--- | :---: | :---: | :--- |
 | **요구사항 (RQ)** | 169건 | **약 55~60%** | source Excel 재추출 (2026-06-18) |
 | **기능 (FN)** | BE 115건 | **BE FN 약 65%** | [traceability.md](./requirements/traceability.md) 재생성 |
-| **REST API (BE)** | ~40 엔드포인트 | **핵심 MVP ✅** | PDF·Compare·알림 ⬜ |
+| **REST API (BE)** | ~45 엔드포인트 | **MVP ✅** | PDF·Compare·알림·무결성검증 포함 |
 | **팀 문서 (`docs/`)** | 23개 md + Excel source | **✅ 정비 완료** | [AGENTS.md](./AGENTS.md) 진입점 |
-| **테스트** | 14 test 클래스 | **✅ 전체 통과** | `./gradlew test` |
-| **배포 브랜치** | `main` | **✅ develop 머지 (2026-06-18)** | `develop` → PR/merge → `main` |
+| **테스트** | 25 test 클래스 | **✅ 전체 통과** | `./gradlew test` (112 tests) |
+| **배포 브랜치** | `main` | **✅ PR #25 merge (2026-06-19)** | `develop` → `main` (`f2f12fe`) |
 
 ```mermaid
 pie title 백엔드 RQ 영역별 구현 상태 (추정)
@@ -49,7 +49,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
     "타 파트" : 15
 ```
 
-> **해석:** 본 레포는 **Spring Boot API** 중심. 로그인·가입·증거·분석·관리자·마이페이지 **핵심 플로우는 동작**하나, PDF·비교검증·블록체인·알림 등 **고급/인프라 연동 RQ는 미착수**입니다.
+> **해석:** 본 레포는 **Spring Boot API** 중심. MVP REST·CoC·Manifest/**플랫폼 X.509(PKCS#8)**·PDF·Compare·알림까지 **코드 반영 완료**. 남은 건 **INF Secrets Manager 운영 키 등록·블록체인 게이트웨이·AI 실연동** 쪽입니다.
 
 ---
 
@@ -66,7 +66,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **무결성·CoC** | RQ-REQ-051, HIS-107 | CustodyLogs · `GET .../coc/verify` | ✅ | 증거별 체인 검증 API |
 | **Recovery Score** | RQ-DTL-071~072 | `detail.integrityInfo` | ✅ | 메타데이터 기반 점수 |
 | **WORM·S3** | RQ-REQ-048, SEC-150 | S3 upload (`original/`) | 🟡 | 코드 연동 있음 · Object Lock 운영은 INF |
-| **X.509 사본 서명** | RQ-REQ-050 | 분석 copy 파이프라인 | ✅ | Manifest + mock X.509 (2026-06-18) |
+| **X.509 사본 서명** | RQ-REQ-050, DTL-075~076 | 분석 copy Manifest + `signatureInfo` | ✅ | **단일 플랫폼 CA** (`Pkcs8ManifestSignatureService`) · PEM/Secrets Manager · INF 운영 CA 등록 🟡 |
 | **보안 무결성 알림** | RQ-SEC-153, SK-632 | detail 자동검증 · `integrity/verify` | ✅ | 서명·CoC·블록체인 불일치 시 SECURITY_ALERT (2026-06-18) |
 | **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | `GET .../blockchain` | 🟡 | BE 파이프라인 ✅ · INF URL 대기 |
 | **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | API 분할 · FE 합의 필요 |
@@ -143,8 +143,10 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | RabbitMQ 분석 큐 | ✅ | Broker | 🟡 |
 | Local analysis worker (dev) | ✅ | — | ✅ |
 | AI FastAPI worker | — | `ai/ai-forensic/` | 🟡 (타 레포) |
-| Redis / Rate limit | In-memory (signup) | — | 🟡 |
-| 블록체인 앵커 | ⬜ | INF | ⬜ |
+| Redis refresh token | ✅ (in-memory fallback) | Redis | 🟡 |
+| Signup rate limit | In-memory | Redis | 🟡 |
+| 블록체인 앵커 | ✅ simulated · http client | INF 게이트웨이 URL | 🟡 |
+| Manifest X.509 서명 | ✅ PKCS#8 + X.509 | Secrets Manager `MANIFEST_SIGNING_SECRET_ID` | 🟡 |
 
 ---
 
@@ -169,7 +171,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 [requirements/traceability.md](./requirements/traceability.md)는 source Excel **백엔드 시트**에서 재생성됩니다.
 
 - 구현 상태 ✅/🟡/⬜는 `api/specification.md`·코드와 **교차검토** 필요
-- PDF·블록체인 등 **⬜ 유지** — 본 문서 §2·§8 기준이 코드 Gap과 더 일치
+- §2·§8과 `api/specification.md` §0.4를 **교차검토** — drift 있으면 §8 P0/P1 정리
 
 **재생성:**
 
@@ -209,12 +211,12 @@ python scripts/generate_requirements_markdown.py
 
 | 순위 | 항목 | RQ | 담당 | 리스크 |
 | :---: | :--- | :--- | :--- | :--- |
-| **P0** | PDF 리포트 API | DTL-084~087 | BE | 수사 보고서 MVP 차단 |
-| **P0** | Compare API | CMP-083~095 | BE + FE | 핵심 차별 기능 |
-| **P1** | 블록체인 앵커 Job | SEC-151, REQ-052 | BE + INF | 무결성 명세 미충족 |
-| **P1** | 알림 API | COM-015~016 | BE + FE | UX |
-| **P2** | 사용자 설정 API | COM-009, MY-112 | BE | 마이페이지 완성 |
-| **P2** | 7일 분석 트렌드 | DSH-044 | BE | 대시보드 차트 |
+| **P0** | AI 실연동 (result queue) | REQ-047~049 | BE + AI | mock/simulated만 검증 |
+| **P1** | Manifest **운영 CA** Secrets Manager 등록 | REQ-050 | INF | BE 로더 ✅ · prod Secret/HSM 키 주입 대기 |
+| **P1** | 블록체인 **http** 실연동 | SEC-151, REQ-052 | BE + INF | simulated만 동작 |
+| **P2** | S3 Object Lock 운영 | REQ-048, SEC-150 | INF | 코드 업로드만 |
+| **P2** | RabbitMQ·Redis 운영 | — | INF | local/simulated fallback |
+| **P2** | 성능 NFR 검증 | PER-* | BE | 부하 테스트 미실시 |
 | **P3** | Excel FE「호출 API」열 갱신 | — | PM | 명세·코드 drift |
 | **P3** | traceability.md 재작성 | — | BE | 추적 신뢰도 |
 
@@ -224,19 +226,20 @@ python scripts/generate_requirements_markdown.py
 
 | 파트 | 레포 | 본 문서 기준 진행 | 다음 액션 |
 | :--- | :--- | :--- | :--- |
-| **백엔드** | `backend-forensic` | 핵심 API **~75%** · 고급 **~20%** | P0 PDF/Compare 설계 |
+| **백엔드** | `backend-forensic` | MVP API **~88%** · 운영 연동 **~35%** | AI 실연동 · INF Secret(CA) |
 | **프론트엔드** | `frontend/frontend-deepfake/` | *(본 레포 미포함)* | stats·errorCode·content 필드 반영 |
 | **AI** | `ai/ai-forensic/` | *(본 레포 미포함)* | ai-json 계약 · RabbitMQ 연동 |
-| **인프라** | AWS/EKS | *(본 레포 미포함)* | S3 Object Lock · MQ 운영 |
+| **인프라** | AWS/EKS | *(본 레포 미포함)* | S3 Object Lock · MQ · **Manifest signing Secret** |
 
 ---
 
 ## 10. 다음 스프린트 제안 (BE)
 
-1. **Compare API** 스펙 초안 → `api/specification.md` §3 추가 → 구현  
-2. **PDF 생성** (`Report` 엔티티 활용) — `GET .../reports/pdf`  
-3. **RTM 갱신** — traceability.md를 코드 기준으로 재작성  
-4. **레거시 alias** `/api/evidences` deprecation 일정 (FE 전환 후)
+1. **AI result queue** E2E — mock JSON → `applyAiResult` → detail (AI 팀 연동 전)  
+2. **블록체인 http** — INF 게이트웨이 URL 수령 시 `BLOCKCHAIN_ANCHOR_MODE=http`  
+3. **Manifest CA Secret** — INF가 `MANIFEST_SIGNING_SECRET_ID`에 운영 PKCS#8·X.509 등록  
+4. **RTM 갱신** — traceability.md를 코드 기준으로 재작성  
+5. **레거시 alias** `/api/evidences` deprecation (FE 전환 후)
 
 ---
 
@@ -255,6 +258,8 @@ python scripts/generate_requirements_markdown.py
 
 | 날짜 | 작성자 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-19 | — | X.509 mock 제거 → **단일 플랫폼 CA** (`Pkcs8ManifestSignatureService`) · PEM/Secrets Manager · §1·§2·§4·§8·§9·§10 갱신 |
+| 2026-06-19 | — | `main` PR #25 반영 · §1·§8 outdated(PDF/Compare) 정리 · X.509 mock 상태 명시 |
 | 2026-06-18 | — | RQ-SEC-153/SK-632: detail 자동 무결성 검증·`SECURITY_ALERT` · `GET .../integrity/verify` |
 | 2026-06-17 | — | Recovery Score(DTL-071~072) · CoC 검증 API(HIS-107) · 문서 Gap 갱신 |
 | 2026-06-18 | — | source Excel → index/traceability 재생성 · **영상-only** 스코프 반영 (docs·코드) |
