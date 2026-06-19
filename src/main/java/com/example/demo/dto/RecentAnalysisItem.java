@@ -8,6 +8,8 @@ import lombok.Getter;
 public class RecentAnalysisItem {
 
     private Long evidenceId;
+    private String caseId;
+    private String caseName;
     private Long analysisRequestId;
     private String fileName;
     /** ISO-8601 UTC (yyyy-MM-dd'T'HH:mm:ss'Z') */
