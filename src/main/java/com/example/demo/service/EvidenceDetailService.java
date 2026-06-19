@@ -9,11 +9,9 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
-import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.ExtractionStatus;
 import com.example.demo.domain.enums.SignatureStatus;
-import com.example.demo.dto.detail.AnalysisInfoDto;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.dto.detail.CaseEvidenceSummaryDto;
 import com.example.demo.dto.detail.CocLogDto;
@@ -21,13 +19,10 @@ import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.dto.detail.EvidenceInfoDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
 import com.example.demo.dto.detail.ManifestInfoDto;
-import com.example.demo.dto.detail.ModuleResultDto;
-import com.example.demo.dto.detail.SignatureInfoDto;
-import com.example.demo.dto.detail.ModelScoreDto;
 import com.example.demo.dto.detail.RecoveryScoreDto;
-import com.example.demo.dto.FrameRiskDto;
-import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.dto.detail.SignatureInfoDto;
 import com.example.demo.dto.detail.VideoMetadataDto;
+import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
@@ -35,18 +30,16 @@ import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.exception.BusinessException;
 import com.example.demo.util.AnalysisStatusMapper;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.EvidenceCaseIdResolver;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -65,7 +58,7 @@ public class EvidenceDetailService {
     private final EvidenceManifestService evidenceManifestService;
     private final EvidenceManifestProperties evidenceManifestProperties;
     private final RecoveryScoreService recoveryScoreService;
-    private final VideoModuleDetailsReader videoModuleDetailsReader;
+    private final AnalysisInfoAssembler analysisInfoAssembler;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -79,13 +72,18 @@ public class EvidenceDetailService {
         AnalysisResult result = request == null
                 ? null
                 : analysisResultRepository.findByAnalysisRequestId(request.getAnalysisRequestId()).orElse(null);
+        List<AnalysisModuleResult> moduleResults = result == null
+                ? List.of()
+                : analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(
+                        result.getAnalysisResultId()
+                );
         EvidenceMetadata metadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElse(null);
         List<CustodyLog> custodyLogs = custodyLogRepository
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
 
         boolean isChainValid = custodyLogService.verifyChainIntegrity(CustodyTargetType.EVIDENCE, evidenceId);
         EvidenceManifest manifest = evidenceManifestService.findByEvidenceId(evidenceId).orElse(null);
-        var recovery = recoveryScoreService.calculate(metadata);
+        RecoveryScoreDto recovery = recoveryScoreService.calculate(metadata);
 
         return EvidenceDetailResponse.builder()
                 .evidenceInfo(toEvidenceInfo(evidence, metadata))
@@ -93,7 +91,7 @@ public class EvidenceDetailService {
                 .manifestInfo(toManifestInfo(evidence, manifest))
                 .signatureInfo(toSignatureInfo(manifest))
                 .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidence))
-                .analysisInfo(toAnalysisInfo(request, result))
+                .analysisInfo(analysisInfoAssembler.assemble(request, result, moduleResults))
                 .cocLogs(toCocLogs(custodyLogs))
                 .build();
     }
@@ -129,6 +127,10 @@ public class EvidenceDetailService {
                         .fileName(evidence.getFileName())
                         .mediaType(evidence.getFileType().name())
                         .analysisStatus(toCaseStatus(latestByEvidence.get(evidence.getEvidenceId())))
+                        .thumbnailUrl(null)
+                        .previewUrl(null)
+                        .videoUrl(null)
+                        .fileUrl(null)
                         .build())
                 .toList();
 
@@ -146,6 +148,7 @@ public class EvidenceDetailService {
                 .evidenceId(evidence.getEvidenceId())
                 .fileName(evidence.getFileName())
                 .caseName(evidence.getCaseName())
+                .caseId(EvidenceCaseIdResolver.resolve(evidence))
                 .fileSize(evidence.getFileSize())
                 .uploadedAt(ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()))
                 .mediaType(evidence.getFileType().name())
@@ -210,15 +213,15 @@ public class EvidenceDetailService {
         return ManifestInfoDto.builder()
                 .evidenceId(evidence.getEvidenceId())
                 .fileId(evidence.getEvidenceId())
-                .caseId(resolveCaseId(evidence))
+                .caseId(EvidenceCaseIdResolver.resolve(evidence))
                 .caseNumber(evidence.getCaseNumber())
                 .caseName(evidence.getCaseName())
                 .fileName(evidence.getFileName())
-                .uploadedAt(formatDateTime(evidence.getUploadedAt()))
+                .uploadedAt(ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()))
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
                 .copyHash(evidence.getCopyHashValue())
-                .manifestCreatedAt(formatDateTime(manifest.getCreatedAt()))
+                .manifestCreatedAt(ApiDateTimeFormatter.formatUtc(manifest.getCreatedAt()))
                 .manifestHash(manifest.getManifestHash())
                 .issuer(evidenceManifestProperties.getIssuer())
                 .build();
@@ -239,140 +242,9 @@ public class EvidenceDetailService {
         return SignatureInfoDto.builder()
                 .signatureStatus(status.name())
                 .signatureAlgorithm(manifest.getSignatureAlgorithm())
-                .signedAt(formatDateTime(manifest.getSignedAt()))
+                .signedAt(ApiDateTimeFormatter.formatUtc(manifest.getSignedAt()))
                 .signerCertificateSubject(manifest.getSignerCertificateSubject())
                 .signatureValid(valid)
-                .build();
-    }
-
-    private AnalysisInfoDto toAnalysisInfo(AnalysisRequest request, AnalysisResult result) {
-        if (request == null) {
-            return AnalysisInfoDto.builder()
-                    .status("PENDING")
-                    .queueStatus("WAITING")
-                    .analysisRequestId(null)
-                    .requestedAt(null)
-                    .completedAt(null)
-                    .riskScore(null)
-                    .confidenceScore(null)
-                    .riskLevel(null)
-                    .summary("아직 분석이 요청되지 않았습니다.")
-                    .completed(false)
-                    .moduleResults(List.of())
-                    .modelScores(List.of())
-                    .evidenceItems(List.of())
-                    .frameRisks(List.of())
-                    .suspiciousSegments(List.of())
-                    .build();
-        }
-
-        String status = AnalysisStatusMapper.toApiStatus(request.getStatus());
-        String queueStatus = AnalysisStatusMapper.toQueueStatus(request.getStatus());
-        if (result == null) {
-            AnalysisInfoDto.AnalysisInfoDtoBuilder builder = AnalysisInfoDto.builder()
-                    .status(status)
-                    .queueStatus(queueStatus)
-                    .analysisRequestId(request.getAnalysisRequestId())
-                    .requestedAt(formatDateTime(request.getRequestedAt()))
-                    .completedAt(formatDateTime(request.getCompletedAt()))
-                    .riskScore(null)
-                    .confidenceScore(null)
-                    .riskLevel(null)
-                    .summary(pendingSummary(status))
-                    .completed(false)
-                    .moduleResults(List.of())
-                    .modelScores(List.of())
-                    .evidenceItems(List.of())
-                    .frameRisks(List.of())
-                    .suspiciousSegments(List.of());
-            if ("FAILED".equals(status)) {
-                builder.errorCode(request.getErrorCode())
-                        .errorMessage(request.getErrorMessage());
-            }
-            return builder.build();
-        }
-
-        List<AnalysisModuleResult> moduleResults = analysisModuleResultRepository
-                .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
-        List<ModuleResultDto> moduleDtos = moduleResults.stream().map(this::toModuleResult).toList();
-        VideoVisualizationData visualization = extractVisualizationData(moduleResults);
-
-        return AnalysisInfoDto.builder()
-                .status(status)
-                .queueStatus(queueStatus)
-                .analysisRequestId(request.getAnalysisRequestId())
-                .requestedAt(formatDateTime(request.getRequestedAt()))
-                .completedAt(formatDateTime(result.getAnalyzedAt()))
-                .riskScore(result.getRiskScore())
-                .confidenceScore(result.getConfidenceScore())
-                .riskLevel(result.getRiskLevel() != null ? result.getRiskLevel().name() : null)
-                .summary(result.getSummary() != null ? result.getSummary() : "분석이 완료되었습니다.")
-                .completed(true)
-                .moduleResults(moduleDtos)
-                .modelScores(toModelScores(moduleResults))
-                .evidenceItems(visualization.evidenceItems())
-                .frameRisks(visualization.frameRisks())
-                .suspiciousSegments(visualization.suspiciousSegments())
-                .build();
-    }
-
-    private List<ModelScoreDto> toModelScores(List<AnalysisModuleResult> moduleResults) {
-        return moduleResults.stream()
-                .filter(module -> !"video_timeline".equals(module.getModuleName()))
-                .map(module -> ModelScoreDto.builder()
-                        .moduleName(module.getModuleName())
-                        .detected(Boolean.TRUE.equals(module.getDetected()))
-                        .score(module.getScore() != null ? module.getScore() : 0.0)
-                        .modelName(module.getModelName())
-                        .modelVersion(module.getModelVersion())
-                        .build())
-                .toList();
-    }
-
-    private VideoVisualizationData extractVisualizationData(List<AnalysisModuleResult> moduleResults) {
-        List<FrameRiskDto> frameRisks = List.of();
-        List<SuspiciousSegmentDto> suspiciousSegments = List.of();
-        List<String> evidenceItems = List.of();
-
-        for (AnalysisModuleResult module : moduleResults) {
-            Map<String, Object> details = videoModuleDetailsReader.parse(module.getDetailsJson());
-            if (frameRisks.isEmpty()) {
-                frameRisks = videoModuleDetailsReader.readFrameRisks(details);
-            }
-            if (suspiciousSegments.isEmpty()) {
-                suspiciousSegments = videoModuleDetailsReader.readSuspiciousSegments(details);
-            }
-            if (evidenceItems.isEmpty()) {
-                evidenceItems = videoModuleDetailsReader.readEvidenceItems(details);
-            }
-        }
-
-        if (evidenceItems.isEmpty()) {
-            evidenceItems = moduleResults.stream()
-                    .map(AnalysisModuleResult::getEvidenceText)
-                    .filter(text -> text != null && !text.isBlank())
-                    .distinct()
-                    .toList();
-        }
-
-        return new VideoVisualizationData(frameRisks, suspiciousSegments, evidenceItems);
-    }
-
-    private record VideoVisualizationData(
-            List<FrameRiskDto> frameRisks,
-            List<SuspiciousSegmentDto> suspiciousSegments,
-            List<String> evidenceItems
-    ) {}
-
-    private ModuleResultDto toModuleResult(AnalysisModuleResult moduleResult) {
-        return ModuleResultDto.builder()
-                .moduleName(moduleResult.getModuleName())
-                .detected(Boolean.TRUE.equals(moduleResult.getDetected()))
-                .score(moduleResult.getScore() != null ? moduleResult.getScore() : 0.0)
-                .confidence(moduleResult.getConfidence())
-                .modelName(moduleResult.getModelName())
-                .modelVersion(moduleResult.getModelVersion())
-                .details(moduleResult.getDetailsJson() != null ? moduleResult.getDetailsJson() : "{}")
                 .build();
     }
 
@@ -390,7 +262,7 @@ public class EvidenceDetailService {
                 .eventType(log.getActionType())
                 .userId(actor)
                 .description(log.getReason() != null ? log.getReason() : log.getActionType())
-                .createdAt(formatDateTime(log.getCreatedAt()))
+                .createdAt(ApiDateTimeFormatter.formatUtc(log.getCreatedAt()))
                 .currentLogHash(log.getCurrentLogHash())
                 .build();
     }
@@ -419,35 +291,5 @@ public class EvidenceDetailService {
             return "PENDING";
         }
         return AnalysisStatusMapper.toApiStatus(request.getStatus());
-    }
-
-    private String pendingSummary(String status) {
-        return switch (status) {
-            case "PROCESSING" -> "AI 모델이 증거를 분석하고 있습니다.";
-            case "FAILED" -> "분석 요청이 실패했습니다.";
-            case "COMPLETED" -> "분석이 완료되었습니다.";
-            default -> "분석 대기열에 등록되었습니다. AI 모델 연동 후 순차적으로 분석됩니다.";
-        };
-    }
-
-    private String formatDateTime(LocalDateTime value) {
-        return ApiDateTimeFormatter.formatUtc(value);
-    }
-
-    private String resolveCaseId(Evidence evidence) {
-        if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
-            return evidence.getCaseNumber();
-        }
-        if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
-            return evidence.getCaseName();
-        }
-        return "EVIDENCE-" + evidence.getEvidenceId();
-    }
-
-    private String shortHash(String hash) {
-        if (hash == null || hash.length() < 12) {
-            return hash;
-        }
-        return hash.substring(0, 12) + "...";
     }
 }

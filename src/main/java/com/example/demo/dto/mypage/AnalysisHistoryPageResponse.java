@@ -9,7 +9,7 @@ import java.util.List;
 @Builder
 public class AnalysisHistoryPageResponse {
 
-	private List<AnalysisHistoryItemResponse> content;
+	private List<CaseSummaryResponse> content;
 	private int page;
 	private int size;
 	private long totalElements;

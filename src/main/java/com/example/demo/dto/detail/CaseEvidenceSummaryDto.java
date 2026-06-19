@@ -11,4 +11,8 @@ public class CaseEvidenceSummaryDto {
     private String fileName;
     private String mediaType;
     private String analysisStatus;
+    private String thumbnailUrl;
+    private String previewUrl;
+    private String videoUrl;
+    private String fileUrl;
 }

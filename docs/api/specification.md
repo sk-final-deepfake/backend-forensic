@@ -1,6 +1,6 @@
 # VeriForensics API Specification
 
-> **버전:** v1.2 (기능명세서 v1.1 대비 Gap 분석 + **현재 Spring Boot 구현 정본**)  
+> **버전:** v1.7 (FE develop 연동 — CaseSummary · compare cancel · detail caseId)  
 > **기준:** `기능명세서_최종.xlsx` · `요구사항명세서_최종 (1).xlsx`  
 > **관련:** [convention.md](./convention.md) · [../guides/implementation-standards.md](../guides/implementation-standards.md) · [signup.md](./signup.md)
 
@@ -71,6 +71,11 @@
 | X.509 사본 서명 | REQ-050, DTL-075~076 | 분석 copy Manifest + **플랫폼 PKCS#8** 서명 | ✅ |
 | 블록체인 앵커 | REQ-052, DTL-078 | `GET .../blockchain` | 🟡 INF URL 대기 |
 | 대시보드 7일·최근 | DSH-044~045 | `stats/trend`, `stats/recent` | ✅ |
+| 대시보드 stats 캐시 | PER-155 | `GET .../stats` 30초 TTL · 분석 완료 시 invalidate | 🟡 실측 대기 |
+| 분석 큐 지연 | PER-154, 3.1.4 | `analysis-status` `queuePosition`/`queueDepth` · stale `ANALYSIS_TIMEOUT` | ✅ |
+| Servlet 업로드 한도 초과 | PER-154 | HTTP **413** + `FILE_TOO_LARGE` | ✅ |
+| Admin Merkle 수동 앵커 | REQ-052, 2.10.2 | `POST /api/v1/admin/blockchain/merkle/anchor` | ✅ |
+| PDF CoC 이벤트 | DTL-084~087 | `REPORT_CREATED` · `REPORT_DOWNLOADED` custody | ✅ |
 | 로그아웃 | COM-011 | 클라이언트 sessionStorage 삭제 (서버 API 불필요) | — |
 
 
@@ -179,8 +184,40 @@
 #### GET `/api/v1/mypage/analysis-history`
 
 **Auth:** User  
-**Query:** `sort=newest|oldest`, `page`, `size`  
+**Query:** `sort=newest|oldest|status`, `page`, `size`  
 **Response:** `AnalysisHistoryPageResponse` (`content`, `page`, `size`, `totalElements`, `totalPages`)
+
+**`content[]` item: `CaseSummaryResponse`** (FE `CaseSummary`와 동일 — **사건 단위 집계**)
+
+| 필드 | 타입 | 설명 |
+| :--- | :--- | :--- |
+| `caseId` | string | 사건 식별자 (`caseNumber` → `caseName` → `EVIDENCE-{id}`) |
+| `caseName` | string | 사건명 |
+| `status` | string | `PENDING` · `PROCESSING` · `COMPLETED` · `FAILED` (사건 내 증거 상태 집계) |
+| `createdAt` | string | ISO-8601 UTC — 사건 내 **가장 이른** 분석 요청 시각 |
+| `evidenceCount` | number | 해당 사건에 속한 증거 수 |
+| `representativeFileName` | string? | 최근 분석 요청 증거의 파일명 |
+| `riskScore` | number? | 사건 내 완료 분석 결과의 **최대** riskScore |
+
+```json
+{
+  "content": [
+    {
+      "caseId": "2026-서울-0123",
+      "caseName": "2026-서울-0123",
+      "status": "COMPLETED",
+      "createdAt": "2026-06-18T05:00:00Z",
+      "evidenceCount": 2,
+      "representativeFileName": "evidence-a.mp4",
+      "riskScore": 72.0
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
 
 **Alias:** `GET /api/v1/cases/me` (동일 handler)
 
@@ -244,6 +281,8 @@
   "inProgressCount": 0
 }
 ```
+
+> **RQ-PER-155:** 동일 사용자 요청은 **30초 in-memory 캐시** (`DashboardStatsCache`). 분석 완료·실패·시작 시 `invalidate`.
 
 > 업로드 미디어: **영상(VIDEO)만** 지원.
 
@@ -350,7 +389,8 @@
 
 **허용 파일:** 영상 **MP4, MOV** only (`FileValidationService`)
 
-**Errors:** `FILE_NOT_FOUND`, `UNSUPPORTED_FILE_TYPE`, `FILE_SIZE_EXCEEDED`, `HASH_GENERATION_FAILED`
+**Errors:** `FILE_NOT_FOUND`, `UNSUPPORTED_FILE_TYPE`, `FILE_SIZE_EXCEEDED`, `HASH_GENERATION_FAILED`  
+**Servlet multipart 한도 초과:** HTTP **413** + `FILE_TOO_LARGE` (`MaxUploadSizeExceededException` — `spring.servlet.multipart.max-file-size` 기준)
 
 **명세 목표 path:** `POST /api/v1/evidences/upload`
 
@@ -400,8 +440,11 @@
 | `evidenceId` | 증거 ID |
 | `analysisRequestId` | 최신 분석 요청 ID (없으면 `0`) |
 | `status` | `PENDING` · `PROCESSING` · `COMPLETED` · `FAILED` |
+| `queueStatus` | `WAITING` · `ANALYZING` · `COMPLETED` · `FAILED` (SK-923) |
 | `progressPercent` | 0~100 |
-| `errorCode` | **`FAILED`일 때만** — 예: `ANALYSIS_FAILED`, `RABBITMQ_PUBLISH_FAILED` |
+| `queuePosition` | **`status=QUEUED`(대기)일 때만** — 대기열 순번 (1부터) · WBS 3.1.4 |
+| `queueDepth` | **`status=QUEUED`일 때만** — 현재 전체 대기 건수 |
+| `errorCode` | **`FAILED`일 때만** — 예: `ANALYSIS_FAILED`, `RABBITMQ_PUBLISH_FAILED`, **`ANALYSIS_TIMEOUT`** |
 | `errorMessage` | **`FAILED`일 때만** — 실패 사유 요약 |
 
 ```json
@@ -430,6 +473,7 @@
 
 | 필드 | 설명 |
 | :--- | :--- |
+| `evidenceInfo` | `caseId` 포함 (FE `EvidenceInfo.caseId`) |
 | `manifestInfo` | **RQ-DTL-075** — 분석 사본 생성 후 Manifest 요약 (없으면 `null`) |
 | `signatureInfo` | **RQ-DTL-076** — X.509 전자서명 상태 (`signatureStatus` · `signatureValid`) |
 
@@ -588,6 +632,7 @@
 | **Path** | `caseId` = **String** (사건명/식별자) |
 
 **Response:** `CaseDetailResponse`  
+**`evidences[]` item (`CaseEvidenceSummaryDto`):** `evidenceId`, `fileName`, `mediaType`, `analysisStatus`, `thumbnailUrl?`, `previewUrl?`, `videoUrl?`, `fileUrl?` (미디어 스트리밍 API 미구현 시 `null`)  
 **Errors:** `CASE_NOT_FOUND` (404)
 
 > 명세 FE: `app/cases/[id]/page.tsx` → 이 API 호출.  
@@ -620,6 +665,19 @@
 | GET | `/api/v1/admin/me` | 관리자 프로필 |
 | PATCH | `/api/v1/admin/me` | 프로필 수정 |
 | PATCH | `/api/v1/admin/me/password` | 비밀번호 변경 |
+| POST | `/api/v1/admin/blockchain/merkle/anchor` | Merkle Root **수동** 앵커 (WBS 2.10.2) |
+
+#### POST `/api/v1/admin/blockchain/merkle/anchor`
+
+| | |
+|---|---|
+| **RQ** | RQ-REQ-052, RQ-SEC-151 |
+| **Auth** | `ROLE_ADMIN` |
+| **Query** | `batchDate` (optional, ISO date — 미지정 시 전일) |
+
+**Response 200:** `BlockchainAnchorRecordDto` (transactionHash, merkleRoot, anchoredAt, …)
+
+**Errors:** `FORBIDDEN` (403) — 일반 사용자
 
 **Admin 페이지 Response (페이지네이션):** `content`, `page`, `size`, `totalElements`, `totalPages` ([implementation-standards.md §7](../guides/implementation-standards.md))
 
@@ -678,7 +736,8 @@
 | :--- | :--- | :--- |
 | GET | `/api/v1/compare/originals` | 원본 증거 목록·검색 (`search`, `page`, `size`) |
 | GET | `/api/v1/compare/originals/{evidenceId}` | 원본 파일 기본정보 |
-| POST | `/api/v1/compare/verify` | 비교 검증 실행 (`evidenceId`, `file`) |
+| POST | `/api/v1/compare/verify` | 비교 검증 실행 (`evidenceId`, `file`, 선택 `requestId`) |
+| POST | `/api/v1/compare/cancel` | 클라이언트 취소 토큰 수신 (**204**, 동기 처리 no-op) |
 | GET | `/api/v1/compare/{compareId}` | 비교 결과 조회 |
 | GET | `/api/v1/compare/{compareId}/candidate` | 대조본 파일 기본정보 |
 | GET | `/api/v1/compare/{compareId}/reports/pdf` | 비교 PDF (원본/대조본 기본정보 섹션) |
@@ -725,7 +784,7 @@
 
 ---
 
-## 6. Quick Reference — 현재 구현 전체 (36 endpoints)
+## 6. Quick Reference — 현재 구현 전체 (38 endpoints)
 
 | # | Method | Path | Auth |
 | :---: | :--- | :--- | :--- |
@@ -766,6 +825,7 @@
 | 35 | GET | `/api/v1/admin/me` | Admin |
 | 36 | PATCH | `/api/v1/admin/me` | Admin |
 | 37 | PATCH | `/api/v1/admin/me/password` | Admin |
+| 38 | POST | `/api/v1/admin/blockchain/merkle/anchor` | Admin |
 
 ---
 
@@ -773,6 +833,8 @@
 
 | 날짜 | 버전 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-19 | v1.7 | **FE develop 연동:** analysis-history → **사건 단위 `CaseSummaryResponse`** · `POST /compare/cancel` · `evidenceInfo.caseId` · `CaseEvidenceSummaryDto` 미디어 URL 필드(nullable) |
+| 2026-06-19 | v1.6 | **Sprint 4·5:** `queuePosition`/`queueDepth` · `ANALYSIS_TIMEOUT` · `FILE_TOO_LARGE` 413 · admin Merkle 앵커 · PDF CoC `REPORT_*` · stats 캐시 |
 | 2026-06-19 | v1.5 | analysis-history **증거 단위 필드** · analyze `results[].queueRegistered` · status **`queueStatus`**(WAITING/ANALYZING) · detail CoC 검증 필드 |
 | 2026-06-19 | v1.4 | compare **originals/candidate** API · admin **suspend** · detail `moduleResults` modelName/modelVersion/confidence · §2.6 추가 |
 | 2026-06-18 | v1.3 | `GET /api/v1/admin/dashboard/analysis-stats` 추가 (RQ-ADMIN-150) |

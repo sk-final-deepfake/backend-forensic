@@ -300,6 +300,15 @@ class FeatureApiControllerTest {
     }
 
     @Test
+    void compare_cancel_returnsNoContent() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/v1/compare/cancel")
+                        .param("requestId", "client-token-123")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void evidenceAnalysisReport_pdf() throws Exception {
         AnalysisRequest request = new AnalysisRequest();
         request.setEvidenceId(evidence.getEvidenceId());

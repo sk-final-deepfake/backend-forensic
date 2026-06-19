@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -14,6 +15,42 @@ import org.springframework.stereotype.Component;
 public class VideoModuleDetailsReader {
 
     private final ObjectMapper objectMapper;
+
+    public VisualizationData readVisualization(List<AnalysisModuleResult> moduleResults) {
+        List<FrameRiskDto> frameRisks = List.of();
+        List<SuspiciousSegmentDto> suspiciousSegments = List.of();
+        List<String> evidenceItems = List.of();
+
+        for (AnalysisModuleResult module : moduleResults) {
+            Map<String, Object> details = parse(module.getDetailsJson());
+            if (frameRisks.isEmpty()) {
+                frameRisks = readFrameRisks(details);
+            }
+            if (suspiciousSegments.isEmpty()) {
+                suspiciousSegments = readSuspiciousSegments(details);
+            }
+            if (evidenceItems.isEmpty()) {
+                evidenceItems = readEvidenceItems(details);
+            }
+        }
+
+        if (evidenceItems.isEmpty()) {
+            evidenceItems = moduleResults.stream()
+                    .map(AnalysisModuleResult::getEvidenceText)
+                    .filter(text -> text != null && !text.isBlank())
+                    .distinct()
+                    .toList();
+        }
+
+        return new VisualizationData(frameRisks, suspiciousSegments, evidenceItems);
+    }
+
+    public record VisualizationData(
+            List<FrameRiskDto> frameRisks,
+            List<SuspiciousSegmentDto> suspiciousSegments,
+            List<String> evidenceItems
+    ) {
+    }
 
     public Map<String, Object> parse(String detailsJson) {
         if (detailsJson == null || detailsJson.isBlank()) {

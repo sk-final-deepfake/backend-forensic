@@ -10,6 +10,7 @@ public class EvidenceInfoDto {
     private Long evidenceId;
     private String fileName;
     private String caseName;
+    private String caseId;
     private Long fileSize;
     private String uploadedAt;
     private String mediaType;

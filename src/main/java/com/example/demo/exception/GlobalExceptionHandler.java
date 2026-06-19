@@ -11,6 +11,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.util.List;
 
@@ -78,6 +80,31 @@ public class GlobalExceptionHandler {
                         .success(false)
                         .errorCode("VALIDATION_ERROR")
                         .message("요청 값이 올바르지 않습니다.")
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<StandardErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("FILE_TOO_LARGE")
+                        .message("업로드 가능한 최대 파일 크기를 초과했습니다.")
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<StandardErrorResponse> handleMultipart(MultipartException ex) {
+        if (ex.getCause() instanceof MaxUploadSizeExceededException) {
+            return handleMaxUploadSize((MaxUploadSizeExceededException) ex.getCause());
+        }
+        return ResponseEntity.badRequest().body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("UPLOAD_FAILED")
+                        .message("파일 업로드 처리 중 오류가 발생했습니다.")
                         .build()
         );
     }

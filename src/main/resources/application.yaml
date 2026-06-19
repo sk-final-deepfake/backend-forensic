@@ -70,6 +70,9 @@ analysis:
   worker:
     mode: ${ANALYSIS_WORKER_MODE:local}
     step-delay-ms: ${ANALYSIS_WORKER_STEP_DELAY_MS:600}
+    stale-timeout-minutes: ${ANALYSIS_STALE_TIMEOUT_MINUTES:120}
+    stale-reaper-enabled: ${ANALYSIS_STALE_REAPER_ENABLED:true}
+    stale-reaper-interval-ms: ${ANALYSIS_STALE_REAPER_INTERVAL_MS:300000}
   frame:
     extraction-interval-sec: ${ANALYSIS_FRAME_INTERVAL_SEC:1.0}
     high-risk-frame-score-threshold: ${ANALYSIS_FRAME_HIGH_RISK_THRESHOLD:0.70}
