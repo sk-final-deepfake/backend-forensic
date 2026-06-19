@@ -62,7 +62,7 @@
 | `FN-CMP-102-BE` | `RQ-CMP-102` | 항목별 비교표 표시 | `controller/` · `service/` | ⬜ |
 | `FN-CMP-103-BE` | `RQ-CMP-103` | 블록체인 등록 해시 대조 | `controller/` · `service/` | ⬜ |
 | `FN-CMP-104-BE` | `RQ-CMP-104` | 비교검증 PDF 다운로드 | `controller/` · `service/` | ⬜ |
-| `FN-DSH-041-BE` | `RQ-DSH-041` | 서비스 소개 및 바로가기 | `controller/` · `service/` | — (FE 주도) |
+| `FN-DSH-041-BE` | `RQ-DSH-041` | 서비스 소개 및 바로가기 | `EvidenceController` · `DashboardIntroService` | ✅ |
 | `FN-DSH-042-BE` | `RQ-DSH-042` | 프로세스 단계 시각화 | `controller/` · `service/` | — (FE 주도) |
 | `FN-DSH-043-BE` | `RQ-DSH-043` | 실시간 현황 통계 카드 | `controller/` · `service/` | ✅ |
 | `FN-DTL-053-BE` | `RQ-DTL-053` | 분석 결과 상세페이지 접근 | CaseController | ✅ |

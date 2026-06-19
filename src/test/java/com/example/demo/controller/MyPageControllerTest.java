@@ -123,7 +123,10 @@ class MyPageControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.content[0].caseId").value("12121212"))
 				.andExpect(jsonPath("$.content[0].caseId").value(not(String.valueOf(evidence.getEvidenceId()))))
-				.andExpect(jsonPath("$.content[0].caseName").value("12121212"));
+				.andExpect(jsonPath("$.content[0].caseName").value("12121212"))
+				.andExpect(jsonPath("$.content[0].fileName").value("case-name-only.mp4"))
+				.andExpect(jsonPath("$.content[0].queueStatus").value("WAITING"))
+				.andExpect(jsonPath("$.content[0].completed").value(false));
 
 		mockMvc.perform(get("/api/v1/cases")
 						.param("caseKey", "12121212")

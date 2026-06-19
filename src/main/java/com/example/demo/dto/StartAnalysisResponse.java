@@ -14,4 +14,6 @@ public class StartAnalysisResponse {
     private String caseName;
     private int startedCount;
     private List<Long> evidenceIds;
+    /** 증거별 큐 등록 결과 (SK-921) */
+    private List<AnalysisStartResultItem> results;
 }

@@ -5,6 +5,7 @@ import com.example.demo.dto.CocChainVerifyResponse;
 import com.example.demo.dto.IntegrityVerifyResponse;
 import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.dto.AnalysisTrendResponse;
+import com.example.demo.dto.DashboardIntroResponse;
 import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.dto.RecentAnalysisResponse;
@@ -18,6 +19,7 @@ import com.example.demo.service.AnalysisService;
 import com.example.demo.service.AnalysisStatusService;
 import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
+import com.example.demo.service.DashboardIntroService;
 import com.example.demo.service.EvidenceStatsService;
 import com.example.demo.service.FileService;
 import com.example.demo.service.BlockchainAnchorService;
@@ -47,6 +49,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class EvidenceController {
 
     private final FileService fileService;
+    private final DashboardIntroService dashboardIntroService;
     private final EvidenceStatsService evidenceStatsService;
     private final AnalysisService analysisService;
     private final EvidenceDetailService evidenceDetailService;
@@ -58,6 +61,13 @@ public class EvidenceController {
     private final IntegrityVerificationService integrityVerificationService;
     private final CocChainVerificationService cocChainVerificationService;
     private final AuthUserResolver authUserResolver;
+
+    @Operation(summary = "서비스 소개 및 바로가기", description = "RQ-DSH-041: 메인 대시보드 히어로 배너·CTA·핵심 가치 카드 문구를 조회합니다.")
+    @GetMapping("/dashboard/intro")
+    public DashboardIntroResponse dashboardIntro() {
+        authUserResolver.requireCurrentUser();
+        return dashboardIntroService.getIntro();
+    }
 
     @Operation(summary = "대시보드 통계", description = "RQ-DSH-043: 총 분석·딥페이크 탐지·완료·처리 중 건수를 조회합니다.")
     @GetMapping("/stats")

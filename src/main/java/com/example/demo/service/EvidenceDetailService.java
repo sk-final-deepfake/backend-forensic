@@ -23,7 +23,10 @@ import com.example.demo.dto.detail.IntegrityInfoDto;
 import com.example.demo.dto.detail.ManifestInfoDto;
 import com.example.demo.dto.detail.ModuleResultDto;
 import com.example.demo.dto.detail.SignatureInfoDto;
+import com.example.demo.dto.detail.ModelScoreDto;
 import com.example.demo.dto.detail.RecoveryScoreDto;
+import com.example.demo.dto.FrameRiskDto;
+import com.example.demo.dto.SuspiciousSegmentDto;
 import com.example.demo.dto.detail.VideoMetadataDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
@@ -33,6 +36,7 @@ import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.exception.BusinessException;
+import com.example.demo.util.AnalysisStatusMapper;
 import com.example.demo.util.ApiDateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -61,6 +65,7 @@ public class EvidenceDetailService {
     private final EvidenceManifestService evidenceManifestService;
     private final EvidenceManifestProperties evidenceManifestProperties;
     private final RecoveryScoreService recoveryScoreService;
+    private final VideoModuleDetailsReader videoModuleDetailsReader;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -84,10 +89,10 @@ public class EvidenceDetailService {
 
         return EvidenceDetailResponse.builder()
                 .evidenceInfo(toEvidenceInfo(evidence, metadata))
-                .integrityInfo(toIntegrityInfo(evidence, isChainValid, recovery))
+                .integrityInfo(toIntegrityInfo(evidence, isChainValid, recovery, custodyLogs.size()))
                 .manifestInfo(toManifestInfo(evidence, manifest))
                 .signatureInfo(toSignatureInfo(manifest))
-                .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidenceId))
+                .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidence))
                 .analysisInfo(toAnalysisInfo(request, result))
                 .cocLogs(toCocLogs(custodyLogs))
                 .build();
@@ -173,7 +178,12 @@ public class EvidenceDetailService {
                 .build();
     }
 
-    private IntegrityInfoDto toIntegrityInfo(Evidence evidence, boolean isChainValid, RecoveryScoreDto recovery) {
+    private IntegrityInfoDto toIntegrityInfo(
+            Evidence evidence,
+            boolean isChainValid,
+            RecoveryScoreDto recovery,
+            int cocLogCount
+    ) {
         return IntegrityInfoDto.builder()
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
@@ -185,6 +195,11 @@ public class EvidenceDetailService {
                 .recoveryScore(recovery.getRecoveryScore())
                 .dataLossPercent(recovery.getDataLossPercent())
                 .recoveryGrade(recovery.getGrade())
+                .cocLogCount(cocLogCount)
+                .cocChainVerified(isChainValid)
+                .cocVerificationMessage(isChainValid
+                        ? "CoC 해시 체인이 유효합니다."
+                        : "CoC 해시 체인 검증에 실패했습니다.")
                 .build();
     }
 
@@ -234,50 +249,129 @@ public class EvidenceDetailService {
         if (request == null) {
             return AnalysisInfoDto.builder()
                     .status("PENDING")
+                    .queueStatus("WAITING")
+                    .analysisRequestId(null)
                     .requestedAt(null)
                     .completedAt(null)
                     .riskScore(null)
                     .confidenceScore(null)
                     .riskLevel(null)
                     .summary("아직 분석이 요청되지 않았습니다.")
+                    .completed(false)
                     .moduleResults(List.of())
+                    .modelScores(List.of())
+                    .evidenceItems(List.of())
+                    .frameRisks(List.of())
+                    .suspiciousSegments(List.of())
                     .build();
         }
 
-        String status = toDetailStatus(request.getStatus());
+        String status = AnalysisStatusMapper.toApiStatus(request.getStatus());
+        String queueStatus = AnalysisStatusMapper.toQueueStatus(request.getStatus());
         if (result == null) {
-            return AnalysisInfoDto.builder()
+            AnalysisInfoDto.AnalysisInfoDtoBuilder builder = AnalysisInfoDto.builder()
                     .status(status)
+                    .queueStatus(queueStatus)
+                    .analysisRequestId(request.getAnalysisRequestId())
                     .requestedAt(formatDateTime(request.getRequestedAt()))
                     .completedAt(formatDateTime(request.getCompletedAt()))
                     .riskScore(null)
                     .confidenceScore(null)
                     .riskLevel(null)
                     .summary(pendingSummary(status))
+                    .completed(false)
                     .moduleResults(List.of())
-                    .build();
+                    .modelScores(List.of())
+                    .evidenceItems(List.of())
+                    .frameRisks(List.of())
+                    .suspiciousSegments(List.of());
+            if ("FAILED".equals(status)) {
+                builder.errorCode(request.getErrorCode())
+                        .errorMessage(request.getErrorMessage());
+            }
+            return builder.build();
         }
 
         List<AnalysisModuleResult> moduleResults = analysisModuleResultRepository
                 .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
+        List<ModuleResultDto> moduleDtos = moduleResults.stream().map(this::toModuleResult).toList();
+        VideoVisualizationData visualization = extractVisualizationData(moduleResults);
 
         return AnalysisInfoDto.builder()
                 .status(status)
+                .queueStatus(queueStatus)
+                .analysisRequestId(request.getAnalysisRequestId())
                 .requestedAt(formatDateTime(request.getRequestedAt()))
                 .completedAt(formatDateTime(result.getAnalyzedAt()))
                 .riskScore(result.getRiskScore())
                 .confidenceScore(result.getConfidenceScore())
                 .riskLevel(result.getRiskLevel() != null ? result.getRiskLevel().name() : null)
                 .summary(result.getSummary() != null ? result.getSummary() : "분석이 완료되었습니다.")
-                .moduleResults(moduleResults.stream().map(this::toModuleResult).toList())
+                .completed(true)
+                .moduleResults(moduleDtos)
+                .modelScores(toModelScores(moduleResults))
+                .evidenceItems(visualization.evidenceItems())
+                .frameRisks(visualization.frameRisks())
+                .suspiciousSegments(visualization.suspiciousSegments())
                 .build();
     }
+
+    private List<ModelScoreDto> toModelScores(List<AnalysisModuleResult> moduleResults) {
+        return moduleResults.stream()
+                .filter(module -> !"video_timeline".equals(module.getModuleName()))
+                .map(module -> ModelScoreDto.builder()
+                        .moduleName(module.getModuleName())
+                        .detected(Boolean.TRUE.equals(module.getDetected()))
+                        .score(module.getScore() != null ? module.getScore() : 0.0)
+                        .modelName(module.getModelName())
+                        .modelVersion(module.getModelVersion())
+                        .build())
+                .toList();
+    }
+
+    private VideoVisualizationData extractVisualizationData(List<AnalysisModuleResult> moduleResults) {
+        List<FrameRiskDto> frameRisks = List.of();
+        List<SuspiciousSegmentDto> suspiciousSegments = List.of();
+        List<String> evidenceItems = List.of();
+
+        for (AnalysisModuleResult module : moduleResults) {
+            Map<String, Object> details = videoModuleDetailsReader.parse(module.getDetailsJson());
+            if (frameRisks.isEmpty()) {
+                frameRisks = videoModuleDetailsReader.readFrameRisks(details);
+            }
+            if (suspiciousSegments.isEmpty()) {
+                suspiciousSegments = videoModuleDetailsReader.readSuspiciousSegments(details);
+            }
+            if (evidenceItems.isEmpty()) {
+                evidenceItems = videoModuleDetailsReader.readEvidenceItems(details);
+            }
+        }
+
+        if (evidenceItems.isEmpty()) {
+            evidenceItems = moduleResults.stream()
+                    .map(AnalysisModuleResult::getEvidenceText)
+                    .filter(text -> text != null && !text.isBlank())
+                    .distinct()
+                    .toList();
+        }
+
+        return new VideoVisualizationData(frameRisks, suspiciousSegments, evidenceItems);
+    }
+
+    private record VideoVisualizationData(
+            List<FrameRiskDto> frameRisks,
+            List<SuspiciousSegmentDto> suspiciousSegments,
+            List<String> evidenceItems
+    ) {}
 
     private ModuleResultDto toModuleResult(AnalysisModuleResult moduleResult) {
         return ModuleResultDto.builder()
                 .moduleName(moduleResult.getModuleName())
                 .detected(Boolean.TRUE.equals(moduleResult.getDetected()))
                 .score(moduleResult.getScore() != null ? moduleResult.getScore() : 0.0)
+                .confidence(moduleResult.getConfidence())
+                .modelName(moduleResult.getModelName())
+                .modelVersion(moduleResult.getModelVersion())
                 .details(moduleResult.getDetailsJson() != null ? moduleResult.getDetailsJson() : "{}")
                 .build();
     }
@@ -324,21 +418,7 @@ public class EvidenceDetailService {
         if (request == null) {
             return "PENDING";
         }
-        return switch (request.getStatus()) {
-            case QUEUED -> "PENDING";
-            case ANALYZING -> "PROCESSING";
-            case COMPLETED -> "COMPLETED";
-            case FAILED -> "FAILED";
-        };
-    }
-
-    private String toDetailStatus(AnalysisStatus status) {
-        return switch (status) {
-            case QUEUED -> "PENDING";
-            case ANALYZING -> "PROCESSING";
-            case COMPLETED -> "COMPLETED";
-            case FAILED -> "FAILED";
-        };
+        return AnalysisStatusMapper.toApiStatus(request.getStatus());
     }
 
     private String pendingSummary(String status) {

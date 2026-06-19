@@ -2,6 +2,7 @@ package com.example.demo.domain;
 
 import com.example.demo.domain.enums.DateDisplayFormat;
 import com.example.demo.domain.enums.ListViewMode;
+import com.example.demo.domain.enums.ThemeMode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -41,6 +42,10 @@ public class UserSetting {
     @Enumerated(EnumType.STRING)
     @Column(name = "list_view_mode", nullable = false, length = 10)
     private ListViewMode listViewMode = ListViewMode.TABLE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "theme_mode", nullable = false, length = 10)
+    private ThemeMode themeMode = ThemeMode.SYSTEM;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;

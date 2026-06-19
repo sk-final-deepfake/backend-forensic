@@ -3,8 +3,10 @@ package com.example.demo.service;
 import com.example.demo.domain.UserSetting;
 import com.example.demo.domain.enums.DateDisplayFormat;
 import com.example.demo.domain.enums.ListViewMode;
+import com.example.demo.domain.enums.ThemeMode;
 import com.example.demo.dto.user.UpdateUserSettingsRequest;
 import com.example.demo.dto.user.UserSettingsResponse;
+import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.UserSettingRepository;
 import com.example.demo.util.ApiDateTimeFormatter;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,7 @@ import java.time.LocalDateTime;
 public class UserSettingsService {
 
     private final UserSettingRepository userSettingRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public UserSettingsResponse getSettings(Long userId) {
@@ -38,6 +41,10 @@ public class UserSettingsService {
         if (request.getListViewMode() != null) {
             setting.setListViewMode(request.getListViewMode());
         }
+        if (request.getThemeMode() != null) {
+            setting.setThemeMode(request.getThemeMode());
+            syncUserDarkMode(userId, request.getThemeMode());
+        }
         setting.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(userSettingRepository.save(setting));
@@ -46,6 +53,11 @@ public class UserSettingsService {
     @Transactional(readOnly = true)
     public boolean isAnalysisNotificationEnabled(Long userId) {
         return resolveSettings(userId).isAnalysisCompleteNotificationEnabled();
+    }
+
+    @Transactional(readOnly = true)
+    public ThemeMode getThemeMode(Long userId) {
+        return resolveSettings(userId).getThemeMode();
     }
 
     private UserSetting resolveSettings(Long userId) {
@@ -64,8 +76,25 @@ public class UserSettingsService {
         setting.setDateDisplayFormat(DateDisplayFormat.ISO);
         setting.setAnalysisCompleteNotificationEnabled(true);
         setting.setListViewMode(ListViewMode.TABLE);
+        setting.setThemeMode(resolveInitialTheme(userId));
         setting.setUpdatedAt(LocalDateTime.now());
         return setting;
+    }
+
+    private ThemeMode resolveInitialTheme(Long userId) {
+        return userRepository.findById(userId)
+                .map(user -> Boolean.TRUE.equals(user.getDarkMode()) ? ThemeMode.DARK : ThemeMode.SYSTEM)
+                .orElse(ThemeMode.SYSTEM);
+    }
+
+    private void syncUserDarkMode(Long userId, ThemeMode themeMode) {
+        userRepository.findById(userId).ifPresent(user -> {
+            if (themeMode == ThemeMode.DARK) {
+                user.updateDarkMode(true);
+            } else if (themeMode == ThemeMode.LIGHT) {
+                user.updateDarkMode(false);
+            }
+        });
     }
 
     private UserSettingsResponse toResponse(UserSetting setting) {
@@ -73,6 +102,7 @@ public class UserSettingsService {
                 .dateDisplayFormat(setting.getDateDisplayFormat())
                 .analysisCompleteNotificationEnabled(setting.isAnalysisCompleteNotificationEnabled())
                 .listViewMode(setting.getListViewMode())
+                .themeMode(setting.getThemeMode())
                 .updatedAt(ApiDateTimeFormatter.formatUtc(setting.getUpdatedAt()))
                 .build();
     }

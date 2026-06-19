@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.compare.CompareFileInfoDto;
+import com.example.demo.dto.compare.CompareOriginalPageResponse;
 import com.example.demo.dto.compare.CompareResultResponse;
 import com.example.demo.dto.compare.CompareVerifyResponse;
 import com.example.demo.security.AuthUserResolver;
@@ -30,6 +32,30 @@ public class CompareController {
     private final ReportPdfService reportPdfService;
     private final AuthUserResolver authUserResolver;
 
+    @Operation(summary = "비교용 원본 증거 목록", description = "RQ-CMP-091: 등록된 원본 증거 검색·선택")
+    @GetMapping("/originals")
+    public CompareOriginalPageResponse listOriginals(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return compareVerificationService.listOriginals(
+                authUserResolver.requireCurrentUser(),
+                search,
+                page,
+                size
+        );
+    }
+
+    @Operation(summary = "원본 증거 파일 정보", description = "SK-954: 비교 검증 전 원본 파일 기본정보 조회")
+    @GetMapping("/originals/{evidenceId}")
+    public CompareFileInfoDto getOriginalFileInfo(@PathVariable Long evidenceId) {
+        return compareVerificationService.getOriginalFileInfo(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
+    }
+
     @Operation(summary = "비교 검증 실행", description = "원본 증거와 업로드한 대상 파일의 해시·메타데이터를 비교합니다.")
     @PostMapping(value = "/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CompareVerifyResponse verify(
@@ -47,6 +73,15 @@ public class CompareController {
     @GetMapping("/{compareId}")
     public CompareResultResponse getResult(@PathVariable Long compareId) {
         return compareVerificationService.getResult(
+                authUserResolver.requireCurrentUser(),
+                compareId
+        );
+    }
+
+    @Operation(summary = "대조본 파일 정보", description = "SK-955: 비교 검증 대상(대조본) 파일 기본정보 조회")
+    @GetMapping("/{compareId}/candidate")
+    public CompareFileInfoDto getCandidateFileInfo(@PathVariable Long compareId) {
+        return compareVerificationService.getCandidateFileInfo(
                 authUserResolver.requireCurrentUser(),
                 compareId
         );

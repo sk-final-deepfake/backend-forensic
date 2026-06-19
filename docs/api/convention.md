@@ -86,6 +86,7 @@ JWT: `Authorization: Bearer {token}` · Admin은 `ROLE_ADMIN` + `/api/v1/admin/*
 | 403 | `FORBIDDEN` | Admin API |
 | 404 | `NOT_FOUND`, `EVIDENCE_NOT_FOUND`, `CASE_NOT_FOUND` | 리소스 |
 | 409 | `DUPLICATE_LOGIN_ID`, `DUPLICATE_EMAIL` | signup |
+| 409 | `SIGNATURE_INVALID`, `CHAIN_INTEGRITY_FAILED`, `BLOCKCHAIN_HASH_MISMATCH` | `GET .../integrity/verify` (SK-632) |
 | 429 | `RATE_LIMIT_EXCEEDED` | Public API |
 | 500 | `INTERNAL_ERROR`, `HASH_GENERATION_FAILED` | 서버 |
 

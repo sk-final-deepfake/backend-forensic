@@ -9,6 +9,7 @@ import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.dto.AnalysisJobMessage;
+import com.example.demo.dto.AnalysisStartResultItem;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.exception.AnalysisCopyException;
@@ -18,6 +19,7 @@ import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.demo.util.AnalysisStatusMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -64,6 +66,7 @@ public class AnalysisService {
 
         LocalDateTime now = LocalDateTime.now();
         List<Long> startedEvidenceIds = new ArrayList<>();
+        List<AnalysisStartResultItem> results = new ArrayList<>();
 
         for (Evidence evidence : evidences) {
             if (analysisRequestRepository.existsByEvidenceIdAndStatus(
@@ -76,6 +79,10 @@ public class AnalysisService {
 
             if (analysisRequestRepository.existsByEvidenceIdAndStatusIn(
                     evidence.getEvidenceId(), List.of(AnalysisStatus.QUEUED, AnalysisStatus.ANALYZING))) {
+                AnalysisRequest existing = analysisRequestRepository
+                        .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
+                        .orElseThrow();
+                results.add(toStartResult(existing, evidence.getEvidenceId(), true, null, null));
                 continue;
             }
 
@@ -108,18 +115,27 @@ public class AnalysisService {
                     analysisWorkerService.markDispatchedToAi(savedRequest.getAnalysisRequestId());
                 }
                 startedEvidenceIds.add(evidence.getEvidenceId());
+                results.add(toStartResult(savedRequest, evidence.getEvidenceId(), true, null, null));
             } catch (AnalysisDispatchException ex) {
                 savedRequest.setStatus(AnalysisStatus.FAILED);
                 savedRequest.setErrorCode(ex.getErrorCode());
                 savedRequest.setErrorMessage(ex.getMessage());
                 analysisRequestRepository.save(savedRequest);
                 recordDispatchErrorLog(user, evidence, savedRequest, ex.getErrorCode(), ex.getMessage());
+                results.add(toStartResult(savedRequest, evidence.getEvidenceId(), false, ex.getErrorCode(), ex.getMessage()));
             } catch (Exception ex) {
                 savedRequest.setStatus(AnalysisStatus.FAILED);
                 savedRequest.setErrorCode(RABBITMQ_PUBLISH_FAILED);
                 savedRequest.setErrorMessage(RABBITMQ_PUBLISH_FAILURE_MESSAGE);
                 analysisRequestRepository.save(savedRequest);
                 recordQueuePublishErrorLog(user, evidence, savedRequest);
+                results.add(toStartResult(
+                        savedRequest,
+                        evidence.getEvidenceId(),
+                        false,
+                        RABBITMQ_PUBLISH_FAILED,
+                        RABBITMQ_PUBLISH_FAILURE_MESSAGE
+                ));
             }
         }
 
@@ -129,6 +145,25 @@ public class AnalysisService {
                 .caseName(trimmedCaseName)
                 .startedCount(startedEvidenceIds.size())
                 .evidenceIds(startedEvidenceIds)
+                .results(results)
+                .build();
+    }
+
+    private AnalysisStartResultItem toStartResult(
+            AnalysisRequest request,
+            Long evidenceId,
+            boolean queueRegistered,
+            String errorCode,
+            String errorMessage
+    ) {
+        return AnalysisStartResultItem.builder()
+                .evidenceId(evidenceId)
+                .analysisRequestId(request.getAnalysisRequestId())
+                .queueRegistered(queueRegistered)
+                .status(AnalysisStatusMapper.toApiStatus(request.getStatus()))
+                .queueStatus(AnalysisStatusMapper.toQueueStatus(request.getStatus()))
+                .errorCode(errorCode)
+                .errorMessage(errorMessage)
                 .build();
     }
 

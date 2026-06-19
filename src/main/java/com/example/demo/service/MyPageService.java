@@ -1,24 +1,24 @@
 package com.example.demo.service;
 
 import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.EvidenceStatus;
+import com.example.demo.dto.mypage.AnalysisHistoryItemResponse;
 import com.example.demo.dto.mypage.AnalysisHistoryPageResponse;
-import com.example.demo.dto.mypage.CaseSummaryResponse;
 import com.example.demo.repository.AnalysisRequestRepository;
+import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.util.AnalysisStatusMapper;
 import com.example.demo.util.ApiDateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,6 +36,7 @@ public class MyPageService {
 
 	private final EvidenceRepository evidenceRepository;
 	private final AnalysisRequestRepository analysisRequestRepository;
+	private final AnalysisResultRepository analysisResultRepository;
 
 	public AnalysisHistoryPageResponse getAnalysisHistory(User user, String sort, int page, int size) {
 		List<Evidence> evidences = evidenceRepository
@@ -48,33 +49,33 @@ public class MyPageService {
 
 		List<Long> evidenceIds = evidences.stream().map(Evidence::getEvidenceId).toList();
 		Map<Long, AnalysisRequest> latestRequestByEvidence = loadLatestRequests(evidenceIds);
+		Map<Long, AnalysisResult> resultByRequestId = loadResults(latestRequestByEvidence.values());
 
-		List<Evidence> analyzedEvidences = evidences.stream()
+		List<AnalysisHistoryItemResponse> items = evidences.stream()
 				.filter(evidence -> latestRequestByEvidence.containsKey(evidence.getEvidenceId()))
-				.toList();
-
-		if (analyzedEvidences.isEmpty()) {
-			return emptyPage(page, size);
-		}
-
-		Map<String, List<Evidence>> grouped = groupByCase(analyzedEvidences);
-
-		List<CaseSummaryResponse> summaries = grouped.entrySet().stream()
-				.map(entry -> toCaseSummary(entry.getKey(), entry.getValue(), latestRequestByEvidence))
+				.map(evidence -> toHistoryItem(
+						evidence,
+						latestRequestByEvidence.get(evidence.getEvidenceId()),
+						resultByRequestId.get(latestRequestByEvidence.get(evidence.getEvidenceId()).getAnalysisRequestId())
+				))
 				.sorted(buildComparator(sort))
 				.toList();
 
+		if (items.isEmpty()) {
+			return emptyPage(page, size);
+		}
+
 		int safeSize = Math.max(size, 1);
-		int fromIndex = Math.min(page * safeSize, summaries.size());
-		int toIndex = Math.min(fromIndex + safeSize, summaries.size());
-		List<CaseSummaryResponse> pageContent = summaries.subList(fromIndex, toIndex);
-		int totalPages = summaries.isEmpty() ? 0 : (int) Math.ceil((double) summaries.size() / safeSize);
+		int fromIndex = Math.min(page * safeSize, items.size());
+		int toIndex = Math.min(fromIndex + safeSize, items.size());
+		List<AnalysisHistoryItemResponse> pageContent = items.subList(fromIndex, toIndex);
+		int totalPages = items.isEmpty() ? 0 : (int) Math.ceil((double) items.size() / safeSize);
 
 		return AnalysisHistoryPageResponse.builder()
 				.content(pageContent)
 				.page(page)
 				.size(safeSize)
-				.totalElements(summaries.size())
+				.totalElements(items.size())
 				.totalPages(totalPages)
 				.build();
 	}
@@ -100,63 +101,42 @@ public class MyPageService {
 		return latest;
 	}
 
-	private Map<String, List<Evidence>> groupByCase(List<Evidence> evidences) {
-		Map<String, List<Evidence>> grouped = new LinkedHashMap<>();
-		for (Evidence evidence : evidences) {
-			String caseKey = resolveCaseId(evidence);
-			grouped.computeIfAbsent(caseKey, key -> new ArrayList<>()).add(evidence);
+	private Map<Long, AnalysisResult> loadResults(Iterable<AnalysisRequest> requests) {
+		List<Long> requestIds = new java.util.ArrayList<>();
+		for (AnalysisRequest request : requests) {
+			requestIds.add(request.getAnalysisRequestId());
 		}
-		return grouped;
+		if (requestIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, AnalysisResult> resultByRequestId = new HashMap<>();
+		for (AnalysisResult result : analysisResultRepository.findByAnalysisRequestIdIn(requestIds)) {
+			resultByRequestId.put(result.getAnalysisRequestId(), result);
+		}
+		return resultByRequestId;
 	}
 
-	private CaseSummaryResponse toCaseSummary(
-			String caseId,
-			List<Evidence> caseEvidences,
-			Map<Long, AnalysisRequest> latestRequestByEvidence
+	private AnalysisHistoryItemResponse toHistoryItem(
+			Evidence evidence,
+			AnalysisRequest request,
+			AnalysisResult result
 	) {
-		LocalDateTime createdAt = caseEvidences.stream()
-				.map(Evidence::getUploadedAt)
-				.min(LocalDateTime::compareTo)
-				.orElse(LocalDateTime.now());
-
-		String aggregateStatus = aggregateStatus(caseEvidences, latestRequestByEvidence);
-
-		return CaseSummaryResponse.builder()
-				.caseId(caseId)
-				.caseName(resolveCaseName(caseId, caseEvidences))
-				.status(aggregateStatus)
-				.createdAt(ApiDateTimeFormatter.formatUtc(createdAt))
-				.evidenceCount(caseEvidences.size())
+		AnalysisStatus status = request.getStatus();
+		return AnalysisHistoryItemResponse.builder()
+				.evidenceId(evidence.getEvidenceId())
+				.analysisRequestId(request.getAnalysisRequestId())
+				.caseId(resolveCaseId(evidence))
+				.caseName(resolveCaseName(evidence))
+				.fileName(evidence.getFileName())
+				.requestedAt(ApiDateTimeFormatter.formatUtc(request.getRequestedAt()))
+				.completedAt(result != null
+						? ApiDateTimeFormatter.formatUtc(result.getAnalyzedAt())
+						: ApiDateTimeFormatter.formatUtc(request.getCompletedAt()))
+				.status(AnalysisStatusMapper.toApiStatus(status))
+				.queueStatus(AnalysisStatusMapper.toQueueStatus(status))
+				.riskLevel(result != null && result.getRiskLevel() != null ? result.getRiskLevel().name() : null)
+				.completed(AnalysisStatusMapper.isCompleted(status))
 				.build();
-	}
-
-	private String aggregateStatus(List<Evidence> evidences, Map<Long, AnalysisRequest> latestRequestByEvidence) {
-		String result = "COMPLETED";
-
-		for (Evidence evidence : evidences) {
-			AnalysisRequest request = latestRequestByEvidence.get(evidence.getEvidenceId());
-			String evidenceStatus = toCaseStatus(request);
-			result = higherPriorityStatus(result, evidenceStatus);
-		}
-
-		return result;
-	}
-
-	private String toCaseStatus(AnalysisRequest request) {
-		if (request == null) {
-			return "PENDING";
-		}
-
-		return switch (request.getStatus()) {
-			case QUEUED -> "PENDING";
-			case ANALYZING -> "PROCESSING";
-			case COMPLETED -> "COMPLETED";
-			case FAILED -> "FAILED";
-		};
-	}
-
-	private String higherPriorityStatus(String current, String candidate) {
-		return STATUS_ORDER.get(candidate) < STATUS_ORDER.get(current) ? candidate : current;
 	}
 
 	private String resolveCaseId(Evidence evidence) {
@@ -169,24 +149,23 @@ public class MyPageService {
 		return "EVIDENCE-" + evidence.getEvidenceId();
 	}
 
-	private String resolveCaseName(String caseId, List<Evidence> caseEvidences) {
-		return caseEvidences.stream()
-				.map(Evidence::getCaseName)
-				.filter(name -> name != null && !name.isBlank())
-				.findFirst()
-				.orElse(caseId);
+	private String resolveCaseName(Evidence evidence) {
+		if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
+			return evidence.getCaseName();
+		}
+		return resolveCaseId(evidence);
 	}
 
-	private Comparator<CaseSummaryResponse> buildComparator(String sort) {
+	private Comparator<AnalysisHistoryItemResponse> buildComparator(String sort) {
 		if ("status".equalsIgnoreCase(sort)) {
 			return Comparator
-					.comparing((CaseSummaryResponse item) -> STATUS_ORDER.getOrDefault(item.getStatus(), 99))
-					.thenComparing(CaseSummaryResponse::getCreatedAt, Comparator.reverseOrder());
+					.comparing((AnalysisHistoryItemResponse item) -> STATUS_ORDER.getOrDefault(item.getStatus(), 99))
+					.thenComparing(AnalysisHistoryItemResponse::getRequestedAt, Comparator.reverseOrder());
 		}
 		if ("oldest".equalsIgnoreCase(sort)) {
-			return Comparator.comparing(CaseSummaryResponse::getCreatedAt);
+			return Comparator.comparing(AnalysisHistoryItemResponse::getRequestedAt);
 		}
 
-		return Comparator.comparing(CaseSummaryResponse::getCreatedAt, Comparator.reverseOrder());
+		return Comparator.comparing(AnalysisHistoryItemResponse::getRequestedAt, Comparator.reverseOrder());
 	}
 }

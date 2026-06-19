@@ -50,7 +50,7 @@ public class AdminUserService {
         ensurePending(target, "승인");
         target.updateStatus(UserStatus.APPROVED);
         custodyLogService.recordUserAction(admin, target, "USER_APPROVED", target.getLoginId());
-        return toStatusResponse(target);
+        return toStatusResponse(target, admin.getUserId());
     }
 
     @Transactional
@@ -59,7 +59,30 @@ public class AdminUserService {
         ensurePending(target, "반려");
         target.updateStatus(UserStatus.REJECTED);
         custodyLogService.recordUserAction(admin, target, "USER_REJECTED", target.getLoginId());
-        return toStatusResponse(target);
+        return toStatusResponse(target, admin.getUserId());
+    }
+
+    @Transactional
+    public AdminUserStatusResponse suspend(User admin, Long userId) {
+        if (admin.getUserId().equals(userId)) {
+            throw new AdminException(HttpStatus.BAD_REQUEST, "CANNOT_SUSPEND_SELF", "본인 계정은 정지할 수 없습니다.");
+        }
+
+        User target = findActiveUser(userId);
+        if (target.getStatus() == UserStatus.SUSPENDED) {
+            throw new AdminException(HttpStatus.BAD_REQUEST, "ALREADY_SUSPENDED", "이미 정지된 계정입니다.");
+        }
+        if (target.getStatus() != UserStatus.APPROVED) {
+            throw new AdminException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_USER_STATUS",
+                    "APPROVED 상태의 계정만 정지할 수 있습니다."
+            );
+        }
+
+        target.updateStatus(UserStatus.SUSPENDED);
+        custodyLogService.recordUserAction(admin, target, "USER_SUSPENDED", target.getLoginId());
+        return toStatusResponse(target, admin.getUserId());
     }
 
     @Transactional
@@ -130,10 +153,11 @@ public class AdminUserService {
                 .build();
     }
 
-    private AdminUserStatusResponse toStatusResponse(User user) {
+    private AdminUserStatusResponse toStatusResponse(User user, Long processedByUserId) {
         return AdminUserStatusResponse.builder()
                 .userId(String.valueOf(user.getUserId()))
                 .status(user.getStatus().name())
+                .processedByUserId(processedByUserId == null ? null : String.valueOf(processedByUserId))
                 .build();
     }
 }

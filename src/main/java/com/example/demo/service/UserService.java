@@ -1,6 +1,8 @@
 package com.example.demo.service;
 
 import com.example.demo.domain.User;
+import com.example.demo.domain.UserSetting;
+import com.example.demo.domain.enums.ThemeMode;
 import com.example.demo.dto.user.UpdateUserProfileRequest;
 import com.example.demo.dto.user.UserProfileResponse;
 import com.example.demo.exception.BusinessException;
@@ -22,6 +24,7 @@ public class UserService {
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final UserSettingsService userSettingsService;
 
 	@Transactional(readOnly = true)
 	public UserProfileResponse getProfile(User user) {
@@ -56,6 +59,7 @@ public class UserService {
 	}
 
 	private UserProfileResponse toResponse(User user) {
+		ThemeMode themeMode = userSettingsService.getThemeMode(user.getUserId());
 		return UserProfileResponse.builder()
 				.userId(user.getUserId())
 				.loginId(user.getLoginId())
@@ -64,7 +68,8 @@ public class UserService {
 				.department(user.getDepartment())
 				.role(user.getRole().name())
 				.status(user.getStatus().name())
-				.darkMode(Boolean.TRUE.equals(user.getDarkMode()))
+				.darkMode(themeMode == ThemeMode.DARK || Boolean.TRUE.equals(user.getDarkMode()))
+				.themeMode(themeMode)
 				.createdAt(ISO_FORMATTER.format(user.getCreatedAt()))
 				.build();
 	}

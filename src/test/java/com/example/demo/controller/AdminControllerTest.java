@@ -137,11 +137,37 @@ class AdminControllerTest {
         mockMvc.perform(post("/api/v1/admin/users/{userId}/approve", pendingUserId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("APPROVED"));
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.processedByUserId").exists());
 
         User updated = userRepository.findById(pendingUserId).orElseThrow();
         assertThat(updated.getStatus()).isEqualTo(UserStatus.APPROVED);
         assertThat(custodyLogRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void suspendApprovedUser_recordsSuspendedStatusAndBlocksLogin() throws Exception {
+        User approvedUser = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+
+        mockMvc.perform(post("/api/v1/admin/users/{userId}/suspend", approvedUser.getUserId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUSPENDED"))
+                .andExpect(jsonPath("$.processedByUserId").exists());
+
+        assertThat(userRepository.findById(approvedUser.getUserId()).orElseThrow().getStatus())
+                .isEqualTo(UserStatus.SUSPENDED);
+        assertThat(custodyLogRepository.findAll())
+                .extracting(log -> log.getActionType())
+                .contains("USER_SUSPENDED");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"loginId":"1111","password":"2222"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("ACCOUNT_SUSPENDED"));
     }
 
     @Test

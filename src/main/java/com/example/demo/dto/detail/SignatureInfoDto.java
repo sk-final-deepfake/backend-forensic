@@ -14,6 +14,6 @@ public class SignatureInfoDto {
     /** ISO-8601 UTC */
     private String signedAt;
     private String signerCertificateSubject;
-    /** 검증 가능 여부 (mock 서명 검증 결과) */
+    /** 검증 가능 여부 (플랫폼 X.509 서명 검증 결과) */
     private Boolean signatureValid;
 }
