@@ -6,6 +6,7 @@ import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.repository.EvidenceManifestRepository;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.EvidenceCaseIdResolver;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -116,7 +117,7 @@ public class EvidenceManifestService {
         body.put("manifestVersion", MANIFEST_VERSION);
         body.put("evidenceId", evidence.getEvidenceId());
         body.put("fileId", evidence.getEvidenceId());
-        body.put("caseId", resolveCaseId(evidence));
+        body.put("caseId", EvidenceCaseIdResolver.resolve(evidence));
         body.put("caseNumber", evidence.getCaseNumber());
         body.put("caseName", evidence.getCaseName());
         body.put("fileName", evidence.getFileName());
@@ -131,16 +132,6 @@ public class EvidenceManifestService {
         body.put("signer", manifestProperties.getIssuer());
         body.put("issuedAt", ApiDateTimeFormatter.formatUtc(issuedAt));
         return body;
-    }
-
-    private String resolveCaseId(Evidence evidence) {
-        if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
-            return evidence.getCaseNumber();
-        }
-        if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
-            return evidence.getCaseName();
-        }
-        return "EVIDENCE-" + evidence.getEvidenceId();
     }
 
     private String toCanonicalJson(Map<String, Object> manifestBody) {

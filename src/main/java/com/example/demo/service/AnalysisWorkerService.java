@@ -29,6 +29,7 @@ public class AnalysisWorkerService {
     private final EvidenceCopyService evidenceCopyService;
     private final NotificationService notificationService;
     private final AnalysisWorkerProperties workerProperties;
+    private final DashboardStatsCache dashboardStatsCache;
 
     public void processJob(Long analysisRequestId) {
         if (!prepareJob(analysisRequestId)) {
@@ -62,6 +63,21 @@ public class AnalysisWorkerService {
 
     public void markDispatchedToAi(Long analysisRequestId) {
         prepareJob(analysisRequestId);
+    }
+
+    public void failStaleAnalysisJob(Long analysisRequestId) {
+        AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId).orElse(null);
+        if (request == null) {
+            return;
+        }
+        if (request.getStatus() != AnalysisStatus.QUEUED && request.getStatus() != AnalysisStatus.ANALYZING) {
+            return;
+        }
+        finalizeFailedJob(
+                analysisRequestId,
+                "ANALYSIS_TIMEOUT",
+                "분석 대기 또는 처리 시간이 허용 한도를 초과했습니다."
+        );
     }
 
     public void applyAiResult(AnalysisResponseMessage response) {
@@ -135,6 +151,7 @@ public class AnalysisWorkerService {
             evidenceRepository.findById(request.getEvidenceId()).ifPresent(evidence -> {
                 analysisCustodyLogService.recordAnalysisCompleted(request, evidence, analysisResultId);
                 evidenceCopyService.deleteAnalysisCopy(evidence, request.getRequestedBy());
+                dashboardStatsCache.invalidate(request.getRequestedBy());
                 notificationService.notifyAnalysisCompleted(
                         request.getRequestedBy(),
                         evidence.getEvidenceId(),
@@ -159,6 +176,7 @@ public class AnalysisWorkerService {
             evidenceRepository.findById(request.getEvidenceId()).ifPresent(evidence -> {
                 analysisCustodyLogService.recordAnalysisFailed(request, evidence);
                 evidenceCopyService.deleteAnalysisCopy(evidence, request.getRequestedBy());
+                dashboardStatsCache.invalidate(request.getRequestedBy());
                 notificationService.notifyAnalysisFailed(
                         request.getRequestedBy(),
                         evidence.getEvidenceId(),

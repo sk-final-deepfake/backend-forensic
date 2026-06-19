@@ -1,7 +1,7 @@
 # VeriForensics 프로젝트 진행 상황
 
 > **작성일:** 2026-06-17  
-> **최종 갱신:** 2026-06-19 (완료 WBS 감사·BE 갭 보완)  
+> **최종 갱신:** 2026-06-19 (Sprint 4·5 BE 보완 · 리팩토링)  
 > **기준:** `docs/requirements/source/` Excel · **영상(VIDEO)만** 지원
 
 ---
@@ -36,9 +36,9 @@
 | :--- | :---: | :---: | :--- |
 | **요구사항 (RQ)** | 169건 | **약 55~60%** | source Excel 재추출 (2026-06-18) |
 | **기능 (FN)** | BE 115건 | **BE FN 약 65%** | [traceability.md](./requirements/traceability.md) 재생성 |
-| **REST API (BE)** | ~45 엔드포인트 | **MVP ✅** | PDF·Compare·알림·무결성검증 포함 |
+| **REST API (BE)** | ~48 엔드포인트 | **MVP ✅** | PDF·Compare·알림·무결성검증·S4-5 큐/앵커 포함 |
 | **팀 문서 (`docs/`)** | 23개 md + Excel source | **✅ 정비 완료** | [AGENTS.md](./AGENTS.md) 진입점 |
-| **테스트** | 25 test 클래스 | **✅ 전체 통과** | `./gradlew test` (112 tests) |
+| **테스트** | 30 test 클래스 | **✅ 전체 통과** | `./gradlew test` (136 tests) |
 | **배포 브랜치** | `main` | **✅ PR #25 merge (2026-06-19)** | `develop` → `main` (`f2f12fe`) |
 
 ```mermaid
@@ -69,15 +69,15 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | **X.509 사본 서명** | RQ-REQ-050, DTL-075~076 | 분석 copy Manifest + `signatureInfo` | ✅ | **단일 플랫폼 CA** (`Pkcs8ManifestSignatureService`) · PEM/Secrets Manager · INF 운영 CA 등록 🟡 |
 | **보안 무결성 알림** | RQ-SEC-153, SK-632 | detail 자동검증 · `integrity/verify` | ✅ | 서명·CoC·블록체인 불일치 시 SECURITY_ALERT (2026-06-18) |
 | **블록체인 앵커** | RQ-REQ-052, SEC-151~152 | `GET .../blockchain` | 🟡 | BE 파이프라인 ✅ · `hashValid`·`verificationMessage`·compare 해시 대조 · INF explorer URL 대기 |
-| **분석 상세** | RQ-DTL-* | cases · evidence detail | 🟡 | `moduleResults` **modelName/modelVersion/confidence** 노출 (DTL-082) · FE 합의 필요 |
+| **분석 상세** | RQ-DTL-* | cases · evidence detail | ✅ | `moduleResults` · `evidenceInfo.caseId` · case evidences URL 필드(nullable) |
 | **PDF 리포트** | RQ-DTL-084~087 | `GET .../reports/pdf` | ✅ | QR reportHash |
-| **비교 검증** | RQ-CMP-* | `/api/v1/compare/**` | ✅ | originals 목록·파일정보 API · PDF 원본/대조본 섹션 |
-| **분석 이력** | RQ-HIS-106 | `mypage/analysis-history` | 🟡 | 페이지네이션 ✅ |
+| **비교 검증** | RQ-CMP-* | `/api/v1/compare/**` | ✅ | originals · candidate · **`POST /cancel`** (FE 호환) |
+| **분석 이력** | RQ-HIS-106 | `mypage/analysis-history` | ✅ | FE `CaseSummary` 사건 단위 집계 (2026-06-19) |
 | **마이페이지** | RQ-MY-* | users/me · settings | ✅ | |
 | **관리자** | RQ-ADMIN-* | `/api/v1/admin/**` | ✅ | `POST .../users/{id}/suspend` · 승인/반려/정지 `processedByUserId` |
 | **알림** | RQ-COM-015~016 | `/api/v1/notifications` | ✅ | |
 | **환경 설정** | RQ-COM-009 | `users/me/settings` | ✅ | |
-| **성능 NFR** | RQ-PER-* | — | 🟡 | 부하·최적화 검증 미실시 |
+| **성능 NFR** | RQ-PER-* | stats 30초 캐시 · trend 배치 쿼리 | 🟡 | 부하·실측(k6) 미실시 |
 
 **범례:** ✅ 완료 · 🟡 부분 · ⬜ 미구현 · — 타 파트(FE/AI/INF) 주도
 
@@ -108,7 +108,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | GET | `/api/v1/evidences/stats/recent` | 최근 분석 위젯 |
 | POST | `/api/v1/evidences/upload` | 업로드 + SHA-256 |
 | POST | `/api/v1/evidences/analyze` | 분석 시작 |
-| GET | `/api/v1/evidences/{id}/analysis-status` | 진행률 polling |
+| GET | `/api/v1/evidences/{id}/analysis-status` | 진행률 polling · **queuePosition/queueDepth** (QUEUED) |
 | GET | `/api/v1/evidences/{id}/detail` | 증거 상세 (SEC-153 자동검증·알림, Recovery Score) |
 | GET | `/api/v1/evidences/{id}/integrity/verify` | 무결성·서명·블록체인 검증 (SK-632) |
 | GET | `/api/v1/evidences/{id}/coc/verify` | CoC 체인 검증 |
@@ -129,6 +129,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | GET | `/api/v1/admin/logs` | 감사 로그 (+ CSV export) |
 | GET/DELETE | `/api/v1/admin/evidences/**` | 증거 관리 |
 | GET/PATCH | `/api/v1/admin/me/**` | 관리자 프로필 |
+| POST | `/api/v1/admin/blockchain/merkle/anchor` | Merkle Root 수동 앵커 (WBS 2.10.2) |
 
 **상세 스키마:** [api/specification.md §2](./api/specification.md)
 
@@ -139,6 +140,7 @@ pie title 백엔드 RQ 영역별 구현 상태 (추정)
 | GET | `/api/v1/compare/originals` | 비교용 원본 증거 목록·검색 (RQ-CMP-091) |
 | GET | `/api/v1/compare/originals/{evidenceId}` | 원본 파일 기본정보 (SK-954) |
 | POST | `/api/v1/compare/verify` | 비교 검증 실행 |
+| POST | `/api/v1/compare/cancel` | 비교 검증 취소 (클라이언트 토큰, 204) |
 | GET | `/api/v1/compare/{compareId}` | 비교 결과 조회 |
 | GET | `/api/v1/compare/{compareId}/candidate` | 대조본 파일 기본정보 (SK-955) |
 | GET | `/api/v1/compare/{compareId}/reports/pdf` | 비교 PDF (원본/대조본 섹션) |
@@ -194,6 +196,18 @@ python scripts/generate_requirements_markdown.py
 ---
 
 ## 7. 최근 완료 작업
+
+### 2026-06-19 (Sprint 4·5 BE · 리팩토링)
+
+| # | 작업 | 영향 |
+| :---: | :--- | :--- |
+| 1 | **analysis-status** `queuePosition` · `queueDepth` · stale job `ANALYSIS_TIMEOUT` | SK-473 / WBS 3.1.4 |
+| 2 | **`FILE_TOO_LARGE` 413** · `AnalysisStaleJobReaper` 스케줄러 | SK-473 |
+| 3 | **`POST /api/v1/admin/blockchain/merkle/anchor`** 수동 Merkle 앵커 | SK-468 |
+| 4 | PDF **`REPORT_CREATED` / `REPORT_DOWNLOADED`** CoC | SK-486 / WBS 3.2.2 |
+| 5 | 대시보드 **stats 30초 캐시** · trend **배치 쿼리** · 분석 완료 시 invalidate | SK-487 / RQ-PER-155 |
+| 6 | `AnalysisQueueMetricsResolver` 등 서비스 분리 리팩토링 | 유지보수성 |
+| 7 | `Sprint45E2EIntegrationTest` 등 테스트 추가 | 136 tests |
 
 ### 2026-06-19 (완료 WBS 감사 · BE 갭 보완)
 
@@ -256,11 +270,12 @@ python scripts/generate_requirements_markdown.py
 
 ## 10. 다음 스프린트 제안 (BE)
 
-1. **AI result queue** E2E — mock JSON → `applyAiResult` → detail (AI 팀 연동 전)  
+1. **FE·AI 실연동 E2E** — 업로드→S3→GPU→detail 전체 플로우 (BE API는 준비됨)  
 2. **블록체인 http** — INF 게이트웨이 URL 수령 시 `BLOCKCHAIN_ANCHOR_MODE=http`  
 3. **Manifest CA Secret** — INF가 `MANIFEST_SIGNING_SECRET_ID`에 운영 PKCS#8·X.509 등록  
-4. **RTM 갱신** — traceability.md를 코드 기준으로 재작성  
-5. **레거시 alias** `/api/evidences` deprecation (FE 전환 후)
+4. **NFR 실측** — k6·응답 시간 측정 (캐시·쿼리 최적화는 반영 완료)  
+5. **RTM 갱신** — traceability.md를 코드 기준으로 재작성  
+6. **레거시 alias** `/api/evidences` deprecation (FE 전환 후)
 
 ---
 
@@ -279,6 +294,8 @@ python scripts/generate_requirements_markdown.py
 
 | 날짜 | 작성자 | 내용 |
 | :--- | :--- | :--- |
+| 2026-06-19 | — | **FE develop 연동:** analysis-history `CaseSummary` 사건 집계 · compare `POST /cancel` · detail `caseId` · case evidences URL 필드 · `CaseKeyNormalizer` 한글 caseKey · [api/specification.md v1.7](./api/specification.md) (138 tests) |
+| 2026-06-19 | — | **Sprint 4·5 BE:** queuePosition/depth · stale reaper · FILE_TOO_LARGE 413 · admin Merkle 앵커 · PDF CoC · dashboard 캐시 · §1·§2·§3·§7·§10·§12 갱신 (136 tests) |
 | 2026-06-19 | — | **완료 WBS 18건 감사 후 BE 갭 보완:** detail `moduleResults` modelName/modelVersion/confidence · admin **suspend** API + `processedByUserId` · compare **originals/candidate** API · compare PDF 원본/대조본 섹션 · §2·§3.4·§7 갱신 |
 | 2026-06-19 | — | 블록체인 상세 **`hashValid`/`verificationMessage`** · compare **BLOCKCHAIN_HASH** 앵커 해시 대조 · **`transactionExplorerUrl`** 템플릿 (`blockchain.anchor.explorer-url-template`) |
 | 2026-06-19 | — | X.509 mock 제거 → **단일 플랫폼 CA** (`Pkcs8ManifestSignatureService`) · PEM/Secrets Manager · §1·§2·§4·§8·§9·§10 갱신 |

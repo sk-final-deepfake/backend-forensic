@@ -129,6 +129,27 @@ public class BlockchainAnchorService {
         );
     }
 
+    @Transactional
+    public BlockchainAnchorRecordDto triggerMerkleRootAnchor(LocalDate batchDate) {
+        if (!properties.isEnabled()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "BLOCKCHAIN_DISABLED",
+                    "블록체인 앵커링이 비활성화되어 있습니다."
+            );
+        }
+        LocalDate targetDate = batchDate == null ? LocalDate.now().minusDays(1) : batchDate;
+        BlockchainAnchor anchor = anchorDailyMerkleRoot(targetDate);
+        if (anchor == null) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "MERKLE_ANCHOR_SKIPPED",
+                    "해당 일자의 CoC 로그가 없어 Merkle Root 앵커를 생성할 수 없습니다."
+            );
+        }
+        return toDto(anchor);
+    }
+
     @Transactional(readOnly = true)
     public BlockchainAnchorStatusResponse getEvidenceAnchorStatus(User user, Long evidenceId) {
         requireOwnedEvidence(user, evidenceId);

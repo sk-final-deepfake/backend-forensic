@@ -41,6 +41,7 @@ analysis:
   worker:
     step-delay-ms: 0
     mode: local
+    stale-reaper-enabled: false
 
 blockchain:
   anchor:

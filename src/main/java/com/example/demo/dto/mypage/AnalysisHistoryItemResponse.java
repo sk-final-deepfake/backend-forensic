@@ -19,5 +19,6 @@ public class AnalysisHistoryItemResponse {
     /** WAITING · ANALYZING · COMPLETED · FAILED (SK-923) */
     private String queueStatus;
     private String riskLevel;
+    private Double riskScore;
     private boolean completed;
 }

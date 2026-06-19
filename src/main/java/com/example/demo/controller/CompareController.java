@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -60,13 +62,24 @@ public class CompareController {
     @PostMapping(value = "/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CompareVerifyResponse verify(
             @Parameter(description = "원본 증거 ID") @RequestParam("evidenceId") Long evidenceId,
-            @Parameter(description = "비교 대상 영상 파일") @RequestParam("file") MultipartFile file
+            @Parameter(description = "비교 대상 영상 파일") @RequestParam("file") MultipartFile file,
+            @Parameter(description = "클라이언트 취소 토큰 (선택)") @RequestParam(value = "requestId", required = false) String requestId
     ) {
         return compareVerificationService.verify(
                 authUserResolver.requireCurrentUser(),
                 evidenceId,
-                file
+                file,
+                requestId
         );
+    }
+
+    @Operation(summary = "비교 검증 취소", description = "클라이언트 측 비교 검증 요청 취소를 수신합니다. 동기 처리이므로 이미 완료된 요청은 무시됩니다.")
+    @PostMapping("/cancel")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancel(
+            @Parameter(description = "클라이언트 취소 토큰") @RequestParam(value = "requestId", required = false) String requestId
+    ) {
+        compareVerificationService.cancel(requestId);
     }
 
     @Operation(summary = "비교 검증 결과 조회")

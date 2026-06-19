@@ -48,6 +48,7 @@ public class ReportPdfService {
     private final HashService hashService;
     private final ObjectMapper objectMapper;
     private final BlockchainAnchorService blockchainAnchorService;
+    private final ReportCustodyLogService reportCustodyLogService;
 
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
@@ -71,6 +72,7 @@ public class ReportPdfService {
         );
 
         byte[] pdfBytes = readStoredPdf(report.getStoragePath());
+        reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
         return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
     }
 
@@ -121,6 +123,7 @@ public class ReportPdfService {
                 "ForenShield Compare Verification Report"
         );
         byte[] pdfBytes = readStoredPdf(report.getStoragePath());
+        reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
         return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
     }
 
@@ -258,6 +261,7 @@ public class ReportPdfService {
         report.setCreatedAt(LocalDateTime.now());
         Report saved = reportRepository.save(report);
         blockchainAnchorService.anchorReportHash(saved, userId);
+        reportCustodyLogService.recordReportCreated(userId, saved);
         return saved;
     }
 
@@ -282,6 +286,7 @@ public class ReportPdfService {
         report.setCreatedAt(LocalDateTime.now());
         Report saved = reportRepository.save(report);
         blockchainAnchorService.anchorReportHash(saved, userId);
+        reportCustodyLogService.recordReportCreated(userId, saved);
         return saved;
     }
 

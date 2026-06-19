@@ -59,6 +59,10 @@ public class CompareVerificationService {
 
     @Transactional
     public CompareVerifyResponse verify(User user, Long evidenceId, MultipartFile candidateFile) {
+        return verify(user, evidenceId, candidateFile, null);
+    }
+
+    public CompareVerifyResponse verify(User user, Long evidenceId, MultipartFile candidateFile, String requestId) {
         Evidence original = evidenceRepository
                 .findByEvidenceIdAndUploaderIdAndDeletedAtIsNull(evidenceId, user.getUserId())
                 .orElseThrow(() -> new BusinessException(
@@ -420,5 +424,13 @@ public class CompareVerificationService {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("비교 결과 역직렬화에 실패했습니다.", ex);
         }
+    }
+
+    /**
+     * FE compare flow sends a client-side cancellation token.
+     * Verification runs synchronously, so there is no server-side job to abort.
+     */
+    public void cancel(String requestId) {
+        // acknowledged no-op for API compatibility
     }
 }

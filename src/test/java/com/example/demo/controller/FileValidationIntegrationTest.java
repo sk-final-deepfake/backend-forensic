@@ -12,6 +12,7 @@ import com.example.demo.service.AnalysisService;
 import com.example.demo.service.AnalysisStatusService;
 import com.example.demo.service.BlockchainAnchorService;
 import com.example.demo.service.CocChainVerificationService;
+import com.example.demo.service.DashboardIntroService;
 import com.example.demo.service.EvidenceCancelService;
 import com.example.demo.service.EvidenceDetailService;
 import com.example.demo.service.EvidenceStatsService;
@@ -47,6 +48,9 @@ class FileValidationIntegrationTest {
 
     @MockBean
     private EvidenceStatsService evidenceStatsService;
+
+    @MockBean
+    private DashboardIntroService dashboardIntroService;
 
     @MockBean
     private AnalysisService analysisService;

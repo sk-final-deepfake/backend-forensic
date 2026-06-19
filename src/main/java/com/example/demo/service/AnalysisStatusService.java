@@ -21,6 +21,7 @@ public class AnalysisStatusService {
 
     private final EvidenceRepository evidenceRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
+    private final AnalysisQueueMetricsResolver queueMetricsResolver;
 
     public AnalysisStatusResponse getStatus(User user, Long evidenceId) {
         Evidence evidence = evidenceRepository
@@ -30,19 +31,7 @@ public class AnalysisStatusService {
 
         return analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
-                .map(request -> {
-                    AnalysisStatusResponse.AnalysisStatusResponseBuilder builder = AnalysisStatusResponse.builder()
-                            .evidenceId(evidence.getEvidenceId())
-                            .analysisRequestId(request.getAnalysisRequestId())
-                            .status(AnalysisStatusMapper.toApiStatus(request.getStatus()))
-                            .queueStatus(AnalysisStatusMapper.toQueueStatus(request.getStatus()))
-                            .progressPercent(request.getProgressPercent());
-                    if (request.getStatus() == AnalysisStatus.FAILED) {
-                        builder.errorCode(request.getErrorCode())
-                                .errorMessage(request.getErrorMessage());
-                    }
-                    return builder.build();
-                })
+                .map(this::toResponse)
                 .orElseGet(() -> AnalysisStatusResponse.builder()
                         .evidenceId(evidence.getEvidenceId())
                         .analysisRequestId(0L)
@@ -50,5 +39,25 @@ public class AnalysisStatusService {
                         .queueStatus("WAITING")
                         .progressPercent(0)
                         .build());
+    }
+
+    private AnalysisStatusResponse toResponse(AnalysisRequest request) {
+        AnalysisStatusResponse.AnalysisStatusResponseBuilder builder = AnalysisStatusResponse.builder()
+                .evidenceId(request.getEvidenceId())
+                .analysisRequestId(request.getAnalysisRequestId())
+                .status(AnalysisStatusMapper.toApiStatus(request.getStatus()))
+                .queueStatus(AnalysisStatusMapper.toQueueStatus(request.getStatus()))
+                .progressPercent(request.getProgressPercent());
+
+        if (request.getStatus() == AnalysisStatus.FAILED) {
+            builder.errorCode(request.getErrorCode())
+                    .errorMessage(request.getErrorMessage());
+        }
+        AnalysisQueueMetricsResolver.QueueMetrics queueMetrics = queueMetricsResolver.resolve(request);
+        if (queueMetrics != null) {
+            builder.queueDepth(queueMetrics.queueDepth())
+                    .queuePosition(queueMetrics.queuePosition());
+        }
+        return builder.build();
     }
 }

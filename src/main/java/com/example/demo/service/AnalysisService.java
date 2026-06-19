@@ -50,6 +50,7 @@ public class AnalysisService {
     private final AnalysisWorkerProperties workerProperties;
     private final AnalysisWorkerService analysisWorkerService;
     private final AnalysisMessagingProperties messagingProperties;
+    private final DashboardStatsCache dashboardStatsCache;
 
     @Transactional
     public StartAnalysisResponse startAnalysis(User user, StartAnalysisRequest request) {
@@ -139,6 +140,7 @@ public class AnalysisService {
             }
         }
 
+        dashboardStatsCache.invalidate(user.getUserId());
         return StartAnalysisResponse.builder()
                 .success(true)
                 .message("분석 요청이 등록되었습니다.")

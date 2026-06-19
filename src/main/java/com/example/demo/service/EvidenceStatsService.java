@@ -15,6 +15,7 @@ import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.EvidenceCaseIdResolver;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -43,10 +44,16 @@ public class EvidenceStatsService {
     private final AnalysisRequestRepository analysisRequestRepository;
     private final AnalysisResultRepository analysisResultRepository;
     private final EvidenceRepository evidenceRepository;
+    private final DashboardStatsCache dashboardStatsCache;
 
-    /** RQ-DSH-043: 대시보드 통계 카드 4종 */
+    /** RQ-DSH-043 / RQ-PER-155: 대시보드 통계 카드 4종 (30초 캐시) */
     public EvidenceStatsResponse getDashboardStats(Long uploaderId) {
-        return EvidenceStatsResponse.builder()
+        EvidenceStatsResponse cached = dashboardStatsCache.get(uploaderId);
+        if (cached != null) {
+            return cached;
+        }
+
+        EvidenceStatsResponse response = EvidenceStatsResponse.builder()
                 .totalAnalysisCount(analysisRequestRepository.countTotalByUploader(uploaderId))
                 .deepfakeDetectedCount(analysisRequestRepository.countDeepfakeDetectedByUploader(uploaderId))
                 .completedCount(analysisRequestRepository.countByUploaderAndStatus(
@@ -54,6 +61,8 @@ public class EvidenceStatsService {
                 .inProgressCount(analysisRequestRepository.countByUploaderAndStatusIn(
                         uploaderId, List.of(AnalysisStatus.QUEUED, AnalysisStatus.ANALYZING)))
                 .build();
+        dashboardStatsCache.put(uploaderId, response);
+        return response;
     }
 
     /** RQ-DSH-044: 최근 N일 일별 완료 분석 건수 (꺾은선 차트용) */
@@ -67,16 +76,23 @@ public class EvidenceStatsService {
 
         LocalDate endDate = LocalDate.now();
         LocalDate startDate = endDate.minusDays(days - 1L);
-        List<AnalysisTrendPoint> points = new ArrayList<>(days);
+        LocalDateTime rangeStart = startDate.atStartOfDay();
+        LocalDateTime rangeEnd = endDate.plusDays(1).atStartOfDay();
 
+        Map<LocalDate, Long> completedByDate = analysisRequestRepository
+                .findCompletedByUploaderCompletedAtBetween(uploaderId, rangeStart, rangeEnd)
+                .stream()
+                .filter(request -> request.getCompletedAt() != null)
+                .collect(Collectors.groupingBy(
+                        request -> request.getCompletedAt().toLocalDate(),
+                        Collectors.counting()
+                ));
+
+        List<AnalysisTrendPoint> points = new ArrayList<>(days);
         for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            LocalDateTime startInclusive = date.atStartOfDay();
-            LocalDateTime endExclusive = date.plusDays(1).atStartOfDay();
-            long completedCount = analysisRequestRepository.countCompletedByUploaderCompletedAtBetween(
-                    uploaderId, startInclusive, endExclusive);
             points.add(AnalysisTrendPoint.builder()
                     .date(date.toString())
-                    .completedCount(completedCount)
+                    .completedCount(completedByDate.getOrDefault(date, 0L))
                     .build());
         }
 
@@ -160,7 +176,7 @@ public class EvidenceStatsService {
 
         return RecentAnalysisItem.builder()
                 .evidenceId(request.getEvidenceId())
-                .caseId(evidence != null ? evidence.getCaseNumber() : null)
+                .caseId(evidence != null ? EvidenceCaseIdResolver.resolve(evidence) : null)
                 .caseName(evidence != null ? evidence.getCaseName() : null)
                 .analysisRequestId(request.getAnalysisRequestId())
                 .fileName(evidence != null ? evidence.getFileName() : null)
