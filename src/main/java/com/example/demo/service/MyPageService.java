@@ -143,7 +143,9 @@ public class MyPageService {
 	}
 
 	private String toCaseStatus(AnalysisRequest request) {
-		if (request == null) {
+		// status 가 NULL 인 행이 있으면 default 없는 switch 에서 NPE → 목록 전체 500.
+		// null/미지정은 대기(PENDING)로 안전하게 처리한다.
+		if (request == null || request.getStatus() == null) {
 			return "PENDING";
 		}
 
