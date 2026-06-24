@@ -1,6 +1,5 @@
 package com.example.demo.blockchain;
 
-import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.service.HashService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -14,8 +13,11 @@ public class SimulatedBlockchainAnchorClient implements BlockchainAnchorClient {
     private final HashService hashService;
 
     @Override
-    public BlockchainAnchorResult anchor(String subjectHash, BlockchainAnchorType anchorType) {
-        String payload = "simulated-anchor|" + anchorType.name() + "|" + subjectHash;
+    public BlockchainAnchorResult anchor(BlockchainAnchorRequest request) {
+        String payload = "simulated-anchor|"
+                + request.anchorType().name()
+                + "|"
+                + request.subjectHash();
         String transactionHash = "0x" + hashService.generateSha256(payload.getBytes());
         return new BlockchainAnchorResult(transactionHash, 1L, true, null);
     }

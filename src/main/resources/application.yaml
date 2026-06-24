@@ -94,6 +94,10 @@ blockchain:
     mode: ${BLOCKCHAIN_ANCHOR_MODE:simulated}
     network: ${BLOCKCHAIN_ANCHOR_NETWORK:local-simulated}
     http-url: ${BLOCKCHAIN_ANCHOR_URL:}
+    http-api-key: ${BLOCKCHAIN_ANCHOR_HTTP_API_KEY:}
+    client-id: ${BLOCKCHAIN_ANCHOR_CLIENT_ID:forenshield-be}
+    http-connect-timeout-ms: ${BLOCKCHAIN_ANCHOR_HTTP_CONNECT_TIMEOUT_MS:5000}
+    http-read-timeout-ms: ${BLOCKCHAIN_ANCHOR_HTTP_READ_TIMEOUT_MS:30000}
     scheduler-enabled: ${BLOCKCHAIN_ANCHOR_SCHEDULER_ENABLED:true}
     daily-cron: ${BLOCKCHAIN_ANCHOR_DAILY_CRON:0 0 1 * * *}
     explorer-url-template: ${BLOCKCHAIN_EXPLORER_URL_TEMPLATE:}
