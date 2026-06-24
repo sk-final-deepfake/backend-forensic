@@ -1,7 +1,6 @@
 package com.example.demo.blockchain;
 
 import com.example.demo.config.BlockchainAnchorProperties;
-import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -17,7 +16,6 @@ import java.util.Map;
  * BE does not use Fabric SDK or wallet keys.
  */
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "blockchain.anchor.mode", havingValue = "http")
 public class HttpBlockchainAnchorClient implements BlockchainAnchorClient {
 
