@@ -39,25 +39,37 @@
 
 ---
 
-## 4. HTTP 게이트웨이 계약 (INF)
+## 4. HTTP 게이트웨이 계약 (INF — Hyperledger Fabric 등)
 
 **Request** `POST {http-url}`
 
 ```json
 {
   "subjectHash": "abc...",
-  "anchorType": "EVIDENCE_HASH"
+  "anchorType": "EVIDENCE_HASH",
+  "network": "hyperledger-fabric-forenshield",
+  "clientId": "forenshield-be",
+  "evidenceId": 123,
+  "reportId": null,
+  "merkleBatchDate": "2026-06-22",
+  "merkleLeafCount": 42
 }
 ```
+
+`evidenceId` / `reportId` / `merkleBatchDate` / `merkleLeafCount`는 타입에 따라 선택 필드.
+
+선택 헤더: `X-Api-Key` (`blockchain.anchor.http-api-key`)
 
 **Response**
 
 ```json
 {
-  "transactionHash": "0x...",
-  "blockNumber": 12345678
+  "transactionHash": "fabric-tx-id",
+  "blockNumber": 12345
 }
 ```
+
+INF 가이드: [`Infra/md/21.fabric-gateway-quickstart.md`](../../../../Infra/md/21.fabric-gateway-quickstart.md) · [`20.hyperledger-fabric-apply.md`](../../../../Infra/md/20.hyperledger-fabric-apply.md)
 
 ---
 

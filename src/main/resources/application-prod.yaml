@@ -65,10 +65,15 @@ blockchain:
   anchor:
     enabled: ${BLOCKCHAIN_ANCHOR_ENABLED:true}
     mode: ${BLOCKCHAIN_ANCHOR_MODE:http}
-    network: ${BLOCKCHAIN_ANCHOR_NETWORK:polygon}
+    network: ${BLOCKCHAIN_ANCHOR_NETWORK:hyperledger-fabric-forenshield}
     http-url: ${BLOCKCHAIN_ANCHOR_URL:}
+    http-api-key: ${BLOCKCHAIN_ANCHOR_HTTP_API_KEY:}
+    client-id: ${BLOCKCHAIN_ANCHOR_CLIENT_ID:forenshield-be}
+    http-connect-timeout-ms: ${BLOCKCHAIN_ANCHOR_HTTP_CONNECT_TIMEOUT_MS:5000}
+    http-read-timeout-ms: ${BLOCKCHAIN_ANCHOR_HTTP_READ_TIMEOUT_MS:30000}
     scheduler-enabled: true
     daily-cron: "0 0 1 * * *"
+    explorer-url-template: ${BLOCKCHAIN_EXPLORER_URL_TEMPLATE:}
 
 evidence:
   manifest:

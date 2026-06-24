@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.blockchain.BlockchainAnchorClient;
+import com.example.demo.blockchain.BlockchainAnchorRequest;
 import com.example.demo.blockchain.BlockchainAnchorResult;
 import com.example.demo.config.BlockchainAnchorProperties;
 import com.example.demo.domain.BlockchainAnchor;
@@ -243,7 +244,17 @@ public class BlockchainAnchorService {
         anchor.setCreatedAt(LocalDateTime.now());
         anchorRepository.save(anchor);
 
-        BlockchainAnchorResult result = anchorClient.anchor(subjectHash, anchorType);
+        BlockchainAnchorRequest request = new BlockchainAnchorRequest(
+                subjectHash,
+                anchorType,
+                properties.getNetwork(),
+                properties.getClientId(),
+                evidenceId,
+                reportId,
+                merkleBatchDate == null ? null : merkleBatchDate.toString(),
+                merkleLeafCount
+        );
+        BlockchainAnchorResult result = anchorClient.anchor(request);
         if (result.success()) {
             anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
             anchor.setTransactionHash(result.transactionHash());
