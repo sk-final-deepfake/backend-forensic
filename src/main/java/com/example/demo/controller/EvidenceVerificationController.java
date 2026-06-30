@@ -15,9 +15,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Evidence Verification", description = "증거 무결성·CoC·블록체인 검증 API")
+/**
+ * RQ-SEC-153 / RQ-HIS-107 / RQ-DTL-078: 무결성·CoC·블록체인 전용 API.
+ * <p>현재 FE는 {@code GET .../detail}의 embedded 필드로 대부분 충족하며, 본 컨트롤러 엔드포인트는
+ * BE 검증·Postman·향후 보안 UI용입니다. (see docs/api/specification.md §0.7)
+ */
+@Tag(name = "Evidence Verification", description = "증거 무결성·CoC·블록체인 검증 API (FE 미연동 · BE/Postman)")
 @RestController
-@RequestMapping({"/api/v1/evidences", "/api/evidences"})
+@RequestMapping(EvidenceApiPaths.BASE)
 @RequiredArgsConstructor
 public class EvidenceVerificationController {
 

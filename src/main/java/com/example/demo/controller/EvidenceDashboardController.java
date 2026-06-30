@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Evidence Dashboard", description = "증거 대시보드 API")
 @RestController
-@RequestMapping({"/api/v1/evidences", "/api/evidences"})
+@RequestMapping(EvidenceApiPaths.BASE)
 @RequiredArgsConstructor
 public class EvidenceDashboardController {
 
