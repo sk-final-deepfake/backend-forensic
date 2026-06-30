@@ -23,7 +23,7 @@ import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.enums.NotificationType;
 import com.example.demo.domain.enums.SecurityAlertCode;
 import com.example.demo.repository.EvidenceRepository;
-import com.example.demo.service.AnalysisJobEnqueuer;
+import com.example.demo.service.analysis.AnalysisJobEnqueuer;
 import com.example.demo.support.JwtTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -710,7 +710,7 @@ class EvidenceControllerTest {
         User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
         byte[] queuedBytes = "queued analysis bytes".getBytes(StandardCharsets.UTF_8);
         String originalKey = "original/queued.mp4";
-        String originalHash = new com.example.demo.service.HashService().generateSha256(queuedBytes);
+        String originalHash = new com.example.demo.service.evidence.HashService().generateSha256(queuedBytes);
         seedS3Object(originalKey, queuedBytes);
         Evidence queuedEvidence = evidenceRepository.save(Evidence.builder()
                 .uploaderId(user.getUserId())

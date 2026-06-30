@@ -2,7 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.mypage.AnalysisHistoryPageResponse;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.MyPageService;
+import com.example.demo.service.user.MyPageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

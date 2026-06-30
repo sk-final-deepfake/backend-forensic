@@ -11,7 +11,7 @@ import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.service.AnalysisWorkerService;
+import com.example.demo.service.analysis.AnalysisWorkerService;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
