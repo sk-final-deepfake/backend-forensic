@@ -1,8 +1,8 @@
 package com.example.demo.messaging;
 
 import com.example.demo.dto.AnalysisJobMessage;
-import com.example.demo.service.AnalysisJobEnqueuer;
-import com.example.demo.service.AnalysisWorkerService;
+import com.example.demo.service.analysis.AnalysisJobEnqueuer;
+import com.example.demo.service.analysis.AnalysisWorkerService;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;

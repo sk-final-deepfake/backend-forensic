@@ -2,7 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.domain.enums.OrgType;
 import com.example.demo.dto.signup.DepartmentsResponse;
-import com.example.demo.service.OrganizationService;
+import com.example.demo.service.user.OrganizationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

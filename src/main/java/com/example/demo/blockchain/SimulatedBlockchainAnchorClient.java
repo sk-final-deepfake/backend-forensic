@@ -1,6 +1,6 @@
 package com.example.demo.blockchain;
 
-import com.example.demo.service.HashService;
+import com.example.demo.service.evidence.HashService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;

@@ -4,7 +4,7 @@ import com.example.demo.dto.admin.AdminEvidenceDetailResponse;
 import com.example.demo.dto.admin.AdminEvidencePageResponse;
 import com.example.demo.dto.admin.DeleteAdminEvidenceRequest;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.AdminEvidenceService;
+import com.example.demo.service.admin.AdminEvidenceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
