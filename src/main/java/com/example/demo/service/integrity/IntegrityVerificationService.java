@@ -1,6 +1,6 @@
 package com.example.demo.service.integrity;
 
-import com.example.demo.service.custody.CustodyLogService;
+import com.example.demo.service.custody.CustodyChainVerifier;
 import com.example.demo.service.evidence.EvidenceAccessService;
 import com.example.demo.service.blockchain.BlockchainHashIntegrityEvaluator;
 import com.example.demo.service.manifest.EvidenceManifestService;
@@ -11,7 +11,6 @@ import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
-import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.SecurityAlertCode;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.dto.IntegrityCheckItem;
@@ -31,7 +30,7 @@ public class IntegrityVerificationService {
 
     private final EvidenceAccessService evidenceAccessService;
     private final EvidenceManifestService evidenceManifestService;
-    private final CustodyLogService custodyLogService;
+    private final CustodyChainVerifier custodyChainVerifier;
     private final BlockchainAnchorRepository blockchainAnchorRepository;
     private final NotificationService notificationService;
 
@@ -124,21 +123,9 @@ public class IntegrityVerificationService {
     }
 
     private IntegrityCheckItem checkCustodyChain(Long evidenceId) {
-        boolean chainValid = custodyLogService.verifyChainIntegrity(
-                CustodyTargetType.EVIDENCE, evidenceId);
-        if (chainValid) {
-            return IntegrityCheckItem.builder()
-                    .checkType("COC_CHAIN")
-                    .valid(true)
-                    .message("CoC 해시 체인이 유효합니다.")
-                    .build();
-        }
-        return IntegrityCheckItem.builder()
-                .checkType("COC_CHAIN")
-                .valid(false)
-                .errorCode(SecurityAlertCode.CHAIN_INTEGRITY_FAILED.name())
-                .message("증거 관리(CoC) 해시 체인 무결성 검증에 실패했습니다.")
-                .build();
+        return custodyChainVerifier.toIntegrityCheckItem(
+                custodyChainVerifier.verifyEvidenceChain(evidenceId)
+        );
     }
 
     private IntegrityCheckItem checkBlockchainHash(Evidence evidence) {

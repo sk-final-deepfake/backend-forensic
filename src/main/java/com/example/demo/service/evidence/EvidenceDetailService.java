@@ -2,7 +2,7 @@ package com.example.demo.service.evidence;
 
 import com.example.demo.service.analysis.AnalysisInfoAssembler;
 import com.example.demo.service.blockchain.BlockchainAnchorService;
-import com.example.demo.service.custody.CustodyLogService;
+import com.example.demo.service.custody.CustodyChainVerifier;
 import com.example.demo.service.custody.RecoveryScoreService;
 import com.example.demo.service.manifest.EvidenceManifestService;
 import com.example.demo.config.EvidenceManifestProperties;
@@ -62,7 +62,7 @@ public class EvidenceDetailService {
     private final AnalysisModuleResultRepository analysisModuleResultRepository;
     private final CustodyLogRepository custodyLogRepository;
     private final UserRepository userRepository;
-    private final CustodyLogService custodyLogService;
+    private final CustodyChainVerifier custodyChainVerifier;
     private final BlockchainAnchorService blockchainAnchorService;
     private final EvidenceManifestService evidenceManifestService;
     private final EvidenceManifestProperties evidenceManifestProperties;
@@ -119,7 +119,7 @@ public class EvidenceDetailService {
                     .map(IntegrityCheckItem::isValid)
                     .orElse(true);
         }
-        return custodyLogService.verifyChainIntegrity(CustodyTargetType.EVIDENCE, evidenceId);
+        return custodyChainVerifier.isEvidenceChainValid(evidenceId);
     }
 
     private Optional<IntegrityCheckItem> findCheck(IntegrityVerifyResponse verification, String checkType) {

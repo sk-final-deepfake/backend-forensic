@@ -13,7 +13,7 @@
 | 구분 | 판정 |
 | :--- | :--- |
 | **인증·가입·마이페이지·관리자 CRUD** | ✅ 일치 (`/api/v1`) |
-| **증거·분석 API** | ✅ v1 prefix + stats/analyze/auth **통일 완료** (legacy alias 유지) |
+| **증거·분석 API** | ✅ v1 prefix + stats/analyze/auth **통일 완료** (`/api/evidences` legacy alias 제거) |
 | **에러 JSON·예외 Handler** | ✅ `StandardErrorResponse` 단일 |
 | **Admin 페이지네이션** | ✅ `content` / `totalElements` |
 | **비교검증·PDF·알림·설정·블록체인** | ✅ **구현 완료** (INF 블록체인 http · Manifest **운영 CA Secret** 대기) |
@@ -29,8 +29,8 @@
 
 | 기능 | 기능명세서 (목표) | 현재 코드 | 상태 |
 | :--- | :--- | :--- | :--- |
-| 대시보드 통계 | `GET /api/v1/evidences/stats` | 동일 (+ legacy `/api/evidences/stats`) | ✅ |
-| 파일 업로드 | `POST /api/v1/evidences/upload` | 동일 (+ legacy) | ✅ |
+| 대시보드 통계 | `GET /api/v1/evidences/stats` | 동일 | ✅ |
+| 파일 업로드 | `POST /api/v1/evidences/upload` | 동일 | ✅ |
 | 분석 요청 | `POST /api/v1/evidences/analyze` | `{ evidenceId }` + `{ evidenceIds }` | ✅ |
 | 로그인 PENDING | HTTP 401 + `ACCOUNT_PENDING` | HTTP 401 + `errorCode` | ✅ |
 | 가입 에러 JSON | `errorCode` + `success` | `StandardErrorResponse` | ✅ |
@@ -115,12 +115,36 @@
 
 ---
 
+### 0.7 FE 연동 범위 vs BE 전용 API (2026-06)
+
+현재 **Next.js FE**(`frontend-deepfake`)가 직접 호출하는 증거 API는 [§2.3 `/api/v1/evidences`](#23-증거--분석-apiv1evidences)의 업로드·분석·상세·대시보드·리포트입니다.
+
+| API | FE 사용 | 비고 |
+| :--- | :---: | :--- |
+| `POST /api/v1/evidences/upload` | ✅ | |
+| `POST /api/v1/evidences/analyze` | ✅ | upload-only 모드 제외 시 |
+| `GET /api/v1/evidences/{id}/detail` | ✅ | |
+| `GET /api/v1/evidences/stats*` | ✅ | |
+| `GET /api/v1/evidences/{id}/analysis-status` | ✅ | polling |
+| `GET /api/v1/evidences/{id}/reports/pdf` | ✅ | |
+| `GET /api/v1/evidences/{id}/integrity/verify` | ❌ | BE 전용 · Postman · 향후 보안 UI |
+| `GET /api/v1/evidences/{id}/coc/verify` | ❌ | BE 전용 · 상세의 `cocLogs`로 대체 가능 |
+| `GET /api/v1/evidences/{id}/blockchain` | ❌ | BE 전용 · detail `blockchainInfo`에 요약 포함 |
+| `GET/PATCH /api/v1/notifications` | ❌ | BE 구현 완료 · FE 미연동 |
+| `GET/PATCH /api/v1/users/me/settings` | ❌ | BE 구현 완료 · FE 미연동 |
+
+> **리팩터링 원칙:** FE가 쓰는 경로·JSON 필드는 변경하지 않습니다. 위 ❌ API는 **문서상 BE 전용**으로 분류하며, 삭제하지 않습니다.
+
+**Legacy 경로:** `/api/evidences/*` alias는 **제거됨** (2026-06). 신규·FE 연동은 `/api/v1/evidences/*`만 사용합니다. 로그인 `POST /api/auth/login` legacy는 유지합니다.
+
+---
+
 ## 1. 공통
 
 | 항목 | 값 |
 | :--- | :--- |
 | Base URL (표준) | `/api/v1` |
-| Legacy | `/api/auth/login`, `/api/evidences/*` |
+| Legacy | `/api/auth/login` only (`/api/evidences/*` alias **removed** 2026-06) |
 | 인증 | `Authorization: Bearer {JWT}` |
 | Public | login, signup, username/check, invite validate, departments |
 | Admin | `/api/v1/admin/**` + `ROLE_ADMIN` |

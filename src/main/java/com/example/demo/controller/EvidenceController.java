@@ -34,7 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Evidence", description = "증거 관련 API")
 @RestController
-@RequestMapping({"/api/v1/evidences", "/api/evidences"})
+@RequestMapping(EvidenceApiPaths.BASE)
 @RequiredArgsConstructor
 public class EvidenceController {
 
