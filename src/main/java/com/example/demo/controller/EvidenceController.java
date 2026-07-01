@@ -1,31 +1,21 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.BlockchainAnchorStatusResponse;
-import com.example.demo.dto.CocChainVerifyResponse;
-import com.example.demo.dto.IntegrityVerifyResponse;
 import com.example.demo.dto.AnalysisStatusResponse;
-import com.example.demo.dto.AnalysisTrendResponse;
-import com.example.demo.dto.DashboardIntroResponse;
-import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.dto.FileUploadResponse;
-import com.example.demo.dto.RecentAnalysisResponse;
 import com.example.demo.dto.ReportVerifyResponse;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.AnalysisCancelService;
-import com.example.demo.service.AnalysisService;
-import com.example.demo.service.AnalysisStatusService;
-import com.example.demo.service.EvidenceCancelService;
-import com.example.demo.service.EvidenceDetailService;
-import com.example.demo.service.DashboardIntroService;
-import com.example.demo.service.EvidenceStatsService;
-import com.example.demo.service.FileService;
-import com.example.demo.service.BlockchainAnchorService;
-import com.example.demo.service.CocChainVerificationService;
-import com.example.demo.service.IntegrityVerificationService;
-import com.example.demo.service.ReportPdfService;
+import com.example.demo.service.analysis.AnalysisCancelService;
+import com.example.demo.service.analysis.AnalysisService;
+import com.example.demo.service.analysis.AnalysisStatusService;
+import com.example.demo.service.evidence.EvidenceCancelService;
+import com.example.demo.service.evidence.EvidenceDetailService;
+import com.example.demo.service.evidence.FileService;
+import com.example.demo.service.integrity.IntegrityVerificationService;
+import com.example.demo.service.integrity.EvidenceIntegrityResult;
+import com.example.demo.service.report.ReportPdfService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,60 +34,19 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Evidence", description = "증거 관련 API")
 @RestController
-@RequestMapping({"/api/v1/evidences", "/api/evidences"})
+@RequestMapping(EvidenceApiPaths.BASE)
 @RequiredArgsConstructor
 public class EvidenceController {
 
     private final FileService fileService;
-    private final DashboardIntroService dashboardIntroService;
-    private final EvidenceStatsService evidenceStatsService;
     private final AnalysisService analysisService;
     private final EvidenceDetailService evidenceDetailService;
     private final EvidenceCancelService evidenceCancelService;
     private final AnalysisCancelService analysisCancelService;
     private final AnalysisStatusService analysisStatusService;
     private final ReportPdfService reportPdfService;
-    private final BlockchainAnchorService blockchainAnchorService;
     private final IntegrityVerificationService integrityVerificationService;
-    private final CocChainVerificationService cocChainVerificationService;
     private final AuthUserResolver authUserResolver;
-
-    @Operation(summary = "서비스 소개 및 바로가기", description = "RQ-DSH-041: 메인 대시보드 히어로 배너·CTA·핵심 가치 카드 문구를 조회합니다.")
-    @GetMapping("/dashboard/intro")
-    public DashboardIntroResponse dashboardIntro() {
-        authUserResolver.requireCurrentUser();
-        return dashboardIntroService.getIntro();
-    }
-
-    @Operation(summary = "대시보드 통계", description = "RQ-DSH-043: 총 분석·딥페이크 탐지·완료·처리 중 건수를 조회합니다.")
-    @GetMapping("/stats")
-    public EvidenceStatsResponse stats() {
-        return evidenceStatsService.getDashboardStats(
-                authUserResolver.requireCurrentUser().getUserId()
-        );
-    }
-
-    @Operation(summary = "최근 분석 추이", description = "RQ-DSH-044: 최근 N일 일별 완료 분석 건수(꺾은선 차트용)를 조회합니다.")
-    @GetMapping("/stats/trend")
-    public AnalysisTrendResponse analysisTrend(
-            @Parameter(description = "조회 일수 (1~30, 기본 7)") @RequestParam(defaultValue = "7") int days
-    ) {
-        return evidenceStatsService.getAnalysisTrend(
-                authUserResolver.requireCurrentUser().getUserId(),
-                days
-        );
-    }
-
-    @Operation(summary = "최근 분석 이력", description = "RQ-DSH-045: 대시보드 위젯용 최근 분석 요청 목록(3~5건)을 조회합니다.")
-    @GetMapping("/stats/recent")
-    public RecentAnalysisResponse recentAnalyses(
-            @Parameter(description = "조회 건수 (3~5, 기본 5)") @RequestParam(defaultValue = "5") int limit
-    ) {
-        return evidenceStatsService.getRecentAnalyses(
-                authUserResolver.requireCurrentUser().getUserId(),
-                limit
-        );
-    }
 
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -155,17 +104,8 @@ public class EvidenceController {
     @GetMapping("/{evidenceId}/detail")
     public EvidenceDetailResponse getEvidenceDetail(@PathVariable Long evidenceId) {
         var user = authUserResolver.requireCurrentUser();
-        integrityVerificationService.verifyAndNotifySecurityIssues(user, evidenceId);
-        return evidenceDetailService.getEvidenceDetail(user, evidenceId);
-    }
-
-    @Operation(summary = "무결성·서명 검증", description = "RQ-SEC-153 / SK-632: Manifest 서명·CoC 체인·블록체인 해시 검증. 실패 시 409 + errorCode.")
-    @GetMapping("/{evidenceId}/integrity/verify")
-    public IntegrityVerifyResponse verifyIntegrity(@PathVariable Long evidenceId) {
-        return integrityVerificationService.verifyIntegrityOrThrow(
-                authUserResolver.requireCurrentUser(),
-                evidenceId
-        );
+        EvidenceIntegrityResult integrity = integrityVerificationService.verifyAndNotifySecurityIssues(user, evidenceId);
+        return evidenceDetailService.getEvidenceDetail(integrity.evidence(), integrity.verification());
     }
 
     @Operation(summary = "분석 시작", description = "업로드된 증거에 대한 분석을 요청합니다. evidenceId(단건) 또는 evidenceIds(복수) 중 하나를 사용합니다.")
@@ -205,21 +145,4 @@ public class EvidenceController {
         );
     }
 
-    @Operation(summary = "CoC 해시 체인 검증", description = "RQ-HIS-107: 증거 감사 로그 해시 체인 무결성 검증")
-    @GetMapping("/{evidenceId}/coc/verify")
-    public CocChainVerifyResponse verifyCocChain(@PathVariable Long evidenceId) {
-        return cocChainVerificationService.verifyEvidenceChain(
-                authUserResolver.requireCurrentUser(),
-                evidenceId
-        );
-    }
-
-    @Operation(summary = "블록체인 앵커 상태", description = "RQ-DTL-078: 원본 해시·PDF reportHash·머클 루트 앵커 상태 조회")
-    @GetMapping("/{evidenceId}/blockchain")
-    public BlockchainAnchorStatusResponse blockchainStatus(@PathVariable Long evidenceId) {
-        return blockchainAnchorService.getEvidenceAnchorStatus(
-                authUserResolver.requireCurrentUser(),
-                evidenceId
-        );
-    }
 }

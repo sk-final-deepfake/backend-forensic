@@ -275,7 +275,7 @@ python scripts/generate_requirements_markdown.py
 3. **Manifest CA Secret** — INF가 `MANIFEST_SIGNING_SECRET_ID`에 운영 PKCS#8·X.509 등록  
 4. **NFR 실측** — k6·응답 시간 측정 (캐시·쿼리 최적화는 반영 완료)  
 5. **RTM 갱신** — traceability.md를 코드 기준으로 재작성  
-6. **레거시 alias** `/api/evidences` deprecation (FE 전환 후)
+6. ~~**레거시 alias** `/api/evidences` deprecation~~ → ✅ **완료** (v1 only, `EvidenceApiPaths.BASE`)
 
 ---
 

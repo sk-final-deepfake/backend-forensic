@@ -21,9 +21,9 @@
 | :--- | :--- | :--- |
 | `POST /api/auth/login` | 동일 (legacy 유지) | ✅ |
 | `POST /api/v1/auth/signup` | 동일 | ✅ |
-| `POST /api/evidences/upload` | `POST /api/v1/evidences/upload` | 🟡 통합 예정 |
-| `POST /api/evidences/analyze` | `POST /api/v1/evidences/analyze` | 🟡 통합 예정 |
-| `GET /api/evidences/{id}/detail` | `GET /api/v1/evidences/{evidenceId}` | 🟡 |
+| `POST /api/evidences/upload` | `POST /api/v1/evidences/upload` | ✅ v1 only (legacy removed) |
+| `POST /api/evidences/analyze` | `POST /api/v1/evidences/analyze` | ✅ v1 only |
+| `GET /api/evidences/{id}/detail` | `GET /api/v1/evidences/{evidenceId}/detail` | ✅ v1 only |
 
 **규칙:** 신규 API는 **반드시 `/api/v1`** 로만 추가합니다.
 

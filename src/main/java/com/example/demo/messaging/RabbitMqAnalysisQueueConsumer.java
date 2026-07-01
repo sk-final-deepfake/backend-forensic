@@ -2,7 +2,7 @@ package com.example.demo.messaging;
 
 import com.example.demo.config.RabbitMqConfig;
 import com.example.demo.dto.AnalysisJobMessage;
-import com.example.demo.service.AnalysisWorkerService;
+import com.example.demo.service.analysis.AnalysisWorkerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
