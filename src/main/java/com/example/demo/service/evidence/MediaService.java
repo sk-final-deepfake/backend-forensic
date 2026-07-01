@@ -1,6 +1,7 @@
 package com.example.demo.service.evidence;
 
 import com.example.demo.dto.MediaMetadata;
+import com.example.demo.exception.InvalidMediaFileException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -72,15 +73,18 @@ public class MediaService {
 
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                throw new RuntimeException("ffprobe failed with exit code: " + exitCode);
+                log.error("ffprobe failed with exit code: {}", exitCode);
+                throw new InvalidMediaFileException();
             }
 
             JsonNode rootNode = objectMapper.readTree(output.toString());
             return parseMetadata(rootNode, output.toString());
 
+        } catch (InvalidMediaFileException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to extract metadata: ", e);
-            throw new RuntimeException("Invalid or corrupted media file", e);
+            throw new InvalidMediaFileException(e);
         }
     }
 
