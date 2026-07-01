@@ -34,7 +34,7 @@ public class CaseWorkflowService {
 
     @Transactional
     public String renameCase(User user, String caseKey, String newCaseName) {
-        String oldKey = requireCaseKey(caseKey);
+        String oldKey = CaseKeyNormalizer.requireCaseKey(caseKey);
         String trimmedName = newCaseName == null ? "" : newCaseName.trim();
         if (trimmedName.isBlank()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명을 입력해 주세요.");
@@ -123,7 +123,7 @@ public class CaseWorkflowService {
 
     @Transactional
     public void setRepresentativeEvidence(User user, String caseKey, Long evidenceId) {
-        String normalizedCaseKey = requireCaseKey(caseKey);
+        String normalizedCaseKey = CaseKeyNormalizer.requireCaseKey(caseKey);
         Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
         String evidenceCaseKey = EvidenceCaseIdResolver.resolve(evidence);
         if (!normalizedCaseKey.equals(evidenceCaseKey)) {
@@ -257,14 +257,6 @@ public class CaseWorkflowService {
 
     private long countActiveEvidences(List<Evidence> caseEvidences) {
         return caseEvidences.stream().filter(Evidence::isWorkflowActive).count();
-    }
-
-    private String requireCaseKey(String caseKey) {
-        String normalized = CaseKeyNormalizer.normalize(caseKey);
-        if (normalized == null || normalized.isBlank()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건 식별자가 필요합니다.");
-        }
-        return normalized;
     }
 
     private String normalizeReason(String reason, String fallback) {

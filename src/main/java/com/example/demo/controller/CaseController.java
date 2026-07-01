@@ -3,16 +3,13 @@ package com.example.demo.controller;
 import com.example.demo.dto.caseworkflow.SetRepresentativeEvidenceRequest;
 import com.example.demo.dto.caseworkflow.UpdateCaseNameRequest;
 import com.example.demo.dto.detail.CaseDetailResponse;
-import com.example.demo.exception.BusinessException;
 import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.evidence.CaseWorkflowService;
 import com.example.demo.service.evidence.EvidenceDetailService;
-import com.example.demo.util.CaseKeyNormalizer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,16 +36,10 @@ public class CaseController {
             @PathVariable(required = false) String caseId,
             @RequestParam(required = false) String caseKey
     ) {
-        String finalId = CaseKeyNormalizer.normalize(caseKey != null ? caseKey : caseId);
-
-        if (finalId == null || finalId.isBlank()) {
-            throw new BusinessException(
-                    HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건 식별자가 필요합니다.");
-        }
-
         return evidenceDetailService.getCaseDetail(
                 authUserResolver.requireCurrentUser(),
-                finalId
+                caseKey,
+                caseId
         );
     }
 
@@ -58,15 +49,9 @@ public class CaseController {
             @RequestParam String caseKey,
             @Valid @RequestBody SetRepresentativeEvidenceRequest request
     ) {
-        String finalId = CaseKeyNormalizer.normalize(caseKey);
-        if (finalId == null || finalId.isBlank()) {
-            throw new BusinessException(
-                    HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건 식별자가 필요합니다.");
-        }
-
         caseWorkflowService.setRepresentativeEvidence(
                 authUserResolver.requireCurrentUser(),
-                finalId,
+                caseKey,
                 request.getEvidenceId()
         );
         return ResponseEntity.noContent().build();
@@ -78,15 +63,9 @@ public class CaseController {
             @RequestParam String caseKey,
             @Valid @RequestBody UpdateCaseNameRequest request
     ) {
-        String finalId = CaseKeyNormalizer.normalize(caseKey);
-        if (finalId == null || finalId.isBlank()) {
-            throw new BusinessException(
-                    HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건 식별자가 필요합니다.");
-        }
-
         String newCaseKey = caseWorkflowService.renameCase(
                 authUserResolver.requireCurrentUser(),
-                finalId,
+                caseKey,
                 request.getCaseName()
         );
         return evidenceDetailService.getCaseDetail(

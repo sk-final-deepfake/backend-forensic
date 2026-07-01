@@ -40,6 +40,7 @@ import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.util.AnalysisStatusMapper;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.CaseKeyNormalizer;
 import com.example.demo.util.EvidenceCaseIdResolver;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -134,8 +135,13 @@ public class EvidenceDetailService {
                 .findFirst();
     }
 
+    public CaseDetailResponse getCaseDetail(User user, String caseKey, String pathCaseId) {
+        return getCaseDetail(user, CaseKeyNormalizer.resolveCaseKey(caseKey, pathCaseId));
+    }
+
     public CaseDetailResponse getCaseDetail(User user, String caseId) {
-        List<Evidence> evidences = evidenceRepository.findByUploaderIdAndCaseKey(user.getUserId(), caseId);
+        String normalizedCaseId = CaseKeyNormalizer.requireCaseKey(caseId);
+        List<Evidence> evidences = evidenceRepository.findByUploaderIdAndCaseKey(user.getUserId(), normalizedCaseId);
         if (evidences.isEmpty()) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
         }
@@ -152,14 +158,14 @@ public class EvidenceDetailService {
                 .map(Evidence::getCaseName)
                 .filter(name -> name != null && !name.isBlank())
                 .findFirst()
-                .orElse(caseId);
+                .orElse(normalizedCaseId);
         LocalDateTime createdAt = evidences.stream()
                 .map(Evidence::getUploadedAt)
                 .min(LocalDateTime::compareTo)
                 .orElse(LocalDateTime.now());
         String aggregateStatus = aggregateStatus(evidences, latestByEvidence);
         Long representativeEvidenceId = caseEvidencePresentationService
-                .resolveRepresentativeEvidenceId(user, caseId, evidences)
+                .resolveRepresentativeEvidenceId(user, normalizedCaseId, evidences)
                 .orElse(null);
         List<Evidence> orderedEvidences = caseEvidencePresentationService.orderForDisplay(evidences);
 
@@ -172,7 +178,7 @@ public class EvidenceDetailService {
                 .toList();
 
         return CaseDetailResponse.builder()
-                .caseId(caseId)
+                .caseId(normalizedCaseId)
                 .caseName(caseName)
                 .status(aggregateStatus)
                 .createdAt(ApiDateTimeFormatter.formatUtc(createdAt))

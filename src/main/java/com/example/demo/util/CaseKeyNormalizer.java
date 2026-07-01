@@ -1,9 +1,13 @@
 package com.example.demo.util;
 
+import com.example.demo.exception.BusinessException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import org.springframework.http.HttpStatus;
 
 public final class CaseKeyNormalizer {
+
+    private static final String MISSING_CASE_KEY_MESSAGE = "사건 식별자가 필요합니다.";
 
     private CaseKeyNormalizer() {
     }
@@ -29,5 +33,17 @@ public final class CaseKeyNormalizer {
             }
         }
         return current;
+    }
+
+    public static String resolveCaseKey(String caseKey, String pathCaseId) {
+        return requireCaseKey(caseKey != null ? caseKey : pathCaseId);
+    }
+
+    public static String requireCaseKey(String caseKey) {
+        String normalized = normalize(caseKey);
+        if (normalized == null || normalized.isBlank()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", MISSING_CASE_KEY_MESSAGE);
+        }
+        return normalized;
     }
 }
