@@ -14,5 +14,7 @@ public class CaseSummaryResponse {
 	private String createdAt;
 	private int evidenceCount;
 	private String representativeFileName;
+	private Long representativeEvidenceId;
+	private String representativeEvidenceLabel;
 	private Double riskScore;
 }

@@ -13,6 +13,7 @@ import com.example.demo.service.analysis.AnalysisStatusService;
 import com.example.demo.service.blockchain.BlockchainAnchorService;
 import com.example.demo.service.custody.CocChainVerificationService;
 import com.example.demo.service.dashboard.DashboardIntroService;
+import com.example.demo.service.evidence.CaseWorkflowService;
 import com.example.demo.service.evidence.EvidenceCancelService;
 import com.example.demo.service.evidence.EvidenceDetailService;
 import com.example.demo.service.dashboard.EvidenceStatsService;
@@ -81,6 +82,9 @@ class FileValidationIntegrationTest {
 
     @MockBean
     private CocChainVerificationService cocChainVerificationService;
+
+    @MockBean
+    private CaseWorkflowService caseWorkflowService;
 
     @MockBean
     private AuthUserResolver authUserResolver;

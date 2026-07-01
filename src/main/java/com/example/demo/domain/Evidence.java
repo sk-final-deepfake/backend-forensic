@@ -1,6 +1,8 @@
 package com.example.demo.domain;
 
 import com.example.demo.domain.enums.CopyStatus;
+import com.example.demo.domain.enums.EvidenceLifecycleStatus;
+import com.example.demo.domain.enums.EvidenceRole;
 import com.example.demo.domain.enums.EvidenceStatus;
 import com.example.demo.domain.enums.FileType;
 import jakarta.persistence.Column;
@@ -82,6 +84,23 @@ public class Evidence {
     @Column(nullable = false, length = 20)
     private EvidenceStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle_status", nullable = false, length = 20)
+    private EvidenceLifecycleStatus lifecycleStatus = EvidenceLifecycleStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "evidence_role", length = 20)
+    private EvidenceRole evidenceRole;
+
+    @Column(name = "display_label", length = 100)
+    private String displayLabel;
+
+    @Column(name = "replacement_evidence_id")
+    private Long replacementEvidenceId;
+
+    @Column(name = "excluded_reason", length = 500)
+    private String excludedReason;
+
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
 
@@ -114,6 +133,7 @@ public class Evidence {
         this.originalStoragePath = originalStoragePath;
         this.copyStatus = CopyStatus.NONE;
         this.status = EvidenceStatus.UPLOADED;
+        this.lifecycleStatus = EvidenceLifecycleStatus.ACTIVE;
         this.uploadedAt = uploadedAt;
     }
 
@@ -147,5 +167,29 @@ public class Evidence {
     public void markCopyDeleted() {
         this.copyStatus = CopyStatus.DELETED;
         this.copyDeletedAt = LocalDateTime.now();
+    }
+
+    public void exclude(String reason) {
+        this.lifecycleStatus = EvidenceLifecycleStatus.EXCLUDED;
+        this.excludedReason = reason;
+        this.evidenceRole = EvidenceRole.SUPPLEMENT;
+    }
+
+    public void markReplaced(Long replacementEvidenceId, String reason) {
+        this.lifecycleStatus = EvidenceLifecycleStatus.REPLACED;
+        this.replacementEvidenceId = replacementEvidenceId;
+        this.excludedReason = reason;
+    }
+
+    public void assignRole(EvidenceRole role) {
+        this.evidenceRole = role;
+    }
+
+    public void assignDisplayLabel(String displayLabel) {
+        this.displayLabel = displayLabel;
+    }
+
+    public boolean isWorkflowActive() {
+        return lifecycleStatus == EvidenceLifecycleStatus.ACTIVE;
     }
 }
