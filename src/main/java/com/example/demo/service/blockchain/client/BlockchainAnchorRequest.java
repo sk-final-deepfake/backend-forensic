@@ -1,4 +1,4 @@
-package com.example.demo.blockchain;
+package com.example.demo.service.blockchain.client;
 
 import com.example.demo.domain.enums.BlockchainAnchorType;
 
