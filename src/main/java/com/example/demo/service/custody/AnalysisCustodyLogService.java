@@ -6,8 +6,7 @@ import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.dto.AnalysisJobMessage;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.demo.util.JsonPayloadWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +31,7 @@ public class AnalysisCustodyLogService {
     public static final String RABBITMQ_PUBLISH_FAILURE_MESSAGE = "분석 요청 큐 등록에 실패했습니다.";
 
     private final CustodyLogService custodyLogService;
-    private final ObjectMapper objectMapper;
+    private final JsonPayloadWriter jsonPayloadWriter;
     private final AnalysisMessagingProperties messagingProperties;
 
     public void recordCopyCreated(Long actorId, Evidence evidence) {
@@ -44,7 +43,7 @@ public class AnalysisCustodyLogService {
                 evidence.getCopyHashValue(),
                 evidence.getCopyStoragePath(),
                 "분석용 증거 사본 생성",
-                toJson(copyPayload(evidence, "ACTIVE")),
+                jsonPayloadWriter.toJson(copyPayload(evidence, "ACTIVE")),
                 null
         );
     }
@@ -63,7 +62,7 @@ public class AnalysisCustodyLogService {
                 evidence.getCopyHashValue(),
                 evidence.getCopyStoragePath(),
                 "원본·사본 SHA-256 일치 검증 완료",
-                toJson(payload),
+                jsonPayloadWriter.toJson(payload),
                 null
         );
     }
@@ -80,7 +79,7 @@ public class AnalysisCustodyLogService {
                 evidence.getCopyHashValue(),
                 deletedCopyPath,
                 "분석용 증거 사본 삭제",
-                toJson(payload),
+                jsonPayloadWriter.toJson(payload),
                 null
         );
     }
@@ -111,7 +110,7 @@ public class AnalysisCustodyLogService {
                         ? evidence.getCopyStoragePath()
                         : evidence.getOriginalStoragePath(),
                 message,
-                toJson(payload),
+                jsonPayloadWriter.toJson(payload),
                 null
         );
     }
@@ -125,7 +124,7 @@ public class AnalysisCustodyLogService {
                 subjectHash(evidence),
                 storagePathForAnalysis(evidence),
                 "AI 분석 시작",
-                toJson(analysisPayload(request, evidence, "ANALYZING")),
+                jsonPayloadWriter.toJson(analysisPayload(request, evidence, "ANALYZING")),
                 null
         );
     }
@@ -142,7 +141,7 @@ public class AnalysisCustodyLogService {
                 subjectHash(evidence),
                 storagePathForAnalysis(evidence),
                 "AI 분석 완료",
-                toJson(payload),
+                jsonPayloadWriter.toJson(payload),
                 null
         );
     }
@@ -160,7 +159,7 @@ public class AnalysisCustodyLogService {
                 subjectHash(evidence),
                 storagePathForAnalysis(evidence),
                 "AI 분석 실패",
-                toJson(payload),
+                jsonPayloadWriter.toJson(payload),
                 null
         );
     }
@@ -180,7 +179,7 @@ public class AnalysisCustodyLogService {
                 evidence.getOriginalHashValue(),
                 storagePathForAnalysis(evidence),
                 "AI 분석 요청 생성 및 큐 등록 완료",
-                toJson(analysisRequestedPayload(evidence, savedRequest, caseName, message)),
+                jsonPayloadWriter.toJson(analysisRequestedPayload(evidence, savedRequest, caseName, message)),
                 null
         );
     }
@@ -202,7 +201,7 @@ public class AnalysisCustodyLogService {
                 S3_COPY_NOT_READY.equals(errorCode)
                         ? "분석용 S3 사본 확인 실패"
                         : "분석 요청 큐 등록 실패",
-                toJson(dispatchErrorPayload(evidence, savedRequest, errorCode, message)),
+                jsonPayloadWriter.toJson(dispatchErrorPayload(evidence, savedRequest, errorCode, message)),
                 null
         );
     }
@@ -216,7 +215,7 @@ public class AnalysisCustodyLogService {
                 evidence.getOriginalHashValue(),
                 evidence.getOriginalStoragePath(),
                 "분석 요청 큐 등록 실패",
-                toJson(queuePublishErrorPayload(evidence, savedRequest)),
+                jsonPayloadWriter.toJson(queuePublishErrorPayload(evidence, savedRequest)),
                 null
         );
     }
@@ -303,13 +302,5 @@ public class AnalysisCustodyLogService {
             return evidence.getCopyStoragePath();
         }
         return evidence.getOriginalStoragePath();
-    }
-
-    private String toJson(Map<String, Object> payload) {
-        try {
-            return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Failed to serialize custody log payload", ex);
-        }
     }
 }
