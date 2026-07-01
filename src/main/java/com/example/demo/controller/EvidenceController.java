@@ -1,10 +1,7 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.caseworkflow.ExcludeEvidenceRequest;
-import com.example.demo.dto.caseworkflow.SetEvidenceRoleRequest;
 import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.dto.FileUploadResponse;
-import com.example.demo.dto.ReportVerifyResponse;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
@@ -12,24 +9,20 @@ import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.analysis.AnalysisCancelService;
 import com.example.demo.service.analysis.AnalysisService;
 import com.example.demo.service.analysis.AnalysisStatusService;
-import com.example.demo.service.evidence.CaseWorkflowService;
 import com.example.demo.service.evidence.EvidenceCancelService;
 import com.example.demo.service.evidence.EvidenceDetailService;
 import com.example.demo.service.evidence.FileService;
-import com.example.demo.service.integrity.IntegrityVerificationService;
 import com.example.demo.service.integrity.EvidenceIntegrityResult;
-import com.example.demo.service.report.ReportPdfService;
+import com.example.demo.service.integrity.IntegrityVerificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,9 +42,7 @@ public class EvidenceController {
     private final EvidenceCancelService evidenceCancelService;
     private final AnalysisCancelService analysisCancelService;
     private final AnalysisStatusService analysisStatusService;
-    private final ReportPdfService reportPdfService;
     private final IntegrityVerificationService integrityVerificationService;
-    private final CaseWorkflowService caseWorkflowService;
     private final AuthUserResolver authUserResolver;
 
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
@@ -122,76 +113,4 @@ public class EvidenceController {
                 request
         );
     }
-
-    @Operation(summary = "분석 PDF 리포트 다운로드", description = "RQ-DTL-082~086: 분석 결과 PDF 리포트")
-    @GetMapping("/{evidenceId}/reports/pdf")
-    public ResponseEntity<byte[]> downloadAnalysisReport(@PathVariable Long evidenceId) {
-        ReportPdfService.ReportPdfPayload payload = reportPdfService.generateEvidenceReport(
-                authUserResolver.requireCurrentUser(),
-                evidenceId
-        );
-        return ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + payload.fileName() + "\"")
-                .header("X-Report-Hash", payload.reportHash())
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(payload.content());
-    }
-
-    @Operation(summary = "PDF reportHash 검증", description = "RQ-DTL-087: 저장된 PDF reportHash 무결성 검증")
-    @GetMapping("/{evidenceId}/reports/verify")
-    public ReportVerifyResponse verifyAnalysisReport(
-            @PathVariable Long evidenceId,
-            @RequestParam("reportHash") String reportHash
-    ) {
-        return reportPdfService.verifyReportHash(
-                authUserResolver.requireCurrentUser(),
-                evidenceId,
-                reportHash
-        );
-    }
-
-    @Operation(summary = "증거 사용 제외", description = "원본 증거를 삭제하지 않고 사용 제외(EXCLUDED) 상태로 표시합니다.")
-    @PatchMapping("/{evidenceId}/exclude")
-    public ResponseEntity<Void> excludeEvidence(
-            @PathVariable Long evidenceId,
-            @Valid @RequestBody ExcludeEvidenceRequest request
-    ) {
-        caseWorkflowService.excludeEvidence(
-                authUserResolver.requireCurrentUser(),
-                evidenceId,
-                request.getReason()
-        );
-        return ResponseEntity.noContent().build();
-    }
-
-    @Operation(summary = "대체 증거 등록", description = "기존 증거를 REPLACED로 표시하고 새 증거 파일을 업로드합니다.")
-    @PostMapping(value = "/{evidenceId}/replace", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public FileUploadResponse replaceEvidence(
-            @PathVariable Long evidenceId,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "reason", required = false) String reason
-    ) {
-        return caseWorkflowService.replaceEvidence(
-                authUserResolver.requireCurrentUser(),
-                evidenceId,
-                file,
-                reason
-        );
-    }
-
-    @Operation(summary = "증거 역할 변경", description = "증거 역할(PRIMARY/SUPPLEMENT)을 변경합니다.")
-    @PatchMapping("/{evidenceId}/role")
-    public ResponseEntity<Void> setEvidenceRole(
-            @PathVariable Long evidenceId,
-            @Valid @RequestBody SetEvidenceRoleRequest request
-    ) {
-        caseWorkflowService.setEvidenceRole(
-                authUserResolver.requireCurrentUser(),
-                evidenceId,
-                request.getRole()
-        );
-        return ResponseEntity.noContent().build();
-    }
-
 }
