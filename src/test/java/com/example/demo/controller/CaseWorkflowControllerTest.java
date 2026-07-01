@@ -26,6 +26,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -126,6 +127,28 @@ class CaseWorkflowControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidences[1].lifecycleStatus").value("EXCLUDED"));
+    }
+
+    @Test
+    void shouldRenameCase() throws Exception {
+        mockMvc.perform(patch("/api/v1/cases?caseKey=v2-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"caseName":"renamed-case"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseId").value("renamed-case"))
+                .andExpect(jsonPath("$.caseName").value("renamed-case"));
+
+        Evidence updated = evidenceRepository.findById(primaryEvidence.getEvidenceId()).orElseThrow();
+        assertThat(updated.getCaseName()).isEqualTo("renamed-case");
+        assertThat(updated.getCaseNumber()).isEqualTo("renamed-case");
+
+        mockMvc.perform(get("/api/v1/cases?caseKey=renamed-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidences", hasSize(2)));
     }
 
     @Test

@@ -33,6 +33,52 @@ public class CaseWorkflowService {
     private final CaseEvidencePresentationService caseEvidencePresentationService;
 
     @Transactional
+    public String renameCase(User user, String caseKey, String newCaseName) {
+        String oldKey = requireCaseKey(caseKey);
+        String trimmedName = newCaseName == null ? "" : newCaseName.trim();
+        if (trimmedName.isBlank()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명을 입력해 주세요.");
+        }
+        if (oldKey.equalsIgnoreCase(trimmedName)) {
+            return oldKey;
+        }
+
+        List<Evidence> caseEvidences = loadCaseEvidences(user, oldKey);
+        if (caseEvidences.isEmpty()) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
+        }
+
+        List<Evidence> conflicting = evidenceRepository.findByUploaderIdAndCaseKey(user.getUserId(), trimmedName);
+        if (!conflicting.isEmpty()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT, "DUPLICATE_CASE_NAME", "이미 사용 중인 사건명입니다.");
+        }
+
+        for (Evidence evidence : caseEvidences) {
+            evidence.updateCaseInfo(trimmedName);
+            evidenceRepository.save(evidence);
+        }
+
+        migrateCaseProfile(user, oldKey, trimmedName);
+
+        Evidence anchorEvidence = caseEvidences.get(0);
+        custodyLogService.record(
+                user.getUserId(),
+                CustodyTargetType.EVIDENCE,
+                anchorEvidence.getEvidenceId(),
+                "CASE_RENAMED",
+                anchorEvidence.getOriginalHashValue(),
+                anchorEvidence.getOriginalStoragePath(),
+                "사건명 변경: " + oldKey + " → " + trimmedName,
+                "{\"oldCaseKey\":\"" + escapeJson(oldKey) + "\",\"newCaseKey\":\""
+                        + escapeJson(trimmedName) + "\"}",
+                null
+        );
+
+        return trimmedName;
+    }
+
+    @Transactional
     public void excludeEvidence(User user, Long evidenceId, String reason) {
         Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
         if (!evidence.isWorkflowActive()) {
@@ -236,5 +282,17 @@ public class CaseWorkflowService {
                 .filter(item -> item.getLifecycleStatus() != EvidenceLifecycleStatus.REPLACED)
                 .count() + 1;
         evidence.assignDisplayLabel("증거 " + nextIndex);
+    }
+
+    private void migrateCaseProfile(User user, String oldKey, String newKey) {
+        caseProfileRepository.findByUploaderIdAndCaseKey(user.getUserId(), oldKey)
+                .ifPresent(profile -> {
+                    profile.updateCaseKey(newKey);
+                    caseProfileRepository.save(profile);
+                });
+    }
+
+    private String escapeJson(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
