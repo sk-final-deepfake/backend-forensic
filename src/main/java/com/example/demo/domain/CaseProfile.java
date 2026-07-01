@@ -49,4 +49,9 @@ public class CaseProfile {
         this.representativeEvidenceId = representativeEvidenceId;
         this.updatedAt = LocalDateTime.now();
     }
+
+    public void updateCaseKey(String caseKey) {
+        this.caseKey = caseKey;
+        this.updatedAt = LocalDateTime.now();
+    }
 }
