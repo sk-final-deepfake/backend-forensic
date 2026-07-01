@@ -44,6 +44,11 @@ class S3AnalysisAccessServiceTest {
     }
 
     @Test
+    void createPresignedOriginalUrl_returnsNullForPendingPath() {
+        assertThat(service.createPresignedOriginalUrl("pending")).isNull();
+    }
+
+    @Test
     void createGpuDownloadUrl_returnsS3UriWhenPresignerUnavailable() {
         when(s3Client.headObject(any(HeadObjectRequest.class)))
                 .thenReturn(HeadObjectResponse.builder().build());
