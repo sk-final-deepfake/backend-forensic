@@ -68,6 +68,7 @@ public class EvidenceDetailService {
     private final EvidenceManifestProperties evidenceManifestProperties;
     private final RecoveryScoreService recoveryScoreService;
     private final AnalysisInfoAssembler analysisInfoAssembler;
+    private final CaseEvidencePresentationService caseEvidencePresentationService;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
@@ -155,18 +156,17 @@ public class EvidenceDetailService {
                 .min(LocalDateTime::compareTo)
                 .orElse(LocalDateTime.now());
         String aggregateStatus = aggregateStatus(evidences, latestByEvidence);
+        Long representativeEvidenceId = caseEvidencePresentationService
+                .resolveRepresentativeEvidenceId(user, caseId, evidences)
+                .orElse(null);
+        List<Evidence> orderedEvidences = caseEvidencePresentationService.orderForDisplay(evidences);
 
-        List<CaseEvidenceSummaryDto> summaries = evidences.stream()
-                .map(evidence -> CaseEvidenceSummaryDto.builder()
-                        .evidenceId(evidence.getEvidenceId())
-                        .fileName(evidence.getFileName())
-                        .mediaType(evidence.getFileType().name())
-                        .analysisStatus(toCaseStatus(latestByEvidence.get(evidence.getEvidenceId())))
-                        .thumbnailUrl(null)
-                        .previewUrl(null)
-                        .videoUrl(null)
-                        .fileUrl(null)
-                        .build())
+        List<CaseEvidenceSummaryDto> summaries = orderedEvidences.stream()
+                .map(evidence -> toCaseEvidenceSummary(
+                        evidence,
+                        orderedEvidences,
+                        latestByEvidence.get(evidence.getEvidenceId())
+                ))
                 .toList();
 
         return CaseDetailResponse.builder()
@@ -174,20 +174,54 @@ public class EvidenceDetailService {
                 .caseName(caseName)
                 .status(aggregateStatus)
                 .createdAt(ApiDateTimeFormatter.formatUtc(createdAt))
+                .representativeEvidenceId(representativeEvidenceId)
                 .evidences(summaries)
                 .build();
     }
 
+    private CaseEvidenceSummaryDto toCaseEvidenceSummary(
+            Evidence evidence,
+            List<Evidence> caseEvidences,
+            AnalysisRequest request
+    ) {
+        return CaseEvidenceSummaryDto.builder()
+                .evidenceId(evidence.getEvidenceId())
+                .fileName(evidence.getFileName())
+                .displayLabel(caseEvidencePresentationService.resolveDisplayLabel(evidence, caseEvidences))
+                .originalFileName(evidence.getFileName())
+                .mediaType(evidence.getFileType().name())
+                .analysisStatus(toCaseStatus(request))
+                .lifecycleStatus(caseEvidencePresentationService.lifecycleStatusName(evidence))
+                .role(caseEvidencePresentationService.roleName(evidence))
+                .replacementEvidenceId(evidence.getReplacementEvidenceId())
+                .excludedReason(evidence.getExcludedReason())
+                .thumbnailUrl(null)
+                .previewUrl(null)
+                .videoUrl(null)
+                .fileUrl(null)
+                .build();
+    }
+
     private EvidenceInfoDto toEvidenceInfo(Evidence evidence, EvidenceMetadata metadata) {
+        List<Evidence> caseEvidences = evidenceRepository.findByUploaderIdAndCaseKey(
+                evidence.getUploaderId(),
+                EvidenceCaseIdResolver.resolve(evidence)
+        );
         return EvidenceInfoDto.builder()
                 .evidenceId(evidence.getEvidenceId())
                 .fileName(evidence.getFileName())
+                .displayLabel(caseEvidencePresentationService.resolveDisplayLabel(evidence, caseEvidences))
+                .originalFileName(evidence.getFileName())
                 .caseName(evidence.getCaseName())
                 .caseId(EvidenceCaseIdResolver.resolve(evidence))
                 .fileSize(evidence.getFileSize())
                 .uploadedAt(ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()))
                 .mediaType(evidence.getFileType().name())
                 .fileType(evidence.getFileType().name())
+                .lifecycleStatus(caseEvidencePresentationService.lifecycleStatusName(evidence))
+                .role(caseEvidencePresentationService.roleName(evidence))
+                .replacementEvidenceId(evidence.getReplacementEvidenceId())
+                .excludedReason(evidence.getExcludedReason())
                 .technicalMetadata(mapToTypeSpecificMetadata(evidence, metadata))
                 .build();
     }

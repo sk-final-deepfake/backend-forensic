@@ -137,6 +137,27 @@
 
 **Legacy 경로:** `/api/evidences/*` alias는 **제거됨** (2026-06). 신규·FE 연동은 `/api/v1/evidences/*`만 사용합니다. 로그인 `POST /api/auth/login` legacy는 유지합니다.
 
+### 0.8 v2 사건 중심 증거 워크플로우 API (2026-07)
+
+FE `lib/api/case-workflow.ts` v2 플로우 연동. 기존 업로드·분석 API는 §2.3 유지.
+
+| API | FE 함수 | 설명 |
+| :--- | :--- | :--- |
+| `PATCH /api/v1/evidences/{evidenceId}/exclude` | `markEvidenceExcluded` | 사용 제외 (`lifecycleStatus=EXCLUDED`) |
+| `POST /api/v1/evidences/{evidenceId}/replace` | `replaceEvidenceInCase` | 대체 증거 업로드 (`multipart`: `file`, optional `reason`) |
+| `PATCH /api/v1/cases/representative?caseKey=` | `setRepresentativeEvidence` | 대표 증거 지정 |
+| `PATCH /api/v1/evidences/{evidenceId}/role` | `setEvidenceRole` | PRIMARY / SUPPLEMENT |
+
+**응답 확장 필드** (하위 호환 — optional):
+
+| DTO | 추가 필드 |
+| :--- | :--- |
+| `CaseDetailResponse` | `representativeEvidenceId` |
+| `CaseEvidenceSummaryDto` / `EvidenceInfoDto` | `displayLabel`, `originalFileName`, `lifecycleStatus`, `role`, `replacementEvidenceId`, `excludedReason` |
+| `CaseSummaryResponse` (mypage) | `representativeEvidenceId`, `representativeEvidenceLabel` |
+
+`createCase()`는 FE 클라이언트에서 사건명만 준비하고, 실제 사건 생성은 첫 `POST /evidences/upload`의 `caseName`으로 이뤄집니다.
+
 ---
 
 ## 1. 공통
