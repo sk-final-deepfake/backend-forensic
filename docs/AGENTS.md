@@ -144,7 +144,7 @@ guides/implementation-standards.md (에러 JSON·예외·FE 계약)
 | 로그인·가입·JWT | ✅ | `POST /api/auth/login`, `/api/v1/auth/signup` |
 | 관리자 CRUD·로그·증거 | ✅ | `/api/v1/admin/**` |
 | 마이페이지·프로필 | ✅ | `/api/v1/users/me`, `/api/v1/mypage/**` |
-| 증거 업로드·분석·상태 | ✅ | `/api/v1/evidences/**` (+ legacy alias) |
+| 증거 업로드·분석·상태 | ✅ | `/api/v1/evidences/**` (v1 only) |
 | 대시보드 stats (RQ-DSH-043) | ✅ | 4카드 필드 통일 |
 | 에러 JSON·예외 Handler | ✅ | `BusinessException` + `StandardErrorResponse` |
 | Admin 페이지네이션 | ✅ | `content` / `totalElements` / `totalPages` |

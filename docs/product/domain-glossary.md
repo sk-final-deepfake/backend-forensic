@@ -102,7 +102,7 @@
 | :--- | :--- |
 | **errorCode** | FE 분기용 `UPPER_SNAKE_CASE` (예: `ACCOUNT_PENDING`) |
 | **StandardErrorResponse** | `{ success, errorCode, message, details? }` |
-| **Legacy alias** | 구 경로 유지 (`/api/evidences` = `/api/v1/evidences`) |
+| **Legacy alias** | 과거 `/api/evidences` = `/api/v1/evidences` 병행 — **2026-06 제거**, 로그인 `/api/auth/login`만 legacy |
 
 → [../guides/implementation-standards.md](../guides/implementation-standards.md)
 

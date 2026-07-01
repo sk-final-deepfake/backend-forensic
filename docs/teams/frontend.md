@@ -62,7 +62,7 @@ Authorization: Bearer {accessToken}
 
 - 표준: `{BASE}/api/v1/...`
 - 예외: 로그인 `{BASE}/api/auth/login`
-- 증거: `{BASE}/api/v1/evidences/...` (legacy `/api/evidences` 병행 중)
+- 증거: `{BASE}/api/v1/evidences/...` (v1 only)
 
 ---
 

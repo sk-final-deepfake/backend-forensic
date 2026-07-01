@@ -442,7 +442,7 @@ REST 에러 형식과 별도로 RabbitMQ JSON은 [../integrations/ai-json.md](..
 | 4 | PENDING 로그인 → 403 | ✅ | 401 + `ACCOUNT_PENDING` |
 | 5 | `AdminUserPageResponse.items/total` | ✅ | `content/totalElements/totalPages` |
 | 6 | Handler 2개 (Global + Signup) | ✅ | `GlobalExceptionHandler` 단일 |
-| 7 | `/api/evidences` vs `/api/v1` | ✅ | v1 + legacy 병행 |
+| 7 | `/api/evidences` vs `/api/v1` | ✅ | v1 only (+ `/api/auth/login` legacy) |
 
 **신규 API 규칙:** Service에서 `BusinessException` throw → Controller는 성공 DTO만 반환.
 
