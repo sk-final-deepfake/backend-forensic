@@ -2,7 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.signup.InviteCodeValidateRequest;
 import com.example.demo.dto.signup.InviteCodeValidateResponse;
-import com.example.demo.service.InviteCodeService;
+import com.example.demo.service.auth.InviteCodeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;

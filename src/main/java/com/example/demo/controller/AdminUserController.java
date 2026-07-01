@@ -6,7 +6,7 @@ import com.example.demo.dto.admin.AdminUserStatusResponse;
 import com.example.demo.dto.admin.ResetAdminUserPasswordRequest;
 import com.example.demo.dto.admin.UpdateAdminUserRequest;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.AdminUserService;
+import com.example.demo.service.admin.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

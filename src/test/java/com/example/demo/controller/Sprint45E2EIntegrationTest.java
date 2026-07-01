@@ -18,7 +18,7 @@ import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.service.AnalysisWorkerService;
+import com.example.demo.service.analysis.AnalysisWorkerService;
 import com.example.demo.support.JwtTestSupport;
 import java.time.LocalDateTime;
 import java.util.List;

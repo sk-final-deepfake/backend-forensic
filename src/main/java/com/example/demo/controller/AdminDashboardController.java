@@ -2,8 +2,8 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.admin.AdminAnalysisStatsResponse;
 import com.example.demo.dto.admin.AdminDashboardStatsResponse;
-import com.example.demo.service.AdminAnalysisStatsService;
-import com.example.demo.service.AdminDashboardService;
+import com.example.demo.service.admin.AdminAnalysisStatsService;
+import com.example.demo.service.admin.AdminDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

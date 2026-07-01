@@ -4,7 +4,7 @@ import com.example.demo.dto.admin.AdminProfileResponse;
 import com.example.demo.dto.admin.UpdateAdminPasswordRequest;
 import com.example.demo.dto.admin.UpdateAdminProfileRequest;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.AdminProfileService;
+import com.example.demo.service.admin.AdminProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

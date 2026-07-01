@@ -1,7 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.BlockchainAnchorRecordDto;
-import com.example.demo.service.BlockchainAnchorService;
+import com.example.demo.service.blockchain.BlockchainAnchorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;

@@ -3,7 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.EvidenceDetailService;
+import com.example.demo.service.evidence.EvidenceDetailService;
 import com.example.demo.util.CaseKeyNormalizer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
