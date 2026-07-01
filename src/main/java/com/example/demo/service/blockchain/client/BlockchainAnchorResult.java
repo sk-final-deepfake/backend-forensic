@@ -1,4 +1,4 @@
-package com.example.demo.blockchain;
+package com.example.demo.service.blockchain.client;
 
 public record BlockchainAnchorResult(
         String transactionHash,
