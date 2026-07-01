@@ -61,7 +61,17 @@ public class S3AnalysisAccessService {
 
     public String createGpuDownloadUrl(String objectKey) {
         assertCopyObjectExists(objectKey);
+        return createPresignedGetUrl(objectKey);
+    }
 
+    public String createPresignedOriginalUrl(String objectKey) {
+        if (objectKey == null || objectKey.isBlank() || "pending".equalsIgnoreCase(objectKey)) {
+            return null;
+        }
+        return createPresignedGetUrl(objectKey);
+    }
+
+    private String createPresignedGetUrl(String objectKey) {
         if (s3Presigner.isPresent()) {
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                     .signatureDuration(Duration.ofMinutes(messagingProperties.getPresignDurationMinutes()))
@@ -74,7 +84,7 @@ public class S3AnalysisAccessService {
         }
 
         String s3Uri = "s3://" + evidenceBucket + "/" + objectKey;
-        log.debug("S3 presigner unavailable; using S3 URI for GPU download reference: {}", s3Uri);
+        log.debug("S3 presigner unavailable; using S3 URI for media download reference: {}", s3Uri);
         return s3Uri;
     }
 
