@@ -209,6 +209,17 @@ FE v2 사건 편집 모달·`/reports` 페이지 연동용.
 
 PDF **생성**은 기존 `GET /api/v1/evidences/{id}/reports/pdf`, `GET /api/v1/compare/{compareId}/reports/pdf` 유지.
 
+### 0.10 v2 응답 보강 — 분석 진행률 · 미디어 URL · 업로드 라벨 (2026-07)
+
+FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
+
+| API | 추가/채움 필드 | 설명 |
+| :--- | :--- | :--- |
+| `GET /api/v1/cases?caseKey=` | `evidences[].analysisProgress` | 최신 분석 요청 `progressPercent` (완료 시 100, 미요청 0) |
+| `GET /api/v1/cases?caseKey=` | `evidences[].previewUrl`, `videoUrl`, `fileUrl` | VIDEO 증거 S3 presigned GET (미설정 시 `s3://` URI 또는 null) |
+| `GET /api/evidences/{id}/detail` | `evidenceInfo.previewUrl`, `videoUrl`, `fileUrl` | 동일 |
+| `POST /api/v1/evidences/upload` | `displayLabel` | 사건 내 순번 라벨 (`증거 1`, `증거 2`, …) — DB에도 저장 |
+
 ---
 
 ## 1. 공통

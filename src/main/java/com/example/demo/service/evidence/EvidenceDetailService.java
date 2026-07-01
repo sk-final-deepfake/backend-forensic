@@ -14,6 +14,7 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
+import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.ExtractionStatus;
 import com.example.demo.domain.enums.SignatureStatus;
@@ -69,6 +70,7 @@ public class EvidenceDetailService {
     private final RecoveryScoreService recoveryScoreService;
     private final AnalysisInfoAssembler analysisInfoAssembler;
     private final CaseEvidencePresentationService caseEvidencePresentationService;
+    private final EvidenceMediaUrlService evidenceMediaUrlService;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
@@ -184,6 +186,7 @@ public class EvidenceDetailService {
             List<Evidence> caseEvidences,
             AnalysisRequest request
     ) {
+        EvidenceMediaUrlService.MediaUrls mediaUrls = evidenceMediaUrlService.resolve(evidence);
         return CaseEvidenceSummaryDto.builder()
                 .evidenceId(evidence.getEvidenceId())
                 .fileName(evidence.getFileName())
@@ -191,14 +194,15 @@ public class EvidenceDetailService {
                 .originalFileName(evidence.getFileName())
                 .mediaType(evidence.getFileType().name())
                 .analysisStatus(toCaseStatus(request))
+                .analysisProgress(resolveAnalysisProgress(request))
                 .lifecycleStatus(caseEvidencePresentationService.lifecycleStatusName(evidence))
                 .role(caseEvidencePresentationService.roleName(evidence))
                 .replacementEvidenceId(evidence.getReplacementEvidenceId())
                 .excludedReason(evidence.getExcludedReason())
-                .thumbnailUrl(null)
-                .previewUrl(null)
-                .videoUrl(null)
-                .fileUrl(null)
+                .thumbnailUrl(mediaUrls.previewUrl())
+                .previewUrl(mediaUrls.previewUrl())
+                .videoUrl(mediaUrls.videoUrl())
+                .fileUrl(mediaUrls.fileUrl())
                 .build();
     }
 
@@ -207,6 +211,7 @@ public class EvidenceDetailService {
                 evidence.getUploaderId(),
                 EvidenceCaseIdResolver.resolve(evidence)
         );
+        EvidenceMediaUrlService.MediaUrls mediaUrls = evidenceMediaUrlService.resolve(evidence);
         return EvidenceInfoDto.builder()
                 .evidenceId(evidence.getEvidenceId())
                 .fileName(evidence.getFileName())
@@ -222,6 +227,9 @@ public class EvidenceDetailService {
                 .role(caseEvidencePresentationService.roleName(evidence))
                 .replacementEvidenceId(evidence.getReplacementEvidenceId())
                 .excludedReason(evidence.getExcludedReason())
+                .previewUrl(mediaUrls.previewUrl())
+                .videoUrl(mediaUrls.videoUrl())
+                .fileUrl(mediaUrls.fileUrl())
                 .technicalMetadata(mapToTypeSpecificMetadata(evidence, metadata))
                 .build();
     }
@@ -367,5 +375,15 @@ public class EvidenceDetailService {
             return "PENDING";
         }
         return AnalysisStatusMapper.toApiStatus(request.getStatus());
+    }
+
+    private Integer resolveAnalysisProgress(AnalysisRequest request) {
+        if (request == null) {
+            return 0;
+        }
+        if (request.getStatus() == AnalysisStatus.COMPLETED) {
+            return 100;
+        }
+        return request.getProgressPercent();
     }
 }
