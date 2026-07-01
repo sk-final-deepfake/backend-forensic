@@ -176,7 +176,7 @@ API 호출: `Authorization: Bearer {accessToken}`
 
 | 실수 | 올바른 방법 |
 | :--- | :--- |
-| `/api/evidences`와 `/api/v1/evidences` 혼용 | [../api/convention.md](../api/convention.md) 마이그레이션 표 |
+| `/api/evidences` 경로 사용 (제거됨) | `/api/v1/evidences/**`만 사용 — [../api/convention.md](../api/convention.md) |
 | 가입 시 `role=ADMIN` 허용 | 서버에서 항상 `ROLE_USER` |
 | 증거 status에 `ANALYZING` 저장 | `AnalysisRequests.status` 사용 |
 | AI JSON 필드 snake_case 임의 변경 | 명세 camelCase 유지 |

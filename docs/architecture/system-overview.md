@@ -88,7 +88,6 @@ flowchart TB
 | :--- | :--- |
 | `/api/v1/**` | 표준 REST (신규 API 필수) |
 | `/api/auth/login` | Legacy 로그인 (유지) |
-| `/api/evidences/**` | Legacy alias → `/api/v1/evidences/**` 병행 |
 
 **정본:** [../api/specification.md](../api/specification.md)
 

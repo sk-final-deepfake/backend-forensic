@@ -330,7 +330,9 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 
 ---
 
-### 2.3 증거 · 분석 (Legacy prefix `/api/evidences`)
+### 2.3 증거 · 분석
+
+> **경로:** 아래 예시는 §2 canonical 표기. **운영·FE 연동은 `/api/v1/evidences/*`만** (§0, legacy alias 제거됨).
 
 #### GET `/api/v1/evidences/dashboard/intro`
 
@@ -739,7 +741,7 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 | **Path** | `caseId` = **String** (사건명/식별자) |
 
 **Response:** `CaseDetailResponse`  
-**`evidences[]` item (`CaseEvidenceSummaryDto`):** `evidenceId`, `fileName`, `mediaType`, `analysisStatus`, `thumbnailUrl?`, `previewUrl?`, `videoUrl?`, `fileUrl?` (미디어 스트리밍 API 미구현 시 `null`)  
+**`evidences[]` item (`CaseEvidenceSummaryDto`):** `evidenceId`, `fileName`, `mediaType`, `analysisStatus`, `thumbnailUrl?`, `previewUrl?`, `videoUrl?`, `fileUrl?` — VIDEO 증거는 S3 presigned GET URL (§0.10, 미설정·비VIDEO 시 `null`)  
 **Errors:** `CASE_NOT_FOUND` (404)
 
 > 명세 FE: `app/cases/[id]/page.tsx` → 이 API 호출.  
