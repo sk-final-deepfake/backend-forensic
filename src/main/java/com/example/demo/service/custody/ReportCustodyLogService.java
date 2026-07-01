@@ -2,8 +2,7 @@ package com.example.demo.service.custody;
 
 import com.example.demo.domain.Report;
 import com.example.demo.domain.enums.CustodyTargetType;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.demo.util.JsonPayloadWriter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +13,7 @@ import org.springframework.stereotype.Service;
 public class ReportCustodyLogService {
 
     private final CustodyLogService custodyLogService;
-    private final ObjectMapper objectMapper;
+    private final JsonPayloadWriter jsonPayloadWriter;
 
     public void recordReportCreated(Long actorId, Report report) {
         custodyLogService.record(
@@ -25,7 +24,7 @@ public class ReportCustodyLogService {
                 report.getReportHash(),
                 report.getStoragePath(),
                 "포렌식 PDF 리포트 생성",
-                toJson(reportPayload(report, "CREATED")),
+                jsonPayloadWriter.toJson(reportPayload(report, "CREATED")),
                 null
         );
     }
@@ -39,7 +38,7 @@ public class ReportCustodyLogService {
                 report.getReportHash(),
                 report.getStoragePath(),
                 "포렌식 PDF 리포트 다운로드",
-                toJson(reportPayload(report, "DOWNLOADED")),
+                jsonPayloadWriter.toJson(reportPayload(report, "DOWNLOADED")),
                 null
         );
     }
@@ -59,13 +58,5 @@ public class ReportCustodyLogService {
             payload.put("compareId", report.getCompareId());
         }
         return payload;
-    }
-
-    private String toJson(Map<String, Object> payload) {
-        try {
-            return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Failed to serialize report custody payload", ex);
-        }
     }
 }

@@ -11,8 +11,7 @@ import com.example.demo.dto.ValidatedFile;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.repository.EvidenceRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.demo.util.JsonPayloadWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -47,7 +46,7 @@ public class FileService {
     private final CustodyLogService custodyLogService;
     private final EvidenceMetadataService evidenceMetadataService;
     private final CaseEvidencePresentationService caseEvidencePresentationService;
-    private final ObjectMapper objectMapper;
+    private final JsonPayloadWriter jsonPayloadWriter;
     private final BlockchainAnchorService blockchainAnchorService;
 
     public FileService(
@@ -61,7 +60,7 @@ public class FileService {
             CustodyLogService custodyLogService,
             EvidenceMetadataService evidenceMetadataService,
             CaseEvidencePresentationService caseEvidencePresentationService,
-            ObjectMapper objectMapper,
+            JsonPayloadWriter jsonPayloadWriter,
             BlockchainAnchorService blockchainAnchorService
     ) {
         this.s3Client = s3Client;
@@ -74,12 +73,12 @@ public class FileService {
         this.custodyLogService = custodyLogService;
         this.evidenceMetadataService = evidenceMetadataService;
         this.caseEvidencePresentationService = caseEvidencePresentationService;
-        this.objectMapper = objectMapper;
+        this.jsonPayloadWriter = jsonPayloadWriter;
         this.blockchainAnchorService = blockchainAnchorService;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
-            throw new RuntimeException("Could not initialize folder for upload!");
+            throw new IllegalStateException("Could not initialize folder for upload!", e);
         }
     }
 
@@ -213,7 +212,7 @@ public class FileService {
                 savedEvidence.getOriginalHashValue(),
                 savedEvidence.getOriginalStoragePath(),
                 "증거 파일 업로드 완료",
-                toJson(uploadPayload(savedEvidence)),
+                jsonPayloadWriter.toJson(uploadPayload(savedEvidence)),
                 null
         );
 
@@ -225,7 +224,7 @@ public class FileService {
                 savedEvidence.getOriginalHashValue(),
                 savedEvidence.getOriginalStoragePath(),
                 "SHA-256 해시 생성 완료",
-                toJson(hashPayload(savedEvidence)),
+                jsonPayloadWriter.toJson(hashPayload(savedEvidence)),
                 null
         );
 
@@ -237,7 +236,7 @@ public class FileService {
                 savedEvidence.getOriginalHashValue(),
                 savedEvidence.getOriginalStoragePath(),
                 "메타데이터 추출 완료",
-                toJson(metadataPayload(extractionStatus)),
+                jsonPayloadWriter.toJson(metadataPayload(extractionStatus)),
                 null
         );
     }
@@ -263,13 +262,5 @@ public class FileService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("extractionStatus", extractionStatus);
         return payload;
-    }
-
-    private String toJson(Map<String, Object> payload) {
-        try {
-            return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to serialize custody log payload", e);
-        }
     }
 }

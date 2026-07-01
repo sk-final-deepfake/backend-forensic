@@ -6,7 +6,7 @@ import com.example.demo.dto.AnalysisResponseMessage;
 import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.demo.util.JsonPayloadWriter;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +39,7 @@ public class VideoAnalysisModuleWriter {
     private final AnalysisModuleResultRepository analysisModuleResultRepository;
     private final AnalysisResponseResolver responseResolver;
     private final VideoAnalysisDetailsBuilder detailsBuilder;
-    private final ObjectMapper objectMapper;
+    private final JsonPayloadWriter jsonPayloadWriter;
 
     public void writeVideoAnalysisModules(
             Long analysisResultId,
@@ -105,7 +105,7 @@ public class VideoAnalysisModuleWriter {
         module.setConfidence(confidence);
         module.setModelName(modelName);
         module.setModelVersion(modelVersion);
-        module.setDetailsJson(toJson(Map.of("type", "video", "moduleName", moduleName)));
+        module.setDetailsJson(jsonPayloadWriter.toJson(Map.of("type", "video", "moduleName", moduleName)));
         module.setCreatedAt(LocalDateTime.now());
         analysisModuleResultRepository.save(module);
     }
@@ -126,7 +126,7 @@ public class VideoAnalysisModuleWriter {
         module.setConfidence(0.0);
         module.setModelName(responseResolver.resolveModelName(videoResult, null));
         module.setModelVersion(responseResolver.resolveModelVersion(videoResult, null));
-        module.setDetailsJson(toJson(detailsBuilder.buildTimelineDetails(
+        module.setDetailsJson(jsonPayloadWriter.toJson(detailsBuilder.buildTimelineDetails(
                 videoResult,
                 frameRisks,
                 suspiciousSegments,
@@ -134,14 +134,6 @@ public class VideoAnalysisModuleWriter {
         )));
         module.setCreatedAt(LocalDateTime.now());
         analysisModuleResultRepository.save(module);
-    }
-
-    private String toJson(Map<String, Object> payload) {
-        try {
-            return objectMapper.writeValueAsString(payload);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Failed to serialize module details", ex);
-        }
     }
 
     private record DetectionSpec(
