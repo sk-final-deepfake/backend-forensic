@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.caseworkflow.SetRepresentativeEvidenceRequest;
+import com.example.demo.dto.caseworkflow.UpdateCaseNameRequest;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.security.AuthUserResolver;
@@ -69,5 +70,28 @@ public class CaseController {
                 request.getEvidenceId()
         );
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "사건명 변경", description = "사건에 속한 모든 증거의 사건명을 일괄 변경합니다. v2 사건 편집 UI 연동.")
+    @PatchMapping(produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
+    public CaseDetailResponse updateCaseName(
+            @RequestParam String caseKey,
+            @Valid @RequestBody UpdateCaseNameRequest request
+    ) {
+        String finalId = CaseKeyNormalizer.normalize(caseKey);
+        if (finalId == null || finalId.isBlank()) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건 식별자가 필요합니다.");
+        }
+
+        String newCaseKey = caseWorkflowService.renameCase(
+                authUserResolver.requireCurrentUser(),
+                finalId,
+                request.getCaseName()
+        );
+        return evidenceDetailService.getCaseDetail(
+                authUserResolver.requireCurrentUser(),
+                newCaseKey
+        );
     }
 }

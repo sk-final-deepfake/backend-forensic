@@ -15,6 +15,8 @@ public interface AnalysisResultRepository extends JpaRepository<AnalysisResult, 
 
     List<AnalysisResult> findByAnalysisRequestIdIn(Collection<Long> analysisRequestIds);
 
+    List<AnalysisResult> findByAnalysisResultIdIn(Collection<Long> analysisResultIds);
+
     @Query("""
             SELECT COUNT(r)
             FROM AnalysisResult r
