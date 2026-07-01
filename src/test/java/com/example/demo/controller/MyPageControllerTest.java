@@ -172,6 +172,15 @@ class MyPageControllerTest {
 	}
 
 	@Test
+	void getCaseDetail_withoutCaseKey_returnsBadRequest() throws Exception {
+		mockMvc.perform(get("/api/v1/cases")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
+				.andExpect(jsonPath("$.message").value("사건 식별자가 필요합니다."));
+	}
+
+	@Test
 	void getMyProfile_withDemoUser_returnsProfile() throws Exception {
 		mockMvc.perform(get("/api/v1/users/me")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
