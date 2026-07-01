@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -45,6 +46,7 @@ public class FileService {
     private final FileValidationService fileValidationService;
     private final CustodyLogService custodyLogService;
     private final EvidenceMetadataService evidenceMetadataService;
+    private final CaseEvidencePresentationService caseEvidencePresentationService;
     private final ObjectMapper objectMapper;
     private final BlockchainAnchorService blockchainAnchorService;
 
@@ -58,6 +60,7 @@ public class FileService {
             FileValidationService fileValidationService,
             CustodyLogService custodyLogService,
             EvidenceMetadataService evidenceMetadataService,
+            CaseEvidencePresentationService caseEvidencePresentationService,
             ObjectMapper objectMapper,
             BlockchainAnchorService blockchainAnchorService
     ) {
@@ -70,6 +73,7 @@ public class FileService {
         this.fileValidationService = fileValidationService;
         this.custodyLogService = custodyLogService;
         this.evidenceMetadataService = evidenceMetadataService;
+        this.caseEvidencePresentationService = caseEvidencePresentationService;
         this.objectMapper = objectMapper;
         this.blockchainAnchorService = blockchainAnchorService;
         try {
@@ -149,6 +153,15 @@ public class FileService {
 
             Files.deleteIfExists(savedPath);
 
+            List<Evidence> caseEvidences = evidenceRepository.findByUploaderIdAndCaseKey(
+                    uploaderId, trimmedCaseName);
+            String displayLabel = caseEvidencePresentationService.resolveDisplayLabel(
+                    savedEvidence, caseEvidences);
+            if (savedEvidence.getDisplayLabel() == null || savedEvidence.getDisplayLabel().isBlank()) {
+                savedEvidence.assignDisplayLabel(displayLabel);
+                evidenceRepository.save(savedEvidence);
+            }
+
             String originalSha256 = savedEvidence.getOriginalHashValue();
             return FileUploadResponse.builder()
                     .success(true)
@@ -156,6 +169,7 @@ public class FileService {
                     .evidenceId(savedEvidence.getEvidenceId())
                     .fileName(originalFilename)
                     .caseName(savedEvidence.getCaseName())
+                    .displayLabel(displayLabel)
                     .fileSize(validated.fileSize())
                     .hashAlgorithm(savedEvidence.getHashAlgorithm())
                     .hashValue(originalSha256)

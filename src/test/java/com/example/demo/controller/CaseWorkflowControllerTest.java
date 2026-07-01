@@ -1,7 +1,9 @@
 package com.example.demo.controller;
 
+import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
+import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.EvidenceLifecycleStatus;
 import com.example.demo.domain.enums.EvidenceRole;
 import com.example.demo.domain.enums.EvidenceStatus;
@@ -9,6 +11,7 @@ import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
+import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
@@ -54,6 +57,9 @@ class CaseWorkflowControllerTest {
     private CaseProfileRepository caseProfileRepository;
 
     @Autowired
+    private AnalysisRequestRepository analysisRequestRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private String userToken;
@@ -64,6 +70,7 @@ class CaseWorkflowControllerTest {
     @BeforeEach
     void setUp() throws Exception {
         caseProfileRepository.deleteAll();
+        analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -88,6 +95,7 @@ class CaseWorkflowControllerTest {
     @AfterEach
     void tearDown() {
         caseProfileRepository.deleteAll();
+        analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
     }
@@ -149,6 +157,23 @@ class CaseWorkflowControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidences", hasSize(2)));
+    }
+
+    @Test
+    void shouldExposeAnalysisProgressInCaseDetail() throws Exception {
+        AnalysisRequest request = new AnalysisRequest();
+        request.setEvidenceId(primaryEvidence.getEvidenceId());
+        request.setRequestedBy(testUser.getUserId());
+        request.setStatus(AnalysisStatus.ANALYZING);
+        request.setProgressPercent(42);
+        request.setRequestedAt(LocalDateTime.now());
+        analysisRequestRepository.save(request);
+
+        mockMvc.perform(get("/api/v1/cases?caseKey=v2-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidences[0].analysisProgress").value(42))
+                .andExpect(jsonPath("$.evidences[0].displayLabel").value("증거 1"));
     }
 
     @Test
