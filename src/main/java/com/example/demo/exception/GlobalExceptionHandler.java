@@ -1,6 +1,7 @@
 package com.example.demo.exception;
 
 import com.example.demo.dto.StandardErrorResponse;
+import com.example.demo.security.SecurityErrorResponses;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -28,13 +29,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<StandardErrorResponse> handleAccessDenied() {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
-                StandardErrorResponse.builder()
-                        .success(false)
-                        .errorCode("FORBIDDEN")
-                        .message("관리자 권한이 필요합니다.")
-                        .build()
-        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(SecurityErrorResponses.forbidden());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
