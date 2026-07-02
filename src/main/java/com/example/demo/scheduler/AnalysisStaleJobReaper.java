@@ -4,7 +4,7 @@ import com.example.demo.config.AnalysisWorkerProperties;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.repository.AnalysisRequestRepository;
-import com.example.demo.service.AnalysisWorkerService;
+import com.example.demo.service.analysis.AnalysisWorkerService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;

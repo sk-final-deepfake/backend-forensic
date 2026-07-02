@@ -2,7 +2,7 @@ package com.example.demo.messaging;
 
 import com.example.demo.config.AnalysisMessagingProperties;
 import com.example.demo.dto.AnalysisJobMessage;
-import com.example.demo.service.AnalysisJobEnqueuer;
+import com.example.demo.service.analysis.AnalysisJobEnqueuer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.MessageDeliveryMode;

@@ -1,7 +1,6 @@
 package com.example.demo.controller;
 
 import com.example.demo.domain.AnalysisRequest;
-import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
@@ -9,10 +8,7 @@ import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.EvidenceStatus;
 import com.example.demo.domain.enums.FileType;
-import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.RiskLevel;
-import com.example.demo.domain.enums.UserRole;
-import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.dto.AnalysisJobMessage;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
@@ -22,37 +18,19 @@ import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.enums.NotificationType;
 import com.example.demo.domain.enums.SecurityAlertCode;
-import com.example.demo.repository.EvidenceRepository;
-import com.example.demo.service.AnalysisJobEnqueuer;
-import com.example.demo.support.JwtTestSupport;
+import com.example.demo.support.AbstractEvidenceIntegrationTest;
+import com.example.demo.support.EvidenceApiTestSupport;
+import com.example.demo.support.EvidenceTestFixtures;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.util.FileSystemUtils;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,91 +45,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
-})
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-class EvidenceControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private EvidenceRepository evidenceRepository;
-
-    @Autowired
-    private AnalysisRequestRepository analysisRequestRepository;
-
-    @Autowired
-    private AnalysisResultRepository analysisResultRepository;
-
-    @Autowired
-    private CustodyLogRepository custodyLogRepository;
-
-    @Autowired
-    private EvidenceManifestRepository evidenceManifestRepository;
-
-    @Autowired
-    private NotificationRepository notificationRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private com.example.demo.repository.UserRepository userRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @MockBean
-    private AnalysisJobEnqueuer analysisJobEnqueuer;
-
-    @Autowired
-    private S3Client s3Client;
-
-    @Value("${aws.s3.evidence-bucket}")
-    private String evidenceBucket;
-
-    @Value("${file.upload-dir}")
-    private String uploadDir;
-
-    private String accessToken;
-
-    @BeforeEach
-    void obtainAccessToken() throws Exception {
-        notificationRepository.deleteAll();
-        evidenceManifestRepository.deleteAll();
-        custodyLogRepository.deleteAll();
-        analysisRequestRepository.deleteAll();
-        evidenceRepository.deleteAll();
-        userRepository.deleteAll();
-        userRepository.save(User.builder()
-                .loginId("1111")
-                .email("1111@test.local")
-                .password(passwordEncoder.encode("2222"))
-                .name("테스트 사용자")
-                .organizationType(OrgType.ETC)
-                .department("테스트부서")
-                .role(UserRole.ROLE_USER)
-                .status(UserStatus.APPROVED)
-                .darkMode(false)
-                .build());
-
-        accessToken = JwtTestSupport.loginAndGetToken(mockMvc, "1111", "2222");
-    }
-
-    @AfterEach
-    void cleanUp() throws Exception {
-        custodyLogRepository.deleteAll();
-        analysisRequestRepository.deleteAll();
-        evidenceRepository.deleteAll();
-        userRepository.deleteAll();
-        Path root = Paths.get(uploadDir);
-        if (Files.exists(root)) {
-            FileSystemUtils.deleteRecursively(root);
-        }
-    }
+class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
 
     @Test
     @DisplayName("인증 없이 증거 API 호출 시 401")
@@ -192,7 +86,7 @@ class EvidenceControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        assertUploadHashFieldsMatch(responseBody);
+        EvidenceApiTestSupport.assertUploadHashFieldsMatch(objectMapper, responseBody);
     }
 
     @Test
@@ -311,8 +205,8 @@ class EvidenceControllerTest {
                 .getResponse()
                 .getContentAsString();
 
-        String firstHash = extractHashValue(firstResponse);
-        assertThat(extractOriginalSha256(firstResponse)).isEqualTo(firstHash);
+        String firstHash = EvidenceApiTestSupport.extractHashValue(firstResponse);
+        assertThat(EvidenceApiTestSupport.extractOriginalSha256(firstResponse)).isEqualTo(firstHash);
 
         MockMultipartFile sameFileAgain = new MockMultipartFile(
                 "file",
@@ -361,8 +255,8 @@ class EvidenceControllerTest {
                         .param("caseName", "수정 파일 해시 테스트")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hashValue", not(extractHashValue(originalResponse))))
-                .andExpect(jsonPath("$.originalSha256", not(extractOriginalSha256(originalResponse))));
+                .andExpect(jsonPath("$.hashValue", not(EvidenceApiTestSupport.extractHashValue(originalResponse))))
+                .andExpect(jsonPath("$.originalSha256", not(EvidenceApiTestSupport.extractOriginalSha256(originalResponse))));
     }
 
     @Test
@@ -447,7 +341,7 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("RQ-DSH-044: 최근 7일 분석 완료 추이를 조회할 수 있다")
     void shouldReturnAnalysisTrend() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        User user = currentUser();
         LocalDateTime now = LocalDateTime.now();
 
         Evidence evidenceToday = evidenceRepository.save(Evidence.builder()
@@ -461,7 +355,7 @@ class EvidenceControllerTest {
                 .originalStoragePath("original/trend-today.mp4")
                 .uploadedAt(now)
                 .build());
-        analysisRequestRepository.save(completedRequest(
+        analysisRequestRepository.save(EvidenceTestFixtures.completedRequest(
                 evidenceToday.getEvidenceId(), user.getUserId(), now));
 
         Evidence evidenceYesterday = evidenceRepository.save(Evidence.builder()
@@ -475,9 +369,9 @@ class EvidenceControllerTest {
                 .originalStoragePath("original/trend-yesterday.mp4")
                 .uploadedAt(now.minusDays(1))
                 .build());
-        analysisRequestRepository.save(completedRequest(
+        analysisRequestRepository.save(EvidenceTestFixtures.completedRequest(
                 evidenceYesterday.getEvidenceId(), user.getUserId(), now.minusDays(1)));
-        analysisRequestRepository.save(completedRequest(
+        analysisRequestRepository.save(EvidenceTestFixtures.completedRequest(
                 evidenceYesterday.getEvidenceId(), user.getUserId(), now.minusDays(1).minusHours(2)));
 
         String today = LocalDate.now().toString();
@@ -508,7 +402,7 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("RQ-DSH-045: 최근 분석 이력 위젯을 조회할 수 있다")
     void shouldReturnRecentAnalyses() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        User user = currentUser();
         LocalDateTime now = LocalDateTime.now();
 
         Evidence newest = evidenceRepository.save(Evidence.builder()
@@ -523,7 +417,7 @@ class EvidenceControllerTest {
                 .uploadedAt(now)
                 .build());
         AnalysisRequest newestRequest = analysisRequestRepository.save(
-                completedRequest(newest.getEvidenceId(), user.getUserId(), now));
+                EvidenceTestFixtures.completedRequest(newest.getEvidenceId(), user.getUserId(), now));
         newestRequest.setRequestedAt(now.minusMinutes(1));
         analysisRequestRepository.save(newestRequest);
         saveAnalysisResult(newestRequest, 72.5, RiskLevel.HIGH);
@@ -540,7 +434,7 @@ class EvidenceControllerTest {
                 .uploadedAt(now.minusHours(2))
                 .build());
         AnalysisRequest olderRequest = analysisRequestRepository.save(
-                completedRequest(older.getEvidenceId(), user.getUserId(), now.minusHours(1)));
+                EvidenceTestFixtures.completedRequest(older.getEvidenceId(), user.getUserId(), now.minusHours(1)));
         saveAnalysisResult(olderRequest, 15.0, RiskLevel.LOW);
 
         Evidence processing = evidenceRepository.save(Evidence.builder()
@@ -584,9 +478,9 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("최근 분석 위젯은 증거당 최신 요청 1건만 반환한다")
     void recentAnalyses_deduplicatesByEvidence() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        User user = currentUser();
         LocalDateTime now = LocalDateTime.now();
-        Evidence evidence = saveEvidenceForCancelPolicy(user, "recent-dedupe.mp4");
+        Evidence evidence = saveVideoEvidence(user, "recent-dedupe.mp4");
 
         AnalysisRequest oldRequest = new AnalysisRequest();
         oldRequest.setEvidenceId(evidence.getEvidenceId());
@@ -598,7 +492,7 @@ class EvidenceControllerTest {
         analysisRequestRepository.save(oldRequest);
 
         AnalysisRequest latestRequest = analysisRequestRepository.save(
-                completedRequest(evidence.getEvidenceId(), user.getUserId(), now));
+                EvidenceTestFixtures.completedRequest(evidence.getEvidenceId(), user.getUserId(), now));
 
         mockMvc.perform(get("/api/v1/evidences/stats/recent")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
@@ -650,7 +544,7 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("업로드 시 사건명이 없고 분석 요청에도 사건명이 없으면 400을 반환한다")
     void startAnalysis_withoutCaseName_returnsBadRequest() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        User user = currentUser();
         Evidence evidence = evidenceRepository.save(Evidence.builder()
                 .uploaderId(user.getUserId())
                 .fileName("analyze-test.mp4")
@@ -707,10 +601,10 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("분석 대기 중에는 분석 중단 API로 삭제할 수 있다")
     void cancelAnalysis_whenQueued_succeeds() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+        User user = currentUser();
         byte[] queuedBytes = "queued analysis bytes".getBytes(StandardCharsets.UTF_8);
         String originalKey = "original/queued.mp4";
-        String originalHash = new com.example.demo.service.HashService().generateSha256(queuedBytes);
+        String originalHash = new com.example.demo.service.evidence.HashService().generateSha256(queuedBytes);
         seedS3Object(originalKey, queuedBytes);
         Evidence queuedEvidence = evidenceRepository.save(Evidence.builder()
                 .uploaderId(user.getUserId())
@@ -749,9 +643,9 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("완료된 분석은 중단할 수 없다")
     void cancelAnalysis_whenCompleted_returnsBadRequest() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
-        Evidence evidence = saveEvidenceForCancelPolicy(user, "completed.mp4");
-        AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
+        User user = currentUser();
+        Evidence evidence = saveVideoEvidence(user, "completed.mp4");
+        AnalysisRequest request = saveAnalysisRequest(
                 evidence,
                 user,
                 AnalysisStatus.COMPLETED
@@ -772,9 +666,9 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("실패한 분석은 중단할 수 없다")
     void cancelAnalysis_whenFailed_returnsBadRequest() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
-        Evidence evidence = saveEvidenceForCancelPolicy(user, "failed.mp4");
-        AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
+        User user = currentUser();
+        Evidence evidence = saveVideoEvidence(user, "failed.mp4");
+        AnalysisRequest request = saveAnalysisRequest(
                 evidence,
                 user,
                 AnalysisStatus.FAILED
@@ -795,9 +689,9 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("분석 실패 시 analysis-status가 errorCode·errorMessage를 반환한다")
     void getAnalysisStatus_whenFailed_returnsErrorDetails() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
-        Evidence evidence = saveEvidenceForCancelPolicy(user, "status-failed.mp4");
-        AnalysisRequest request = saveAnalysisRequestForCancelPolicy(
+        User user = currentUser();
+        Evidence evidence = saveVideoEvidence(user, "status-failed.mp4");
+        AnalysisRequest request = saveAnalysisRequest(
                 evidence,
                 user,
                 AnalysisStatus.FAILED
@@ -817,9 +711,9 @@ class EvidenceControllerTest {
     @Test
     @DisplayName("분석 완료 시 analysis-status는 errorCode·errorMessage를 포함하지 않는다")
     void getAnalysisStatus_whenCompleted_omitsErrorDetails() throws Exception {
-        User user = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
-        Evidence evidence = saveEvidenceForCancelPolicy(user, "status-completed.mp4");
-        saveAnalysisRequestForCancelPolicy(evidence, user, AnalysisStatus.COMPLETED);
+        User user = currentUser();
+        Evidence evidence = saveVideoEvidence(user, "status-completed.mp4");
+        saveAnalysisRequest(evidence, user, AnalysisStatus.COMPLETED);
 
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/analysis-status", evidence.getEvidenceId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
@@ -1249,101 +1143,6 @@ class EvidenceControllerTest {
                 .doesNotContain("QUEUE_REGISTERED", "ANALYSIS_STARTED", "ANALYSIS_COMPLETED");
     }
 
-    private String bearerToken() {
-        return "Bearer " + accessToken;
-    }
-
-    private AnalysisRequest completedRequest(Long evidenceId, Long requestedBy, LocalDateTime completedAt) {
-        AnalysisRequest request = new AnalysisRequest();
-        request.setEvidenceId(evidenceId);
-        request.setRequestedBy(requestedBy);
-        request.setStatus(AnalysisStatus.COMPLETED);
-        request.setRequestedAt(completedAt.minusHours(1));
-        request.setStartedAt(completedAt.minusMinutes(30));
-        request.setCompletedAt(completedAt);
-        request.setProgressPercent(100);
-        return request;
-    }
-
-    private String extractHashValue(String responseBody) {
-        int index = responseBody.indexOf("\"hashValue\":\"");
-        if (index < 0) {
-            throw new IllegalStateException("hashValue not found in response: " + responseBody);
-        }
-        int start = index + "\"hashValue\":\"".length();
-        int end = responseBody.indexOf('"', start);
-        return responseBody.substring(start, end);
-    }
-
-    private String extractOriginalSha256(String responseBody) {
-        int index = responseBody.indexOf("\"originalSha256\":\"");
-        if (index < 0) {
-            throw new IllegalStateException("originalSha256 not found in response: " + responseBody);
-        }
-        int start = index + "\"originalSha256\":\"".length();
-        int end = responseBody.indexOf('"', start);
-        return responseBody.substring(start, end);
-    }
-
-    private void assertUploadHashFieldsMatch(String responseBody) throws Exception {
-        JsonNode response = objectMapper.readTree(responseBody);
-        assertThat(response.hasNonNull("hashValue")).isTrue();
-        assertThat(response.hasNonNull("originalSha256")).isTrue();
-        String hashValue = response.get("hashValue").asText();
-        String originalSha256 = response.get("originalSha256").asText();
-        assertThat(originalSha256).isEqualTo(hashValue);
-        assertThat(originalSha256).matches("[0-9a-f]{64}");
-    }
-
-    private Evidence saveEvidenceForCancelPolicy(User user, String fileName) {
-        return evidenceRepository.save(Evidence.builder()
-                .uploaderId(user.getUserId())
-                .fileName(fileName)
-                .fileType(FileType.VIDEO)
-                .mimeType("video/mp4")
-                .fileSize(100L)
-                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
-                .originalHashValue("b".repeat(64))
-                .originalStoragePath("original/" + fileName)
-                .uploadedAt(LocalDateTime.now())
-                .build());
-    }
-
-    private void seedS3Object(String objectKey, byte[] content) {
-        s3Client.putObject(
-                PutObjectRequest.builder()
-                        .bucket(evidenceBucket)
-                        .key(objectKey)
-                        .build(),
-                RequestBody.fromBytes(content)
-        );
-    }
-
-    private AnalysisRequest saveAnalysisRequestForCancelPolicy(
-            Evidence evidence,
-            User user,
-            AnalysisStatus status
-    ) {
-        AnalysisRequest request = new AnalysisRequest();
-        request.setEvidenceId(evidence.getEvidenceId());
-        request.setRequestedBy(user.getUserId());
-        request.setStatus(status);
-        request.setRequestedAt(LocalDateTime.now());
-        request.setProgressPercent(status == AnalysisStatus.COMPLETED ? 100 : 0);
-        return analysisRequestRepository.save(request);
-    }
-
-    private void saveAnalysisResult(AnalysisRequest request, double riskScore, RiskLevel riskLevel) {
-        AnalysisResult result = new AnalysisResult();
-        result.setAnalysisRequestId(request.getAnalysisRequestId());
-        result.setRiskScore(riskScore);
-        result.setConfidenceScore(0.9);
-        result.setRiskLevel(riskLevel);
-        result.setSummary("test");
-        result.setAnalyzedAt(request.getCompletedAt());
-        analysisResultRepository.save(result);
-    }
-
     @Test
     @DisplayName("RQ-SEC-153/SK-632: 무결성 검증 API는 정상 증거에서 200과 valid=true를 반환한다")
     void verifyIntegrity_validEvidence_returnsOk() throws Exception {
@@ -1388,38 +1187,5 @@ class EvidenceControllerTest {
                 .anyMatch(n -> n.getType() == NotificationType.SECURITY_ALERT
                         && n.getReferenceId().equals(evidenceId)
                         && n.getReferenceType().equals("SEC:SIG_INVALID"));
-    }
-
-    private long uploadAndStartAnalysis(String fileName, String caseName) throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                fileName,
-                "video/mp4",
-                ("bytes-" + fileName).getBytes(StandardCharsets.UTF_8)
-        );
-
-        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
-                        .file(file)
-                        .param("caseName", caseName)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
-
-        mockMvc.perform(post("/api/v1/evidences/analyze")
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "caseName": "%s",
-                                  "evidenceIds": [%d]
-                                }
-                                """.formatted(caseName, evidenceId)))
-                .andExpect(status().isOk());
-
-        return evidenceId;
     }
 }

@@ -3,7 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.admin.AdminInviteCodeResponse;
 import com.example.demo.dto.admin.CreateInviteCodeRequest;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.AdminInviteCodeService;
+import com.example.demo.service.admin.AdminInviteCodeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

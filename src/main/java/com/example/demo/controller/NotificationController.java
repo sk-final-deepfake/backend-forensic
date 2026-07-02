@@ -4,7 +4,7 @@ import com.example.demo.dto.notification.MarkAllNotificationsReadResponse;
 import com.example.demo.dto.notification.NotificationDto;
 import com.example.demo.dto.notification.NotificationListResponse;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.NotificationService;
+import com.example.demo.service.notification.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

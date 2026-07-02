@@ -13,7 +13,7 @@
 | 구분 | 판정 |
 | :--- | :--- |
 | **인증·가입·마이페이지·관리자 CRUD** | ✅ 일치 (`/api/v1`) |
-| **증거·분석 API** | ✅ v1 prefix + stats/analyze/auth **통일 완료** (legacy alias 유지) |
+| **증거·분석 API** | ✅ v1 prefix + stats/analyze/auth **통일 완료** (`/api/evidences` legacy alias 제거) |
 | **에러 JSON·예외 Handler** | ✅ `StandardErrorResponse` 단일 |
 | **Admin 페이지네이션** | ✅ `content` / `totalElements` |
 | **비교검증·PDF·알림·설정·블록체인** | ✅ **구현 완료** (INF 블록체인 http · Manifest **운영 CA Secret** 대기) |
@@ -29,8 +29,8 @@
 
 | 기능 | 기능명세서 (목표) | 현재 코드 | 상태 |
 | :--- | :--- | :--- | :--- |
-| 대시보드 통계 | `GET /api/v1/evidences/stats` | 동일 (+ legacy `/api/evidences/stats`) | ✅ |
-| 파일 업로드 | `POST /api/v1/evidences/upload` | 동일 (+ legacy) | ✅ |
+| 대시보드 통계 | `GET /api/v1/evidences/stats` | 동일 | ✅ |
+| 파일 업로드 | `POST /api/v1/evidences/upload` | 동일 | ✅ |
 | 분석 요청 | `POST /api/v1/evidences/analyze` | `{ evidenceId }` + `{ evidenceIds }` | ✅ |
 | 로그인 PENDING | HTTP 401 + `ACCOUNT_PENDING` | HTTP 401 + `errorCode` | ✅ |
 | 가입 에러 JSON | `errorCode` + `success` | `StandardErrorResponse` | ✅ |
@@ -115,12 +115,119 @@
 
 ---
 
+### 0.7 FE 연동 범위 vs BE 전용 API (2026-06)
+
+현재 **Next.js FE**(`frontend-deepfake`)가 직접 호출하는 증거 API는 [§2.3 `/api/v1/evidences`](#23-증거--분석-apiv1evidences)의 업로드·분석·상세·대시보드·리포트입니다.
+
+| API | FE 사용 | 비고 |
+| :--- | :---: | :--- |
+| `POST /api/v1/evidences/upload` | ✅ | |
+| `POST /api/v1/evidences/analyze` | ✅ | upload-only 모드 제외 시 |
+| `GET /api/v1/evidences/{id}/detail` | ✅ | |
+| `GET /api/v1/evidences/stats*` | ✅ | |
+| `GET /api/v1/evidences/{id}/analysis-status` | ✅ | polling |
+| `GET /api/v1/evidences/{id}/reports/pdf` | ✅ | |
+| `GET /api/v1/evidences/{id}/integrity/verify` | ❌ | BE 전용 · Postman · 향후 보안 UI |
+| `GET /api/v1/evidences/{id}/coc/verify` | ❌ | BE 전용 · 상세의 `cocLogs`로 대체 가능 |
+| `GET /api/v1/evidences/{id}/blockchain` | ❌ | BE 전용 · detail `blockchainInfo`에 요약 포함 |
+| `GET/PATCH /api/v1/notifications` | ❌ | BE 구현 완료 · FE 미연동 |
+| `GET/PATCH /api/v1/users/me/settings` | ❌ | BE 구현 완료 · FE 미연동 |
+
+> **리팩터링 원칙:** FE가 쓰는 경로·JSON 필드는 변경하지 않습니다. 위 ❌ API는 **문서상 BE 전용**으로 분류하며, 삭제하지 않습니다.
+
+**Legacy 경로:** `/api/evidences/*` alias는 **제거됨** (2026-06). 신규·FE 연동은 `/api/v1/evidences/*`만 사용합니다. 로그인 `POST /api/auth/login` legacy는 유지합니다.
+
+### 0.8 v2 사건 중심 증거 워크플로우 API (2026-07)
+
+FE `lib/api/case-workflow.ts` v2 플로우 연동. 기존 업로드·분석 API는 §2.3 유지.
+
+| API | FE 함수 | 설명 |
+| :--- | :--- | :--- |
+| `PATCH /api/v1/evidences/{evidenceId}/exclude` | `markEvidenceExcluded` | 사용 제외 (`lifecycleStatus=EXCLUDED`) |
+| `POST /api/v1/evidences/{evidenceId}/replace` | `replaceEvidenceInCase` | 대체 증거 업로드 (`multipart`: `file`, optional `reason`) |
+| `PATCH /api/v1/cases/representative?caseKey=` | `setRepresentativeEvidence` | 대표 증거 지정 |
+| `PATCH /api/v1/evidences/{evidenceId}/role` | `setEvidenceRole` | PRIMARY / SUPPLEMENT |
+
+**응답 확장 필드** (하위 호환 — optional):
+
+| DTO | 추가 필드 |
+| :--- | :--- |
+| `CaseDetailResponse` | `representativeEvidenceId` |
+| `CaseEvidenceSummaryDto` / `EvidenceInfoDto` | `displayLabel`, `originalFileName`, `lifecycleStatus`, `role`, `replacementEvidenceId`, `excludedReason` |
+| `CaseSummaryResponse` (mypage) | `representativeEvidenceId`, `representativeEvidenceLabel` |
+
+`createCase()`는 FE 클라이언트에서 사건명만 준비하고, 실제 사건 생성은 첫 `POST /evidences/upload`의 `caseName`으로 이뤄집니다.
+
+### 0.9 사건명 변경 · 보고서 목록 API (2026-07)
+
+FE v2 사건 편집 모달·`/reports` 페이지 연동용.
+
+| API | FE (예상) | 설명 |
+| :--- | :--- | :--- |
+| `PATCH /api/v1/cases?caseKey=` | 사건 편집 저장 | Body: `{ "caseName": "새 사건명" }` — 해당 사건 증거 전체 `caseName`/`caseNumber` 일괄 변경 |
+| `GET /api/v1/reports` | 보고서 목록 | `page`, `size` — 사용자가 생성한 분석·비교 PDF 목록 |
+
+**`PATCH /api/v1/cases?caseKey=`**
+
+- **Response 200:** `CaseDetailResponse` (변경 후 `caseKey`로 조회한 결과)
+- **Errors:** `CASE_NOT_FOUND` (404), `DUPLICATE_CASE_NAME` (409), `INVALID_REQUEST` (400)
+- CoC: 대표 증거 1건에 `CASE_RENAMED` 기록 (해시·스토리지 경로 불변)
+
+**`GET /api/v1/reports`**
+
+**Response 200:** `ReportListPageResponse`
+
+```json
+{
+  "content": [
+    {
+      "reportId": 1,
+      "reportType": "ANALYSIS",
+      "evidenceId": 101,
+      "compareId": null,
+      "caseId": "사건-A",
+      "caseName": "사건-A",
+      "reportFileName": "analysis-report-101.pdf",
+      "verdictLabel": "위험",
+      "createdAt": "2026-07-01T12:00:00Z",
+      "reportHash": "abc...",
+      "downloadPath": "/api/v1/evidences/101/reports/pdf"
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `reportType` | `ANALYSIS` (분석 PDF) · `COMPARE` (비교 PDF) |
+| `verdictLabel` | 분석: `적합`/`주의`/`위험` · 비교: `원본 일치`/`위변조 의심`/`판정 불가` |
+| `downloadPath` | 기존 PDF 다운로드 API 경로 (FE가 그대로 호출) |
+
+PDF **생성**은 기존 `GET /api/v1/evidences/{id}/reports/pdf`, `GET /api/v1/compare/{compareId}/reports/pdf` 유지.
+
+### 0.10 v2 응답 보강 — 분석 진행률 · 미디어 URL · 업로드 라벨 (2026-07)
+
+FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
+
+| API | 추가/채움 필드 | 설명 |
+| :--- | :--- | :--- |
+| `GET /api/v1/cases?caseKey=` | `evidences[].analysisProgress` | 최신 분석 요청 `progressPercent` (완료 시 100, 미요청 0) |
+| `GET /api/v1/cases?caseKey=` | `evidences[].previewUrl`, `videoUrl`, `fileUrl` | VIDEO 증거 S3 presigned GET (미설정 시 `s3://` URI 또는 null) |
+| `GET /api/evidences/{id}/detail` | `evidenceInfo.previewUrl`, `videoUrl`, `fileUrl` | 동일 |
+| `POST /api/v1/evidences/upload` | `displayLabel` | 사건 내 순번 라벨 (`증거 1`, `증거 2`, …) — DB에도 저장 |
+
+---
+
 ## 1. 공통
 
 | 항목 | 값 |
 | :--- | :--- |
 | Base URL (표준) | `/api/v1` |
-| Legacy | `/api/auth/login`, `/api/evidences/*` |
+| Legacy | `/api/auth/login` only (`/api/evidences/*` alias **removed** 2026-06) |
 | 인증 | `Authorization: Bearer {JWT}` |
 | Public | login, signup, username/check, invite validate, departments |
 | Admin | `/api/v1/admin/**` + `ROLE_ADMIN` |
@@ -223,7 +330,9 @@
 
 ---
 
-### 2.3 증거 · 분석 (Legacy prefix `/api/evidences`)
+### 2.3 증거 · 분석
+
+> **경로:** 아래 예시는 §2 canonical 표기. **운영·FE 연동은 `/api/v1/evidences/*`만** (§0, legacy alias 제거됨).
 
 #### GET `/api/v1/evidences/dashboard/intro`
 
@@ -632,7 +741,7 @@
 | **Path** | `caseId` = **String** (사건명/식별자) |
 
 **Response:** `CaseDetailResponse`  
-**`evidences[]` item (`CaseEvidenceSummaryDto`):** `evidenceId`, `fileName`, `mediaType`, `analysisStatus`, `thumbnailUrl?`, `previewUrl?`, `videoUrl?`, `fileUrl?` (미디어 스트리밍 API 미구현 시 `null`)  
+**`evidences[]` item (`CaseEvidenceSummaryDto`):** `evidenceId`, `fileName`, `mediaType`, `analysisStatus`, `thumbnailUrl?`, `previewUrl?`, `videoUrl?`, `fileUrl?` — VIDEO 증거는 S3 presigned GET URL (§0.10, 미설정·비VIDEO 시 `null`)  
 **Errors:** `CASE_NOT_FOUND` (404)
 
 > 명세 FE: `app/cases/[id]/page.tsx` → 이 API 호출.  

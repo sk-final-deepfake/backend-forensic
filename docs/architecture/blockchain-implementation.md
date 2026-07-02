@@ -332,8 +332,8 @@ blockchain:
 | :--- | :--- |
 | 앵커 오케스트레이션 | `service/BlockchainAnchorService.java` |
 | Merkle Root 계산 | `util/MerkleTreeUtil.java` |
-| 시뮬레이터 클라이언트 | `blockchain/SimulatedBlockchainAnchorClient.java` |
-| HTTP 게이트웨이 클라이언트 | `blockchain/HttpBlockchainAnchorClient.java` |
+| 시뮬레이터 클라이언트 | `service/blockchain/client/SimulatedBlockchainAnchorClient.java` |
+| HTTP 게이트웨이 클라이언트 | `service/blockchain/client/HttpBlockchainAnchorClient.java` |
 | 일일 스케줄 | `scheduler/BlockchainAnchorScheduler.java` |
 | Admin 수동 Merkle | `controller/AdminBlockchainController.java` |
 | 업로드 시 증거 앵커 | `service/FileService.java` |
