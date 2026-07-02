@@ -38,6 +38,30 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
         } catch (Exception e) {
             log.warn("Could not create partial unique index on analysis_requests: {}", e.getMessage());
         }
+
+        migrateReportsTableForComparePdf();
+    }
+
+    /**
+     * compare PDF는 analysis_result_id 없이 reports에 저장됩니다.
+     * 레거시 H2 스키마(NOT NULL)를 PostgreSQL 마이그레이션(002)과 동일하게 완화합니다.
+     */
+    void migrateReportsTableForComparePdf() {
+        try {
+            jdbcTemplate.execute("ALTER TABLE reports ALTER COLUMN analysis_result_id DROP NOT NULL");
+        } catch (Exception e) {
+            log.debug("reports.analysis_result_id already nullable or table missing: {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS compare_id BIGINT");
+        } catch (Exception e) {
+            log.debug("reports.compare_id migration skipped: {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_reports_compare_id ON reports (compare_id)");
+        } catch (Exception e) {
+            log.warn("Could not create idx_reports_compare_id: {}", e.getMessage());
+        }
     }
 
     private boolean isH2Database() {
