@@ -37,6 +37,10 @@ public class AnalysisWorkerService {
 
     public void processJob(Long analysisRequestId) {
         if (!prepareJob(analysisRequestId)) {
+            log.warn(
+                    "Skipped analysis job {} because request is missing or not QUEUED",
+                    analysisRequestId
+            );
             return;
         }
 
@@ -115,7 +119,16 @@ public class AnalysisWorkerService {
     private boolean prepareJob(Long analysisRequestId) {
         return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
             AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId).orElse(null);
-            if (request == null || request.getStatus() != AnalysisStatus.QUEUED) {
+            if (request == null) {
+                log.debug("Analysis request {} not visible yet", analysisRequestId);
+                return false;
+            }
+            if (request.getStatus() != AnalysisStatus.QUEUED) {
+                log.debug(
+                        "Analysis request {} has status {}, expected QUEUED",
+                        analysisRequestId,
+                        request.getStatus()
+                );
                 return false;
             }
 
