@@ -40,8 +40,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-amqp'
 	implementation platform('software.amazon.awssdk:bom:2.31.20')
 	implementation 'software.amazon.awssdk:s3'
+	implementation 'software.amazon.awssdk:secretsmanager'
 	// IRSA(웹 아이덴티티 토큰) 자격증명 교환에 필수
 	implementation 'software.amazon.awssdk:sts'
+	implementation 'com.github.librepdf:openpdf:2.0.3'
+	implementation 'com.google.zxing:core:3.5.3'
+	implementation 'com.google.zxing:javase:3.5.3'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'

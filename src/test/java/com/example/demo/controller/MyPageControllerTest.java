@@ -123,7 +123,10 @@ class MyPageControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.content[0].caseId").value("12121212"))
 				.andExpect(jsonPath("$.content[0].caseId").value(not(String.valueOf(evidence.getEvidenceId()))))
-				.andExpect(jsonPath("$.content[0].caseName").value("12121212"));
+				.andExpect(jsonPath("$.content[0].caseName").value("12121212"))
+				.andExpect(jsonPath("$.content[0].representativeFileName").value("case-name-only.mp4"))
+				.andExpect(jsonPath("$.content[0].evidenceCount").value(1))
+				.andExpect(jsonPath("$.content[0].status").value("PENDING"));
 
 		mockMvc.perform(get("/api/v1/cases")
 						.param("caseKey", "12121212")
@@ -131,6 +134,50 @@ class MyPageControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.caseId").value("12121212"))
 				.andExpect(jsonPath("$.evidences[0].evidenceId").value(evidence.getEvidenceId()));
+	}
+
+	@Test
+	void getCaseDetail_withEncodedKoreanCaseKey_returnsCase() throws Exception {
+		String caseName = "2026-서울-0123 딥페이크 유포 사건";
+		Evidence evidence = evidenceRepository.save(Evidence.builder()
+				.uploaderId(testUser.getUserId())
+				.caseName(caseName)
+				.fileName("korean-case.mp4")
+				.fileType(FileType.VIDEO)
+				.mimeType("video/mp4")
+				.fileSize(12L)
+				.hashAlgorithm("SHA-256")
+				.originalHashValue("b".repeat(64))
+				.originalStoragePath("uploads/test/korean-case.mp4")
+				.uploadedAt(LocalDateTime.now())
+				.build());
+
+		AnalysisRequest request = new AnalysisRequest();
+		request.setEvidenceId(evidence.getEvidenceId());
+		request.setRequestedBy(testUser.getUserId());
+		request.setStatus(AnalysisStatus.QUEUED);
+		request.setRequestedAt(LocalDateTime.now());
+		analysisRequestRepository.save(request);
+
+		String encodedOnce = java.net.URLEncoder.encode(caseName, java.nio.charset.StandardCharsets.UTF_8);
+		String doubleEncoded = java.net.URLEncoder.encode(encodedOnce, java.nio.charset.StandardCharsets.UTF_8);
+
+		mockMvc.perform(get("/api/v1/cases")
+						.param("caseKey", doubleEncoded)
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.caseId").value(caseName))
+				.andExpect(jsonPath("$.caseName").value(caseName))
+				.andExpect(jsonPath("$.evidences[0].evidenceId").value(evidence.getEvidenceId()));
+	}
+
+	@Test
+	void getCaseDetail_withoutCaseKey_returnsBadRequest() throws Exception {
+		mockMvc.perform(get("/api/v1/cases")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
+				.andExpect(jsonPath("$.message").value("사건 식별자가 필요합니다."));
 	}
 
 	@Test

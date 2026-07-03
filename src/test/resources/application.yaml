@@ -3,6 +3,7 @@ spring:
     active: test
   autoconfigure:
     exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
       - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
   datasource:
@@ -20,11 +21,32 @@ file:
 ffmpeg:
   path: C:\ffmpeg\ffmpeg-8.1.1-essentials_build\bin
 
+# 단위 테스트 — Redis 자동설정 제외, RefreshTokenRedisService 인메모리 폴백
 jwt:
   secret: test-jwt-secret-key-for-unit-tests-only
+  access-expiration-ms: 3600000
   expiration-ms: 3600000
+  refresh-expiration-days: 7
+
+auth:
+  cookie:
+    secure: false  # MockMvc http 테스트용
 
 aws:
   region: ap-northeast-2
   s3:
     evidence-bucket: test-evidence-bucket
+
+analysis:
+  worker:
+    step-delay-ms: 0
+    mode: local
+    stale-reaper-enabled: false
+
+blockchain:
+  anchor:
+    enabled: true
+    mode: simulated
+    network: local-simulated
+    scheduler-enabled: false
+    explorer-url-template: https://explorer.test/tx/{txHash}

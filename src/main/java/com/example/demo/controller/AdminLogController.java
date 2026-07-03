@@ -2,7 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.admin.AdminLogPageResponse;
 import com.example.demo.exception.AdminException;
-import com.example.demo.service.AdminLogService;
+import com.example.demo.service.admin.AdminLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

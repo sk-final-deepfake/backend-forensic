@@ -11,7 +11,7 @@
 | 구분 | Base | 비고 |
 | :--- | :--- | :--- |
 | **표준 (v1)** | `/api/v1` | 신규·관리자·마이페이지 API |
-| **Legacy** | `/api` | 증거·로그인 일부 (마이그레이션 중) |
+| **Legacy** | `/api/auth/login` | 로그인만 예외 (증거 API는 v1 only) |
 
 **개발 환경 예:** `http://localhost:8080`
 
@@ -21,9 +21,9 @@
 | :--- | :--- | :--- |
 | `POST /api/auth/login` | 동일 (legacy 유지) | ✅ |
 | `POST /api/v1/auth/signup` | 동일 | ✅ |
-| `POST /api/evidences/upload` | `POST /api/v1/evidences/upload` | 🟡 통합 예정 |
-| `POST /api/evidences/analyze` | `POST /api/v1/evidences/analyze` | 🟡 통합 예정 |
-| `GET /api/evidences/{id}/detail` | `GET /api/v1/evidences/{evidenceId}` | 🟡 |
+| `POST /api/evidences/upload` | `POST /api/v1/evidences/upload` | ✅ v1 only (legacy removed) |
+| `POST /api/evidences/analyze` | `POST /api/v1/evidences/analyze` | ✅ v1 only |
+| `GET /api/evidences/{id}/detail` | `GET /api/v1/evidences/{evidenceId}/detail` | ✅ v1 only |
 
 **규칙:** 신규 API는 **반드시 `/api/v1`** 로만 추가합니다.
 
@@ -69,6 +69,7 @@ JWT: `Authorization: Bearer {token}` · Admin은 `ROLE_ADMIN` + `/api/v1/admin/*
 | 200 / 201 / 204 | 성공 |
 | 400 | Validation·도메인 규칙 |
 | 401 / 403 | 인증·권한 |
+| 413 | Payload·multipart 한도 초과 |
 | 404 / 409 / 429 / 500 | Not found · 중복 · Rate limit · 서버 오류 |
 
 ---
@@ -78,16 +79,20 @@ JWT: `Authorization: Bearer {token}` · Admin은 `ROLE_ADMIN` + `/api/v1/admin/*
 | HTTP | errorCode | 사용처 |
 | :--- | :--- | :--- |
 | 400 | `VALIDATION_ERROR` | `@Valid` 실패 |
-| 400 | `INVALID_REQUEST`, `FILE_NOT_FOUND`, `UNSUPPORTED_FILE_TYPE`, `FILE_SIZE_EXCEEDED` | upload 등 |
+| 400 | `INVALID_REQUEST`, `FILE_NOT_FOUND`, `UNSUPPORTED_FILE_TYPE`, `FILE_SIZE_EXCEEDED`, `INVALID_MEDIA_FILE` | upload·미디어 검증 (`FILE_SIZE_EXCEEDED` = 비즈니스 한도) |
 | 400 | `INVALID_PASSWORD`, `PASSWORD_TOO_SHORT` | 프로필 |
 | 400 | `ANALYSIS_ALREADY_COMPLETED` | analyze |
-| 401 | `UNAUTHORIZED`, `INVALID_CREDENTIALS` | JWT·로그인 |
+| 401 | `UNAUTHORIZED`, `INVALID_CREDENTIALS` | JWT·로그인 (`SecurityFilter` → `StandardErrorResponse`) |
 | 401 | `ACCOUNT_PENDING`, `ACCOUNT_REJECTED`, `ACCOUNT_SUSPENDED` | 계정 상태 |
-| 403 | `FORBIDDEN` | Admin API |
+| 403 | `FORBIDDEN` | 권한 없음 (Admin·역할 불일치) |
+| 413 | `FILE_TOO_LARGE` | Servlet multipart 한도 초과 (`MaxUploadSizeExceededException`) |
 | 404 | `NOT_FOUND`, `EVIDENCE_NOT_FOUND`, `CASE_NOT_FOUND` | 리소스 |
 | 409 | `DUPLICATE_LOGIN_ID`, `DUPLICATE_EMAIL` | signup |
+| 409 | `SIGNATURE_INVALID`, `CHAIN_INTEGRITY_FAILED`, `BLOCKCHAIN_HASH_MISMATCH` | `GET .../integrity/verify` (SK-632) |
 | 429 | `RATE_LIMIT_EXCEEDED` | Public API |
 | 500 | `INTERNAL_ERROR`, `HASH_GENERATION_FAILED` | 서버 |
+
+**파일 크기 (업로드):** FE는 **413 `FILE_TOO_LARGE`**(Servlet 한도)와 **400 `FILE_SIZE_EXCEEDED`**(비즈니스 검증)를 **둘 다** 처리합니다.
 
 **신규 errorCode:** 본 표 + [specification.md](./specification.md) 해당 API 동시 갱신
 

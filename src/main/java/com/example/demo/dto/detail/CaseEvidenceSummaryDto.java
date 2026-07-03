@@ -9,6 +9,17 @@ public class CaseEvidenceSummaryDto {
 
     private Long evidenceId;
     private String fileName;
+    private String displayLabel;
+    private String originalFileName;
     private String mediaType;
     private String analysisStatus;
+    private Integer analysisProgress;
+    private String lifecycleStatus;
+    private String role;
+    private Long replacementEvidenceId;
+    private String excludedReason;
+    private String thumbnailUrl;
+    private String previewUrl;
+    private String videoUrl;
+    private String fileUrl;
 }

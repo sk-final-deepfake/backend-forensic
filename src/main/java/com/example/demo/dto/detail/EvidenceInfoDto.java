@@ -9,10 +9,20 @@ public class EvidenceInfoDto {
 
     private Long evidenceId;
     private String fileName;
+    private String displayLabel;
+    private String originalFileName;
     private String caseName;
+    private String caseId;
     private Long fileSize;
     private String uploadedAt;
     private String mediaType;
     private String fileType;
-    private Object technicalMetadata; // VideoMetadataDto, AudioMetadataDto, or ImageMetadataDto
+    private String lifecycleStatus;
+    private String role;
+    private Long replacementEvidenceId;
+    private String excludedReason;
+    private String previewUrl;
+    private String videoUrl;
+    private String fileUrl;
+    private VideoMetadataDto technicalMetadata;
 }

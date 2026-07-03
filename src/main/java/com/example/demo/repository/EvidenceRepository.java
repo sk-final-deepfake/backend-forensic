@@ -2,7 +2,8 @@ package com.example.demo.repository;
 
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.EvidenceStatus;
-import com.example.demo.domain.enums.FileType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -12,8 +13,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSpecificationExecutor<Evidence> {
-
-    long countByFileTypeAndDeletedAtIsNull(FileType fileType);
 
     List<Evidence> findByUploaderIdAndStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
             Long uploaderId,
@@ -43,5 +42,24 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
     List<Evidence> findByUploaderIdAndCaseKey(
             @Param("uploaderId") Long uploaderId,
             @Param("caseKey") String caseKey
+    );
+
+    @Query("""
+            SELECT e
+            FROM Evidence e
+            WHERE e.uploaderId = :uploaderId
+              AND e.deletedAt IS NULL
+              AND (
+                :search IS NULL OR TRIM(:search) = '' OR
+                LOWER(e.fileName) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                LOWER(COALESCE(e.caseName, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                LOWER(COALESCE(e.caseNumber, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+              )
+            ORDER BY e.uploadedAt DESC
+            """)
+    Page<Evidence> findCompareOriginals(
+            @Param("uploaderId") Long uploaderId,
+            @Param("search") String search,
+            Pageable pageable
     );
 }

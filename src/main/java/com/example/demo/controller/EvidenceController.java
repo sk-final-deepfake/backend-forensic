@@ -1,19 +1,19 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.AnalysisStatusResponse;
-import com.example.demo.dto.EvidenceStatsResponse;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.AnalysisCancelService;
-import com.example.demo.service.AnalysisService;
-import com.example.demo.service.AnalysisStatusService;
-import com.example.demo.service.EvidenceCancelService;
-import com.example.demo.service.EvidenceDetailService;
-import com.example.demo.service.EvidenceStatsService;
-import com.example.demo.service.FileService;
+import com.example.demo.service.analysis.AnalysisCancelService;
+import com.example.demo.service.analysis.AnalysisService;
+import com.example.demo.service.analysis.AnalysisStatusService;
+import com.example.demo.service.evidence.EvidenceCancelService;
+import com.example.demo.service.evidence.EvidenceDetailService;
+import com.example.demo.service.evidence.FileService;
+import com.example.demo.service.integrity.EvidenceIntegrityResult;
+import com.example.demo.service.integrity.IntegrityVerificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,26 +32,18 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Evidence", description = "증거 관련 API")
 @RestController
-@RequestMapping({"/api/v1/evidences", "/api/evidences"})
+@RequestMapping(EvidenceApiPaths.BASE)
 @RequiredArgsConstructor
 public class EvidenceController {
 
     private final FileService fileService;
-    private final EvidenceStatsService evidenceStatsService;
     private final AnalysisService analysisService;
     private final EvidenceDetailService evidenceDetailService;
     private final EvidenceCancelService evidenceCancelService;
     private final AnalysisCancelService analysisCancelService;
     private final AnalysisStatusService analysisStatusService;
+    private final IntegrityVerificationService integrityVerificationService;
     private final AuthUserResolver authUserResolver;
-
-    @Operation(summary = "대시보드 통계", description = "RQ-DSH-043: 총 분석·딥페이크 탐지·완료·처리 중 건수를 조회합니다.")
-    @GetMapping("/stats")
-    public EvidenceStatsResponse stats() {
-        return evidenceStatsService.getDashboardStats(
-                authUserResolver.requireCurrentUser().getUserId()
-        );
-    }
 
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -76,7 +68,7 @@ public class EvidenceController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "분석 상태 조회", description = "증거의 큐 대기·진행·완료 상태와 진행률을 조회합니다.")
+    @Operation(summary = "분석 상태 조회", description = "증거의 큐 대기·진행·완료·실패 상태와 진행률을 조회합니다. FAILED 시 errorCode·errorMessage 포함.")
     @GetMapping("/{evidenceId}/analysis-status")
     public AnalysisStatusResponse getAnalysisStatus(@PathVariable Long evidenceId) {
         return analysisStatusService.getStatus(
@@ -105,13 +97,12 @@ public class EvidenceController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "증거 상세", description = "증거 ID로 상세 분석·메타데이터·무결성 정보를 조회합니다.")
+    @Operation(summary = "증거 상세", description = "증거 ID로 상세 분석·메타데이터·무결성 정보를 조회합니다. RQ-SEC-153: 조회 시 무결성 실패면 보안 알림 자동 발송.")
     @GetMapping("/{evidenceId}/detail")
     public EvidenceDetailResponse getEvidenceDetail(@PathVariable Long evidenceId) {
-        return evidenceDetailService.getEvidenceDetail(
-                authUserResolver.requireCurrentUser(),
-                evidenceId
-        );
+        var user = authUserResolver.requireCurrentUser();
+        EvidenceIntegrityResult integrity = integrityVerificationService.verifyAndNotifySecurityIssues(user, evidenceId);
+        return evidenceDetailService.getEvidenceDetail(integrity.evidence(), integrity.verification());
     }
 
     @Operation(summary = "분석 시작", description = "업로드된 증거에 대한 분석을 요청합니다. evidenceId(단건) 또는 evidenceIds(복수) 중 하나를 사용합니다.")

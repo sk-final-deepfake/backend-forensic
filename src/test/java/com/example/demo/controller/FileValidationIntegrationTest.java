@@ -6,14 +6,20 @@ import com.example.demo.exception.UnsupportedFileTypeException;
 import com.example.demo.security.AuthUserResolver;
 import com.example.demo.security.JwtAuthenticationFilter;
 import com.example.demo.security.SignupRateLimitService;
-import com.example.demo.service.AnalysisCancelService;
-import com.example.demo.service.AnalysisJobEnqueuer;
-import com.example.demo.service.AnalysisService;
-import com.example.demo.service.AnalysisStatusService;
-import com.example.demo.service.EvidenceCancelService;
-import com.example.demo.service.EvidenceDetailService;
-import com.example.demo.service.EvidenceStatsService;
-import com.example.demo.service.FileService;
+import com.example.demo.service.analysis.AnalysisCancelService;
+import com.example.demo.service.analysis.AnalysisJobEnqueuer;
+import com.example.demo.service.analysis.AnalysisService;
+import com.example.demo.service.analysis.AnalysisStatusService;
+import com.example.demo.service.blockchain.BlockchainAnchorService;
+import com.example.demo.service.custody.CocChainVerificationService;
+import com.example.demo.service.dashboard.DashboardIntroService;
+import com.example.demo.service.evidence.CaseWorkflowService;
+import com.example.demo.service.evidence.EvidenceCancelService;
+import com.example.demo.service.evidence.EvidenceDetailService;
+import com.example.demo.service.dashboard.EvidenceStatsService;
+import com.example.demo.service.evidence.FileService;
+import com.example.demo.service.integrity.IntegrityVerificationService;
+import com.example.demo.service.report.ReportPdfService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +51,9 @@ class FileValidationIntegrationTest {
     private EvidenceStatsService evidenceStatsService;
 
     @MockBean
+    private DashboardIntroService dashboardIntroService;
+
+    @MockBean
     private AnalysisService analysisService;
 
     @MockBean
@@ -61,6 +70,21 @@ class FileValidationIntegrationTest {
 
     @MockBean
     private AnalysisStatusService analysisStatusService;
+
+    @MockBean
+    private ReportPdfService reportPdfService;
+
+    @MockBean
+    private BlockchainAnchorService blockchainAnchorService;
+
+    @MockBean
+    private IntegrityVerificationService integrityVerificationService;
+
+    @MockBean
+    private CocChainVerificationService cocChainVerificationService;
+
+    @MockBean
+    private CaseWorkflowService caseWorkflowService;
 
     @MockBean
     private AuthUserResolver authUserResolver;

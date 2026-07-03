@@ -1,5 +1,6 @@
 package com.example.demo.dto.user;
 
+import com.example.demo.domain.enums.ThemeMode;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,5 +16,6 @@ public class UserProfileResponse {
 	private String role;
 	private String status;
 	private boolean darkMode;
+	private ThemeMode themeMode;
 	private String createdAt;
 }

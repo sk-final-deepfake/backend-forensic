@@ -1,7 +1,9 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.admin.AdminAnalysisStatsResponse;
 import com.example.demo.dto.admin.AdminDashboardStatsResponse;
-import com.example.demo.service.AdminDashboardService;
+import com.example.demo.service.admin.AdminAnalysisStatsService;
+import com.example.demo.service.admin.AdminDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -18,10 +20,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminDashboardController {
 
     private final AdminDashboardService adminDashboardService;
+    private final AdminAnalysisStatsService adminAnalysisStatsService;
 
     @Operation(summary = "대시보드 통계 조회")
     @GetMapping("/stats")
     public AdminDashboardStatsResponse getStats() {
         return adminDashboardService.getStats();
+    }
+
+    @Operation(summary = "분석 통계 조회", description = "RQ-ADMIN-150 · 관리자 통계 분석 화면")
+    @GetMapping("/analysis-stats")
+    public AdminAnalysisStatsResponse getAnalysisStats() {
+        return adminAnalysisStatsService.getStats();
     }
 }

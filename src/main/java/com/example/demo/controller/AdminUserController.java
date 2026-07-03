@@ -6,7 +6,7 @@ import com.example.demo.dto.admin.AdminUserStatusResponse;
 import com.example.demo.dto.admin.ResetAdminUserPasswordRequest;
 import com.example.demo.dto.admin.UpdateAdminUserRequest;
 import com.example.demo.security.AuthUserResolver;
-import com.example.demo.service.AdminUserService;
+import com.example.demo.service.admin.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -55,6 +55,12 @@ public class AdminUserController {
     @PostMapping("/{userId}/reject")
     public AdminUserStatusResponse reject(@PathVariable Long userId) {
         return adminUserService.reject(authUserResolver.requireCurrentUser(), userId);
+    }
+
+    @Operation(summary = "계정 정지", description = "RQ-ADMIN-126 · SK-784: APPROVED 계정을 SUSPENDED로 변경")
+    @PostMapping("/{userId}/suspend")
+    public AdminUserStatusResponse suspend(@PathVariable Long userId) {
+        return adminUserService.suspend(authUserResolver.requireCurrentUser(), userId);
     }
 
     @Operation(summary = "계정 정보 수정")

@@ -1,7 +1,9 @@
 # EKS / RDS 운영: POSTGRES_*, JWT_SECRET_KEY 환경 변수 필요
 jwt:
   secret: ${JWT_SECRET_KEY}
-  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1200000}  # 액세스 JWT 20분
+  expiration-ms: ${JWT_EXPIRATION_MS:1200000}
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}  # ElastiCache·쿠키 만료
 
 spring:
   datasource:
@@ -16,6 +18,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  # RedisConfig → RefreshTokenRedisService (K8s redis-credentials 시크릿)
   data:
     redis:
       host: ${REDIS_HOST}
@@ -52,3 +55,29 @@ file:
 
 ffmpeg:
   path: /usr/bin
+
+analysis:
+  worker:
+    mode: ${ANALYSIS_WORKER_MODE:ai}
+    step-delay-ms: 0
+
+blockchain:
+  anchor:
+    enabled: ${BLOCKCHAIN_ANCHOR_ENABLED:true}
+    mode: ${BLOCKCHAIN_ANCHOR_MODE:http}
+    network: ${BLOCKCHAIN_ANCHOR_NETWORK:hyperledger-fabric-forenshield}
+    http-url: ${BLOCKCHAIN_ANCHOR_URL:}
+    http-api-key: ${BLOCKCHAIN_ANCHOR_HTTP_API_KEY:}
+    client-id: ${BLOCKCHAIN_ANCHOR_CLIENT_ID:forenshield-be}
+    http-connect-timeout-ms: ${BLOCKCHAIN_ANCHOR_HTTP_CONNECT_TIMEOUT_MS:5000}
+    http-read-timeout-ms: ${BLOCKCHAIN_ANCHOR_HTTP_READ_TIMEOUT_MS:30000}
+    scheduler-enabled: true
+    daily-cron: "0 0 1 * * *"
+    explorer-url-template: ${BLOCKCHAIN_EXPLORER_URL_TEMPLATE:}
+
+evidence:
+  manifest:
+    signing:
+      secrets-manager-secret-id: ${MANIFEST_SIGNING_SECRET_ID:}
+      private-key-pem: ${MANIFEST_SIGNING_PRIVATE_KEY_PEM:}
+      certificate-pem: ${MANIFEST_SIGNING_CERTIFICATE_PEM:}
