@@ -141,6 +141,69 @@ class AnalysisAiResultIntegrationTest {
     }
 
     @Test
+    void applyAiResult_updatesExistingResultWithFrameRisks() {
+        AnalysisResponseMessage initial = AnalysisResponseMessage.builder()
+                .analysisRequestId(queuedRequest.getAnalysisRequestId())
+                .evidenceId(evidence.getEvidenceId())
+                .status("COMPLETED")
+                .riskScore(11.0)
+                .confidenceScore(0.83)
+                .riskLevel("LOW")
+                .analysisReasons(List.of("Initial GPU result without frame risks"))
+                .analyzedAt("2026-07-03T07:27:36Z")
+                .results(List.of(AnalysisResponseMessage.AnalysisVideoResultItem.builder()
+                        .type("video")
+                        .deepfakeDetected(false)
+                        .deepfakeScore(0.11)
+                        .build()))
+                .build();
+
+        analysisWorkerService.applyAiResult(initial);
+
+        AnalysisResponseMessage updated = AnalysisResponseMessage.builder()
+                .analysisRequestId(queuedRequest.getAnalysisRequestId())
+                .evidenceId(evidence.getEvidenceId())
+                .status("COMPLETED")
+                .riskScore(10.8)
+                .confidenceScore(0.84)
+                .riskLevel("LOW")
+                .analysisReasons(List.of("GPU frameRisks payload"))
+                .analyzedAt("2026-07-03T07:27:37Z")
+                .results(List.of(AnalysisResponseMessage.AnalysisVideoResultItem.builder()
+                        .type("video")
+                        .deepfakeDetected(false)
+                        .deepfakeScore(0.108)
+                        .frameRisks(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.builder()
+                                        .frameIndex(0)
+                                        .timestampSec(0.0)
+                                        .riskScore(0.12)
+                                        .build(),
+                                AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.builder()
+                                        .frameIndex(1)
+                                        .timestampSec(2.1)
+                                        .riskScore(0.18)
+                                        .build()
+                        ))
+                        .build()))
+                .build();
+
+        analysisWorkerService.applyAiResult(updated);
+
+        AnalysisResult result = analysisResultRepository.findByAnalysisRequestId(queuedRequest.getAnalysisRequestId())
+                .orElseThrow();
+        assertThat(result.getRiskScore()).isEqualTo(10.8);
+
+        var timelineModule = analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(
+                        result.getAnalysisResultId()).stream()
+                .filter(module -> VideoAnalysisDetailsBuilder.MODULE_VIDEO_TIMELINE.equals(module.getModuleName()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(timelineModule.getDetailsJson()).contains("\"frameRisks\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"riskScore\":0.12");
+    }
+
+    @Test
     void applyAiResult_marksFailedWhenAiReturnsFailed() {
         AnalysisResponseMessage response = AnalysisResponseMessage.builder()
                 .analysisRequestId(queuedRequest.getAnalysisRequestId())

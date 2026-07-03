@@ -1,12 +1,14 @@
 package com.example.demo.service.analysis;
 
 import com.example.demo.config.VideoFrameAnalysisProperties;
+import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.enums.RiskLevel;
 import com.example.demo.dto.AnalysisResponseMessage;
 import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.util.ApiDateTimeFormatter;
@@ -24,6 +26,7 @@ public class AnalysisResultPersistenceService {
 
     private final AnalysisRequestRepository analysisRequestRepository;
     private final AnalysisResultRepository analysisResultRepository;
+    private final AnalysisModuleResultRepository analysisModuleResultRepository;
     private final SuspiciousSegmentCalculator suspiciousSegmentCalculator;
     private final VideoFrameAnalysisProperties frameAnalysisProperties;
     private final AnalysisResponseResolver responseResolver;
@@ -40,8 +43,27 @@ public class AnalysisResultPersistenceService {
     public Long saveFromAiResponse(AnalysisResponseMessage response) {
         Long analysisRequestId = response.getAnalysisRequestId();
         return analysisResultRepository.findByAnalysisRequestId(analysisRequestId)
-                .map(AnalysisResult::getAnalysisResultId)
+                .map(existing -> updateFromAiResponse(existing, response))
                 .orElseGet(() -> createFromAiResponse(response));
+    }
+
+    private Long updateFromAiResponse(AnalysisResult existing, AnalysisResponseMessage response) {
+        existing.setRiskScore(response.getRiskScore());
+        existing.setConfidenceScore(response.getConfidenceScore());
+        existing.setRiskLevel(parseRiskLevel(response.getRiskLevel()));
+        existing.setSummary(buildSummary(response));
+        if (response.getAnalyzedAt() != null) {
+            existing.setAnalyzedAt(ApiDateTimeFormatter.parseUtc(response.getAnalyzedAt()));
+        }
+        analysisResultRepository.save(existing);
+
+        List<AnalysisModuleResult> oldModules = analysisModuleResultRepository
+                .findByAnalysisResultIdOrderByCreatedAtAsc(existing.getAnalysisResultId());
+        if (!oldModules.isEmpty()) {
+            analysisModuleResultRepository.deleteAll(oldModules);
+        }
+        persistVideoModules(existing.getAnalysisResultId(), response);
+        return existing.getAnalysisResultId();
     }
 
     private Long createFromAiResponse(AnalysisResponseMessage response) {
