@@ -15,4 +15,7 @@ public class AdminUserItemResponse {
     private String joinedAt;
     private String status;
     private String role;
+    private String organizationType;
+    private String organizationId;
+    private String organizationName;
 }
