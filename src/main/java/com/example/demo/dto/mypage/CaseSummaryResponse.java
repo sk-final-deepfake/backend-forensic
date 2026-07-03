@@ -17,4 +17,12 @@ public class CaseSummaryResponse {
 	private Long representativeEvidenceId;
 	private String representativeEvidenceLabel;
 	private Double riskScore;
+	private String organizationId;
+	private String department;
+	private String createdBy;
+	private String assigneeId;
+	private String reviewerId;
+	private String reviewStatus;
+	private String aiResult;
+	private String reviewRequestedAt;
 }

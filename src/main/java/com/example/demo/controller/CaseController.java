@@ -1,9 +1,13 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.caseworkflow.SetRepresentativeEvidenceRequest;
+import com.example.demo.dto.detail.AssignCaseReviewerRequest;
+import com.example.demo.dto.detail.CaseReviewDecisionRequest;
+import com.example.demo.dto.detail.CaseReviewRequest;
 import com.example.demo.dto.caseworkflow.UpdateCaseNameRequest;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.security.AuthUserResolver;
+import com.example.demo.dto.caseworkflow.SetRepresentativeEvidenceRequest;
+import com.example.demo.service.evidence.CaseReviewService;
 import com.example.demo.service.evidence.CaseWorkflowService;
 import com.example.demo.service.evidence.EvidenceDetailService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Case", description = "사건 상세 API")
@@ -28,6 +33,7 @@ public class CaseController {
 
     private final EvidenceDetailService evidenceDetailService;
     private final CaseWorkflowService caseWorkflowService;
+    private final CaseReviewService caseReviewService;
     private final AuthUserResolver authUserResolver;
 
     @Operation(summary = "사건 상세", description = "사건 ID(사건명)로 소속 증거 목록을 조회합니다.")
@@ -71,6 +77,47 @@ public class CaseController {
         return evidenceDetailService.getCaseDetail(
                 authUserResolver.requireCurrentUser(),
                 newCaseKey
+        );
+    }
+
+    @Operation(summary = "검토 요청", description = "분석이 완료된 사건에 대해 검토를 요청합니다.")
+    @PostMapping(value = "/review-request", produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
+    public CaseDetailResponse requestReview(
+            @RequestParam String caseKey,
+            @RequestBody(required = false) CaseReviewRequest request
+    ) {
+        String memo = request == null ? null : request.getMemo();
+        return caseReviewService.requestReview(
+                authUserResolver.requireCurrentUser(),
+                caseKey,
+                memo
+        );
+    }
+
+    @Operation(summary = "검토자 배정", description = "기관 관리자가 검토 요청 사건에 검토자를 배정합니다.")
+    @PatchMapping(value = "/reviewer", produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
+    public CaseDetailResponse assignReviewer(
+            @RequestParam String caseKey,
+            @Valid @RequestBody AssignCaseReviewerRequest request
+    ) {
+        return caseReviewService.assignReviewer(
+                authUserResolver.requireCurrentUser(),
+                caseKey,
+                request.getReviewerId()
+        );
+    }
+
+    @Operation(summary = "검토 결정", description = "배정된 검토자가 승인 또는 재검토를 기록합니다.")
+    @PostMapping(value = "/review-decision", produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
+    public CaseDetailResponse recordReviewDecision(
+            @RequestParam String caseKey,
+            @Valid @RequestBody CaseReviewDecisionRequest request
+    ) {
+        return caseReviewService.recordDecision(
+                authUserResolver.requireCurrentUser(),
+                caseKey,
+                request.getDecision(),
+                request.getMemo()
         );
     }
 }
