@@ -40,6 +40,36 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
         }
 
         migrateReportsTableForComparePdf();
+        migrateEvidencesV2Workflow();
+        migrateEvidenceMetadataReadiness();
+    }
+
+    void migrateEvidencesV2Workflow() {
+        try {
+            jdbcTemplate.execute("""
+                    ALTER TABLE evidences
+                    ADD COLUMN IF NOT EXISTS lifecycle_status VARCHAR(20) DEFAULT 'ACTIVE' NOT NULL
+                    """);
+        } catch (Exception e) {
+            log.warn("evidences.lifecycle_status migration skipped: {}", e.getMessage());
+        }
+        addColumnIfMissing("evidences", "evidence_role", "VARCHAR(20)");
+        addColumnIfMissing("evidences", "display_label", "VARCHAR(100)");
+        addColumnIfMissing("evidences", "replacement_evidence_id", "BIGINT");
+        addColumnIfMissing("evidences", "excluded_reason", "VARCHAR(500)");
+    }
+
+    void migrateEvidenceMetadataReadiness() {
+        addColumnIfMissing("evidence_metadata", "readiness_json", "JSON");
+    }
+
+    private void addColumnIfMissing(String table, String column, String type) {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s %s".formatted(table, column, type));
+        } catch (Exception e) {
+            log.warn("{}.{} migration skipped: {}", table, column, e.getMessage());
+        }
     }
 
     /**
