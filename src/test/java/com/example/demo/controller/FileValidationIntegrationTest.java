@@ -19,6 +19,7 @@ import com.example.demo.service.evidence.EvidenceDetailService;
 import com.example.demo.service.dashboard.EvidenceStatsService;
 import com.example.demo.service.evidence.FileService;
 import com.example.demo.service.integrity.IntegrityVerificationService;
+import com.example.demo.service.readiness.EvidenceReadinessService;
 import com.example.demo.service.report.ReportPdfService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -79,6 +80,9 @@ class FileValidationIntegrationTest {
 
     @MockBean
     private IntegrityVerificationService integrityVerificationService;
+
+    @MockBean
+    private EvidenceReadinessService evidenceReadinessService;
 
     @MockBean
     private CocChainVerificationService cocChainVerificationService;
