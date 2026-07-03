@@ -73,8 +73,9 @@ public class UserService {
 				.darkMode(themeMode == ThemeMode.DARK || Boolean.TRUE.equals(user.getDarkMode()))
 				.themeMode(themeMode)
 				.createdAt(ISO_FORMATTER.format(user.getCreatedAt()))
-				.organizationType(user.getOrganizationType().name())
-				.organizationId(OrganizationIdResolver.resolve(user.getOrganizationType()))
-				.build();
+                .organizationType(user.getOrganizationType().name())
+                .organizationId(OrganizationIdResolver.resolve(user.getOrganizationType()))
+                .organizationName(OrganizationIdResolver.displayName(user.getOrganizationType()))
+                .build();
 	}
 }

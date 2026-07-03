@@ -51,6 +51,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 (:role = com.example.demo.domain.enums.UserRole.ROLE_ORG_ADMIN
                     AND u.role = com.example.demo.domain.enums.UserRole.ROLE_ADMIN)
               )
+              AND (:organizationType IS NULL OR u.organizationType = :organizationType)
               AND (
                 :search = '' OR
                 LOWER(u.loginId) LIKE LOWER(CONCAT('%', :search, '%')) OR
@@ -62,7 +63,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Page<User> findAdminUsers(
             @Param("status") UserStatus status,
             @Param("role") com.example.demo.domain.enums.UserRole role,
+            @Param("organizationType") OrgType organizationType,
             @Param("search") String search,
             Pageable pageable
+    );
+
+    @Query("""
+            SELECT u FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.status = com.example.demo.domain.enums.UserStatus.APPROVED
+              AND u.role = com.example.demo.domain.enums.UserRole.ROLE_REVIEWER
+              AND (:organizationType IS NULL OR u.organizationType = :organizationType)
+              AND (:department IS NULL OR u.department = :department)
+            ORDER BY u.name ASC, u.userId ASC
+            """)
+    List<User> findApprovedReviewers(
+            @Param("organizationType") OrgType organizationType,
+            @Param("department") String department
     );
 }

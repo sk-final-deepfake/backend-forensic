@@ -20,4 +20,5 @@ public class UserProfileResponse {
 	private String createdAt;
 	private String organizationType;
 	private String organizationId;
+	private String organizationName;
 }

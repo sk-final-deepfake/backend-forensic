@@ -44,7 +44,14 @@ public class AdminUserController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        return adminUserService.listUsers(search, status, role, page, size);
+        return adminUserService.listUsers(
+                authUserResolver.requireCurrentUser(),
+                search,
+                status,
+                role,
+                page,
+                size
+        );
     }
 
     @Operation(summary = "가입 승인")
