@@ -48,6 +48,8 @@ data/
 .env.*.local
 config/secrets.env
 config/infra.env
+src/main/resources/crypto/*.pem
+src/test/resources/crypto/*.pem
 
 ### Spec export artifacts (regenerate locally; optional)
 docs/_spec_export.json
