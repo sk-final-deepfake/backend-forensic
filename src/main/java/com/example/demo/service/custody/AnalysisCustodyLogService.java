@@ -6,6 +6,7 @@ import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.dto.AnalysisJobMessage;
+import com.example.demo.dto.readiness.ReadinessSnapshot;
 import com.example.demo.util.JsonPayloadWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -159,6 +160,31 @@ public class AnalysisCustodyLogService {
                 subjectHash(evidence),
                 storagePathForAnalysis(evidence),
                 "AI 분석 실패",
+                jsonPayloadWriter.toJson(payload),
+                null
+        );
+    }
+
+    public void recordQualityWarningAcknowledged(Long actorId, Evidence evidence, ReadinessSnapshot snapshot) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("evidenceId", evidence.getEvidenceId());
+        payload.put("readinessTier", snapshot.getReadinessTier().name());
+        payload.put("confidenceCap", snapshot.getConfidenceCap());
+        payload.put("reasons", snapshot.getReasons());
+        payload.put("requiresAcknowledgement", snapshot.isRequiresAcknowledgement());
+        payload.put("acknowledgeQualityWarning", true);
+        if (snapshot.getSource() != null) {
+            payload.put("source", snapshot.getSource().name());
+        }
+
+        custodyLogService.record(
+                actorId,
+                CustodyTargetType.EVIDENCE,
+                evidence.getEvidenceId(),
+                "QUALITY_WARNING_ACKNOWLEDGED",
+                evidence.getOriginalHashValue(),
+                evidence.getOriginalStoragePath(),
+                "화질 적합성 안내 확인 후 분석 진행",
                 jsonPayloadWriter.toJson(payload),
                 null
         );

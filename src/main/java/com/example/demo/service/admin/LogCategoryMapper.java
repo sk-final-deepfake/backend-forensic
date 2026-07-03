@@ -31,7 +31,8 @@ public final class LogCategoryMapper {
             "ANALYSIS_COPY_VERIFIED",
             "ANALYSIS_COPY_DELETED",
             "REPORT_CREATED",
-            "REPORT_DOWNLOADED"
+            "REPORT_DOWNLOADED",
+            "QUALITY_WARNING_ACKNOWLEDGED"
     );
 
     private LogCategoryMapper() {
@@ -96,6 +97,7 @@ public final class LogCategoryMapper {
             case "ANALYSIS_CANCELLED" -> "분석 중단";
             case "REPORT_CREATED" -> "보고서 생성";
             case "REPORT_DOWNLOADED" -> "보고서 다운로드";
+            case "QUALITY_WARNING_ACKNOWLEDGED" -> "화질 안내 확인";
             default -> actionType;
         };
     }

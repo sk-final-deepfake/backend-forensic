@@ -1,10 +1,12 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.OpenApiConfig;
 import com.example.demo.dto.AnalysisStatusResponse;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.dto.StartAnalysisRequest;
 import com.example.demo.dto.StartAnalysisResponse;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
+import com.example.demo.dto.readiness.EvidenceReadinessResponse;
 import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.analysis.AnalysisCancelService;
 import com.example.demo.service.analysis.AnalysisService;
@@ -14,8 +16,10 @@ import com.example.demo.service.evidence.EvidenceDetailService;
 import com.example.demo.service.evidence.FileService;
 import com.example.demo.service.integrity.EvidenceIntegrityResult;
 import com.example.demo.service.integrity.IntegrityVerificationService;
+import com.example.demo.service.readiness.EvidenceReadinessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -31,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Evidence", description = "증거 관련 API")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping(EvidenceApiPaths.BASE)
 @RequiredArgsConstructor
@@ -44,6 +49,7 @@ public class EvidenceController {
     private final AnalysisStatusService analysisStatusService;
     private final IntegrityVerificationService integrityVerificationService;
     private final AuthUserResolver authUserResolver;
+    private final EvidenceReadinessService evidenceReadinessService;
 
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -111,6 +117,30 @@ public class EvidenceController {
         return analysisService.startAnalysis(
                 authUserResolver.requireCurrentUser(),
                 request
+        );
+    }
+
+    @Operation(summary = "분석 적합성 조회", description = "업로드 시 저장된 readiness 스냅샷(ffprobe 기반 또는 프레임 검사 결과)을 조회합니다.")
+    @GetMapping("/{evidenceId}/readiness")
+    public EvidenceReadinessResponse getReadiness(
+            @Parameter(description = "증거 ID (upload 응답의 evidenceId)", example = "1")
+            @PathVariable Long evidenceId
+    ) {
+        return evidenceReadinessService.getReadiness(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
+        );
+    }
+
+    @Operation(summary = "프레임 화질 검사", description = "S3 원본을 내려받아 video_readiness.py 로 blur/blockiness/FFT 를 샘플링하고 readiness_json 을 갱신합니다.")
+    @PostMapping("/{evidenceId}/readiness-check")
+    public EvidenceReadinessResponse runReadinessCheck(
+            @Parameter(description = "증거 ID (upload 응답의 evidenceId)", example = "1")
+            @PathVariable Long evidenceId
+    ) {
+        return evidenceReadinessService.runFrameReadinessCheck(
+                authUserResolver.requireCurrentUser(),
+                evidenceId
         );
     }
 }

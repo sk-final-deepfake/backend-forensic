@@ -10,10 +10,12 @@ import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceManifestRepository;
+import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.NotificationRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.analysis.AnalysisJobEnqueuer;
+import com.example.demo.service.readiness.EvidenceReadinessService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +58,12 @@ public abstract class AbstractEvidenceIntegrationTest {
 
     @Autowired
     protected EvidenceManifestRepository evidenceManifestRepository;
+
+    @Autowired
+    protected EvidenceMetadataRepository evidenceMetadataRepository;
+
+    @Autowired
+    protected EvidenceReadinessService evidenceReadinessService;
 
     @Autowired
     protected NotificationRepository notificationRepository;
