@@ -50,3 +50,9 @@ blockchain:
     network: local-simulated
     scheduler-enabled: false
     explorer-url-template: https://explorer.test/tx/{txHash}
+
+evidence:
+  manifest:
+    signing:
+      private-key-location: classpath:crypto/platform-signing-key.pem
+      certificate-location: classpath:crypto/platform-signing-cert.pem

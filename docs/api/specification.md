@@ -94,6 +94,7 @@
 | DELETE | `/api/evidences/{evidenceId}/reset` | 증거+분석 초기화 |
 | DELETE | `/api/evidences/{evidenceId}/analysis` | 분석 중단 |
 | GET | `/api/evidences/{evidenceId}/coc/verify` | CoC 해시 체인 검증 (RQ-HIS-107) |
+| POST | `/api/v1/evidences/{evidenceId}/access-events` | 증거 열람·캡처 시도 감사 로그 |
 | GET | `/api/evidences/{evidenceId}/reports/pdf` | PDF 리포트 |
 | GET/DELETE | `/api/v1/admin/evidences/**` | 관리자 증거 관리 |
 | DELETE | `/api/v1/admin/users/{userId}` | 관리자 계정 삭제 |
@@ -219,6 +220,17 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 | `GET /api/v1/cases?caseKey=` | `evidences[].previewUrl`, `videoUrl`, `fileUrl` | VIDEO 증거 S3 presigned GET (미설정 시 `s3://` URI 또는 null) |
 | `GET /api/evidences/{id}/detail` | `evidenceInfo.previewUrl`, `videoUrl`, `fileUrl` | 동일 |
 | `POST /api/v1/evidences/upload` | `displayLabel` | 사건 내 순번 라벨 (`증거 1`, `증거 2`, …) — DB에도 저장 |
+
+### 0.11 증거 열람·캡처 감사 로그 API (2026-07)
+
+FE `ProtectedVideoPlayer` / `EvidenceWatermarkOverlay` 연동. 영상 재생·PrintScreen 감지 시 CoC에 접근 이벤트를 기록합니다.
+
+| API | FE (예상) | 설명 |
+| :--- | :--- | :--- |
+| `POST /api/v1/evidences/{evidenceId}/access-events` | `recordEvidenceAccessEvent` | Body: `eventType` (`VIEW` \| `CAPTURE_ATTEMPT`), optional `caseKey`, `source` — **204** |
+
+**CoC actionType:** `EVIDENCE_VIEWED`, `EVIDENCE_CAPTURE_ATTEMPTED`  
+**Refs:** RQ-REQ-051 (감사 로그 해시 체이닝)
 
 ---
 
@@ -713,6 +725,42 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 }
 ```
 
+
+---
+
+#### POST `/api/v1/evidences/{evidenceId}/access-events`
+
+| | |
+|---|---|
+| **RQ** | RQ-REQ-051 |
+| **Auth** | User (증거 소유자 — `requireOwned`와 동일) |
+
+**Body**
+
+```json
+{
+  "eventType": "VIEW",
+  "caseKey": "assigned-access-case",
+  "source": "protected_video_player"
+}
+```
+
+| 필드 | 필수 | 설명 |
+| :--- | :---: | :--- |
+| `eventType` | ✅ | `VIEW` — 영상 열람 · `CAPTURE_ATTEMPT` — 화면 캡처 시도 |
+| `caseKey` | | 사건 키 (감사 payload) |
+| `source` | | 클라이언트 출처 (예: `protected_video_player`) |
+
+**Response:** **204** No Content
+
+**CoC 기록**
+
+| `eventType` | `actionType` |
+| :--- | :--- |
+| `VIEW` | `EVIDENCE_VIEWED` |
+| `CAPTURE_ATTEMPT` | `EVIDENCE_CAPTURE_ATTEMPTED` |
+
+**Errors:** `EVIDENCE_NOT_FOUND` (404), `VALIDATION_ERROR` (400), `UNAUTHORIZED` (401)
 
 ---
 
