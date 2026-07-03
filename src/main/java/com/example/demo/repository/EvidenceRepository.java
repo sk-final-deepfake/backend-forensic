@@ -49,6 +49,8 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
 
     Optional<Evidence> findByEvidenceId(Long evidenceId);
 
+    Optional<Evidence> findByEvidenceIdAndDeletedAtIsNull(Long evidenceId);
+
     List<Evidence> findByEvidenceIdInAndUploaderIdAndDeletedAtIsNull(
             List<Long> evidenceIds,
             Long uploaderId

@@ -49,7 +49,7 @@ public class EvidenceDetailService {
     private final EvidenceDetailAssembler evidenceDetailAssembler;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
-        Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
+        Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         return buildEvidenceDetail(evidence, null);
     }
 
