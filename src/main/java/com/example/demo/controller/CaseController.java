@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.detail.AssignCaseReviewerRequest;
 import com.example.demo.dto.detail.CaseReviewDecisionRequest;
 import com.example.demo.dto.detail.CaseReviewRequest;
+import com.example.demo.dto.caseworkflow.CreateCaseRequest;
 import com.example.demo.dto.caseworkflow.UpdateCaseNameRequest;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.security.AuthUserResolver;
@@ -61,6 +62,19 @@ public class CaseController {
                 request.getEvidenceId()
         );
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "사건 등록", description = "증거 없이 사건명만으로 case_profiles를 생성합니다. v2 사건 생성 UI 연동.")
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
+    public CaseDetailResponse createCase(@Valid @RequestBody CreateCaseRequest request) {
+        String caseKey = caseWorkflowService.createCase(
+                authUserResolver.requireCurrentUser(),
+                request.getCaseName()
+        );
+        return evidenceDetailService.getCaseDetail(
+                authUserResolver.requireCurrentUser(),
+                caseKey
+        );
     }
 
     @Operation(summary = "사건명 변경", description = "사건에 속한 모든 증거의 사건명을 일괄 변경합니다. v2 사건 편집 UI 연동.")

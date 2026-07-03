@@ -53,12 +53,12 @@ public class CaseAccessService {
 
     private CaseAccessContext loadForInvestigator(User user, String caseKey) {
         List<Evidence> evidences = evidenceRepository.findByUploaderIdAndCaseKey(user.getUserId(), caseKey);
-        if (evidences.isEmpty()) {
-            throw notFound();
-        }
         CaseProfile profile = caseProfileRepository
                 .findByUploaderIdAndCaseKey(user.getUserId(), caseKey)
                 .orElse(null);
+        if (evidences.isEmpty() && profile == null) {
+            throw notFound();
+        }
         return new CaseAccessContext(user.getUserId(), caseKey, evidences, profile);
     }
 
@@ -72,12 +72,17 @@ public class CaseAccessService {
             throw notFound();
         }
         List<Evidence> evidences = evidenceRepository.findByCaseKeyAndUploaderIdIn(caseKey, uploaderIds);
-        if (evidences.isEmpty()) {
+        if (!evidences.isEmpty()) {
+            Long uploaderId = evidences.get(0).getUploaderId();
+            CaseProfile profile = caseProfileRepository.findByUploaderIdAndCaseKey(uploaderId, caseKey).orElse(null);
+            return new CaseAccessContext(uploaderId, caseKey, evidences, profile);
+        }
+        List<CaseProfile> profiles = caseProfileRepository.findByCaseKeyAndUploaderIdIn(caseKey, uploaderIds);
+        if (profiles.isEmpty()) {
             throw notFound();
         }
-        Long uploaderId = evidences.get(0).getUploaderId();
-        CaseProfile profile = caseProfileRepository.findByUploaderIdAndCaseKey(uploaderId, caseKey).orElse(null);
-        return new CaseAccessContext(uploaderId, caseKey, evidences, profile);
+        CaseProfile profile = profiles.get(0);
+        return new CaseAccessContext(profile.getUploaderId(), caseKey, List.of(), profile);
     }
 
     private CaseAccessContext loadForReviewer(User user, String caseKey) {
@@ -85,9 +90,6 @@ public class CaseAccessService {
                 .findByReviewerIdAndCaseKey(user.getUserId(), caseKey)
                 .orElseThrow(this::notFound);
         List<Evidence> evidences = evidenceRepository.findByUploaderIdAndCaseKey(profile.getUploaderId(), caseKey);
-        if (evidences.isEmpty()) {
-            throw notFound();
-        }
         return new CaseAccessContext(profile.getUploaderId(), caseKey, evidences, profile);
     }
 

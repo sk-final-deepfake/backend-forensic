@@ -54,7 +54,7 @@ public class CaseDetailAssembler {
         LocalDateTime createdAt = evidences.stream()
                 .map(Evidence::getUploadedAt)
                 .min(LocalDateTime::compareTo)
-                .orElse(LocalDateTime.now());
+                .orElse(profile != null ? profile.getUpdatedAt() : LocalDateTime.now());
         Long representativeEvidenceId = caseEvidencePresentationService
                 .resolveRepresentativeEvidenceId(caseOwnerId, caseId, evidences)
                 .orElse(null);
@@ -125,6 +125,9 @@ public class CaseDetailAssembler {
     }
 
     private String aggregateStatus(List<Evidence> evidences, Map<Long, AnalysisRequest> latestByEvidence) {
+        if (evidences.isEmpty()) {
+            return "PENDING";
+        }
         String result = "COMPLETED";
         for (Evidence evidence : evidences) {
             String status = toCaseStatus(latestByEvidence.get(evidence.getEvidenceId()));

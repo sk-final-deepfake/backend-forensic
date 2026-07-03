@@ -51,21 +51,22 @@ public class MyPageService {
 
 	public AnalysisHistoryPageResponse getAnalysisHistory(User user, String sort, int page, int size) {
 		List<Evidence> evidences = loadVisibleEvidences(user);
-		if (evidences.isEmpty()) {
-			return emptyPage(page, size);
-		}
 
 		List<Long> evidenceIds = evidences.stream().map(Evidence::getEvidenceId).toList();
-		Map<Long, AnalysisRequest> latestRequestByEvidence = loadLatestRequests(evidenceIds);
+		Map<Long, AnalysisRequest> latestRequestByEvidence = evidenceIds.isEmpty()
+				? Map.of()
+				: loadLatestRequests(evidenceIds);
 		Map<Long, AnalysisResult> resultByRequestId = loadResults(latestRequestByEvidence.values());
 
 		Map<Long, User> uploaderById = loadUploaders(evidences);
-		Map<String, CaseProfile> profileByCaseOwnerKey = loadCaseProfiles(evidences);
+		Map<String, CaseProfile> profileByCaseOwnerKey = evidences.isEmpty()
+				? Map.of()
+				: loadCaseProfiles(evidences);
 
 		Map<String, List<Evidence>> groupedByCase = caseEvidencePresentationService.groupByCaseKey(evidences);
 		Map<String, Long> representativeByCase = loadRepresentativeEvidenceIds(user, groupedByCase, profileByCaseOwnerKey);
 
-		List<CaseSummaryResponse> caseSummaries = groupedByCase.entrySet().stream()
+		List<CaseSummaryResponse> caseSummaries = new ArrayList<>(groupedByCase.entrySet().stream()
 				.map(entry -> toCaseSummary(
 						entry.getKey(),
 						entry.getValue(),
@@ -76,8 +77,18 @@ public class MyPageService {
 						profileByCaseOwnerKey
 				))
 				.filter(summary -> isVisibleCaseForUser(user, summary))
-				.sorted(buildCaseComparator(sort))
-				.toList();
+				.toList());
+
+		for (CaseProfile profile : loadProfileOnlyCases(user, groupedByCase)) {
+			uploaderById.computeIfAbsent(profile.getUploaderId(), id ->
+					userRepository.findById(id).orElse(null));
+			CaseSummaryResponse summary = toProfileOnlyCaseSummary(profile, uploaderById);
+			if (isVisibleCaseForUser(user, summary)) {
+				caseSummaries.add(summary);
+			}
+		}
+
+		caseSummaries.sort(buildCaseComparator(sort));
 
 		int safeSize = Math.max(size, 1);
 		int fromIndex = Math.min(page * safeSize, caseSummaries.size());
@@ -252,6 +263,56 @@ public class MyPageService {
 				.build();
 	}
 
+	private List<CaseProfile> loadVisibleProfiles(User user) {
+		if (UserRoleSupport.isOrgAdmin(user.getRole())) {
+			List<Long> orgUploaderIds = userRepository.findUserIdsByOrganizationType(user.getOrganizationType());
+			if (orgUploaderIds.isEmpty()) {
+				return List.of();
+			}
+			return caseProfileRepository.findByUploaderIdIn(orgUploaderIds);
+		}
+		if (UserRoleSupport.isReviewer(user.getRole())) {
+			return caseProfileRepository.findByReviewerId(user.getUserId());
+		}
+		return caseProfileRepository.findByUploaderId(user.getUserId());
+	}
+
+	private List<CaseProfile> loadProfileOnlyCases(User user, Map<String, List<Evidence>> groupedByCase) {
+		return loadVisibleProfiles(user).stream()
+				.filter(profile -> {
+					List<Evidence> caseEvidences = groupedByCase.get(profile.getCaseKey());
+					return caseEvidences == null || caseEvidences.isEmpty();
+				})
+				.toList();
+	}
+
+	private CaseSummaryResponse toProfileOnlyCaseSummary(CaseProfile profile, Map<Long, User> uploaderById) {
+		User uploader = uploaderById.get(profile.getUploaderId());
+		Long ownerId = profile.getUploaderId();
+		Long assigneeId = profile.getAssigneeId() != null ? profile.getAssigneeId() : ownerId;
+
+		return CaseSummaryResponse.builder()
+				.caseId(profile.getCaseKey())
+				.caseName(profile.getCaseKey())
+				.status("PENDING")
+				.createdAt(ApiDateTimeFormatter.formatUtc(profile.getUpdatedAt()))
+				.evidenceCount(0)
+				.organizationId(uploader == null
+						? null
+						: OrganizationIdResolver.resolve(uploader.getOrganizationType()))
+				.department(uploader == null ? null : uploader.getDepartment())
+				.createdBy(String.valueOf(ownerId))
+				.assigneeId(String.valueOf(assigneeId))
+				.reviewerId(profile.getReviewerId() != null
+						? String.valueOf(profile.getReviewerId())
+						: null)
+				.reviewStatus(profile.getReviewStatus().name())
+				.reviewRequestedAt(profile.getReviewRequestedAt() != null
+						? ApiDateTimeFormatter.formatUtc(profile.getReviewRequestedAt())
+						: null)
+				.build();
+	}
+
 	private String caseOwnerKey(Long uploaderId, String caseKey) {
 		return uploaderId + "::" + caseKey;
 	}
@@ -266,16 +327,6 @@ public class MyPageService {
 
 	private String higherPriorityStatus(String current, String candidate) {
 		return STATUS_ORDER.get(candidate) < STATUS_ORDER.get(current) ? candidate : current;
-	}
-
-	private AnalysisHistoryPageResponse emptyPage(int page, int size) {
-		return AnalysisHistoryPageResponse.builder()
-				.content(List.of())
-				.page(page)
-				.size(size)
-				.totalElements(0)
-				.totalPages(0)
-				.build();
 	}
 
 	private Map<Long, AnalysisRequest> loadLatestRequests(List<Long> evidenceIds) {

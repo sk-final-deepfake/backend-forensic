@@ -13,6 +13,7 @@ import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.util.CaseKeyNormalizer;
 import com.example.demo.util.EvidenceCaseIdResolver;
+import com.example.demo.util.UserRoleSupport;
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,23 @@ public class CaseWorkflowService {
     private final CaseEvidencePresentationService caseEvidencePresentationService;
 
     @Transactional
+    public String createCase(User user, String caseName) {
+        if (!UserRoleSupport.isInvestigator(user.getRole()) && !UserRoleSupport.isOrgAdmin(user.getRole())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "FORBIDDEN", "사건을 생성할 권한이 없습니다.");
+        }
+
+        String trimmedName = caseName == null ? "" : caseName.trim();
+        if (trimmedName.isBlank()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명을 입력해 주세요.");
+        }
+
+        String caseKey = CaseKeyNormalizer.requireCaseKey(trimmedName);
+        assertNoDuplicateCase(user.getUserId(), caseKey);
+        caseProfileRepository.save(new CaseProfile(user.getUserId(), caseKey, null));
+        return caseKey;
+    }
+
+    @Transactional
     public String renameCase(User user, String caseKey, String newCaseName) {
         String oldKey = CaseKeyNormalizer.requireCaseKey(caseKey);
         String trimmedName = newCaseName == null ? "" : newCaseName.trim();
@@ -44,14 +62,17 @@ public class CaseWorkflowService {
         }
 
         List<Evidence> caseEvidences = loadCaseEvidences(user, oldKey);
-        if (caseEvidences.isEmpty()) {
+        var existingProfile = caseProfileRepository.findByUploaderIdAndCaseKey(user.getUserId(), oldKey);
+        if (caseEvidences.isEmpty() && existingProfile.isEmpty()) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
         }
 
-        List<Evidence> conflicting = evidenceRepository.findByUploaderIdAndCaseKey(user.getUserId(), trimmedName);
-        if (!conflicting.isEmpty()) {
-            throw new BusinessException(
-                    HttpStatus.CONFLICT, "DUPLICATE_CASE_NAME", "이미 사용 중인 사건명입니다.");
+        assertNoDuplicateCase(user.getUserId(), trimmedName);
+
+        if (caseEvidences.isEmpty()) {
+            existingProfile.get().updateCaseKey(trimmedName);
+            caseProfileRepository.save(existingProfile.get());
+            return trimmedName;
         }
 
         for (Evidence evidence : caseEvidences) {
@@ -282,6 +303,17 @@ public class CaseWorkflowService {
                     profile.updateCaseKey(newKey);
                     caseProfileRepository.save(profile);
                 });
+    }
+
+    private void assertNoDuplicateCase(Long uploaderId, String caseKey) {
+        if (caseProfileRepository.findByUploaderIdAndCaseKey(uploaderId, caseKey).isPresent()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT, "DUPLICATE_CASE_NAME", "이미 사용 중인 사건명입니다.");
+        }
+        if (!evidenceRepository.findByUploaderIdAndCaseKey(uploaderId, caseKey).isEmpty()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT, "DUPLICATE_CASE_NAME", "이미 사용 중인 사건명입니다.");
+        }
     }
 
     private String escapeJson(String value) {
