@@ -113,6 +113,28 @@ public class EvidenceReadinessService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public ReadinessSnapshot resolveStoredSnapshot(Long evidenceId) {
+        EvidenceMetadata metadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElse(null);
+        ReadinessSnapshot snapshot = parseSnapshot(metadata != null ? metadata.getReadinessJson() : null);
+        if (snapshot == null) {
+            snapshot = readinessEvaluator.evaluateFromFfprobe(metadata);
+        }
+        return snapshot;
+    }
+
+    public void assertQualityAcknowledged(Long evidenceId, Boolean acknowledgeQualityWarning) {
+        ReadinessSnapshot snapshot = resolveStoredSnapshot(evidenceId);
+        if (snapshot != null
+                && snapshot.isRequiresAcknowledgement()
+                && !Boolean.TRUE.equals(acknowledgeQualityWarning)) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "QUALITY_WARNING_REQUIRED",
+                    "화질이 분석에 적합하지 않을 수 있습니다. 안내를 확인한 후 계속 진행하려면 acknowledgeQualityWarning=true 로 요청해 주세요.");
+        }
+    }
+
     public EvidenceReadinessResponse toResponse(Long evidenceId, ReadinessSnapshot snapshot) {
         if (snapshot == null) {
             return EvidenceReadinessResponse.builder()

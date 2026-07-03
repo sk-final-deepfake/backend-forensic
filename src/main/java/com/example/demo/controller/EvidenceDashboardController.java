@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.OpenApiConfig;
 import com.example.demo.dto.AnalysisTrendResponse;
 import com.example.demo.dto.DashboardIntroResponse;
 import com.example.demo.dto.EvidenceStatsResponse;
@@ -9,6 +10,7 @@ import com.example.demo.service.dashboard.DashboardIntroService;
 import com.example.demo.service.dashboard.EvidenceStatsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Evidence Dashboard", description = "증거 대시보드 API")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping(EvidenceApiPaths.BASE)
 @RequiredArgsConstructor

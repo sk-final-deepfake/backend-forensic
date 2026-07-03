@@ -9,6 +9,9 @@ import com.example.demo.dto.signup.UsernameCheckResponse;
 import com.example.demo.security.AuthCookieSupport;
 import com.example.demo.service.auth.AuthService;
 import com.example.demo.service.auth.SignupService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -28,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 // 인증 API — 로그인·재발급·로그아웃·회원가입.
 // 리프레시 JWT는 AuthCookieSupport(HttpOnly 쿠키), 액세스 JWT는 LoginResponse 본문으로 내려준다.
 @Validated
+@Tag(name = "Auth", description = "로그인·회원가입 (JWT 발급)")
 @RestController
 @RequiredArgsConstructor
 public class AuthController {
@@ -37,6 +41,8 @@ public class AuthController {
     private final AuthCookieSupport authCookieSupport;
 
     // 액세스 JWT는 JSON, 리프레시 JWT는 Set-Cookie
+    @Operation(summary = "로그인", description = "accessToken 을 응답으로 받습니다. Swagger Authorize 에 토큰만 붙여넣으세요.")
+    @SecurityRequirements
     @PostMapping("/api/auth/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
@@ -48,6 +54,8 @@ public class AuthController {
     }
 
     // 브라우저 쿠키의 리프레시 JWT로 액세스 JWT 재발급 (인증 불필요)
+    @Operation(summary = "액세스 토큰 재발급")
+    @SecurityRequirements
     @PostMapping("/api/auth/refresh")
     public ResponseEntity<LoginResponse> refresh(
             @CookieValue(name = "refreshToken", required = false) String refreshToken,
@@ -70,6 +78,8 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "회원가입")
+    @SecurityRequirements
     @PostMapping("/api/v1/auth/signup")
     public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(signupService.signup(request));
