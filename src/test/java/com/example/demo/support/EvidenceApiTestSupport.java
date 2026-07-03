@@ -95,7 +95,8 @@ public final class EvidenceApiTestSupport {
                         .content("""
                                 {
                                   "caseName": "%s",
-                                  "evidenceIds": [%s]
+                                  "evidenceIds": [%s],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(caseName, ids)))
                 .andExpect(status().isOk());

@@ -2,6 +2,7 @@ package com.example.demo.service.evidence;
 
 import com.example.demo.service.blockchain.BlockchainAnchorService;
 import com.example.demo.service.custody.CustodyLogService;
+import com.example.demo.service.readiness.EvidenceReadinessService;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.ExtractionStatus;
@@ -48,6 +49,7 @@ public class FileService {
     private final CaseEvidencePresentationService caseEvidencePresentationService;
     private final JsonPayloadWriter jsonPayloadWriter;
     private final BlockchainAnchorService blockchainAnchorService;
+    private final EvidenceReadinessService evidenceReadinessService;
 
     public FileService(
             @Value("${file.upload-dir:uploads}") String uploadDir,
@@ -61,7 +63,8 @@ public class FileService {
             EvidenceMetadataService evidenceMetadataService,
             CaseEvidencePresentationService caseEvidencePresentationService,
             JsonPayloadWriter jsonPayloadWriter,
-            BlockchainAnchorService blockchainAnchorService
+            BlockchainAnchorService blockchainAnchorService,
+            EvidenceReadinessService evidenceReadinessService
     ) {
         this.s3Client = s3Client;
         this.evidenceBucket = evidenceBucket;
@@ -75,6 +78,7 @@ public class FileService {
         this.caseEvidencePresentationService = caseEvidencePresentationService;
         this.jsonPayloadWriter = jsonPayloadWriter;
         this.blockchainAnchorService = blockchainAnchorService;
+        this.evidenceReadinessService = evidenceReadinessService;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
@@ -146,6 +150,8 @@ public class FileService {
 
             evidenceMetadataService.saveFromExtraction(
                     savedEvidence.getEvidenceId(), extracted, extractionStatus, extractionError);
+            // 업로드 시 즉시 readiness seed + 응답에 포함
+            var readinessSnapshot = evidenceReadinessService.seedFfprobeReadiness(savedEvidence.getEvidenceId());
 
             recordUploadCustodyLogs(savedEvidence, uploaderId, extractionStatus.name());
             blockchainAnchorService.anchorEvidenceHash(savedEvidence, uploaderId);
@@ -174,6 +180,8 @@ public class FileService {
                     .hashValue(originalSha256)
                     .originalSha256(originalSha256)
                     .metadata(toMetadataResponse(extracted, extractionStatus, extractionError))
+                    .readiness(evidenceReadinessService.toResponse(
+                            savedEvidence.getEvidenceId(), readinessSnapshot))
                     .build();
         } catch (HashGenerationException e) {
             throw e;
