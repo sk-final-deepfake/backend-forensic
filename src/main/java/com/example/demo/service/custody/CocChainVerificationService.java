@@ -20,7 +20,7 @@ public class CocChainVerificationService {
     private final CustodyChainVerifier custodyChainVerifier;
 
     public CocChainVerifyResponse verifyEvidenceChain(User user, Long evidenceId) {
-        Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
+        Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         return custodyChainVerifier.toCocChainResponse(
                 evidence.getEvidenceId(),
                 custodyChainVerifier.verifyEvidenceChain(evidence.getEvidenceId())

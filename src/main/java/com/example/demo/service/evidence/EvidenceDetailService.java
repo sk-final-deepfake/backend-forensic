@@ -45,10 +45,11 @@ public class EvidenceDetailService {
     private final EvidenceManifestService evidenceManifestService;
     private final RecoveryScoreService recoveryScoreService;
     private final CaseDetailAssembler caseDetailAssembler;
+    private final CaseAccessService caseAccessService;
     private final EvidenceDetailAssembler evidenceDetailAssembler;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
-        Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
+        Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         return buildEvidenceDetail(evidence, null);
     }
 
@@ -97,14 +98,16 @@ public class EvidenceDetailService {
 
     public CaseDetailResponse getCaseDetail(User user, String caseId) {
         String normalizedCaseId = CaseKeyNormalizer.requireCaseKey(caseId);
-        List<Evidence> evidences = evidenceRepository.findByUploaderIdAndCaseKey(user.getUserId(), normalizedCaseId);
-        if (evidences.isEmpty()) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
-        }
-
-        List<AnalysisRequest> requests = analysisRequestRepository.findByEvidenceIdInOrderByRequestedAtDesc(
-                evidences.stream().map(Evidence::getEvidenceId).toList()
+        CaseAccessService.CaseAccessContext context = caseAccessService.requireAccessibleCase(user, normalizedCaseId);
+        List<Long> evidenceIds = context.evidences().stream().map(Evidence::getEvidenceId).toList();
+        List<AnalysisRequest> requests = analysisRequestRepository.findByEvidenceIdInOrderByRequestedAtDesc(evidenceIds);
+        return caseDetailAssembler.assemble(
+                user,
+                context.uploaderId(),
+                normalizedCaseId,
+                context.evidences(),
+                requests,
+                context.profile()
         );
-        return caseDetailAssembler.assemble(user, normalizedCaseId, evidences, requests);
     }
 }

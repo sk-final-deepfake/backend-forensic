@@ -1,6 +1,6 @@
 # VeriForensics API Specification
 
-> **버전:** v1.7 (FE develop 연동 — CaseSummary · compare cancel · detail caseId)  
+> **버전:** v1.8 (RBAC · 검토 워크플로우 — §0.11)  
 > **기준:** `기능명세서_최종.xlsx` · `요구사항명세서_최종 (1).xlsx`  
 > **관련:** [convention.md](./convention.md) · [../guides/implementation-standards.md](../guides/implementation-standards.md) · [signup.md](./signup.md)
 
@@ -220,6 +220,93 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 | `GET /api/evidences/{id}/detail` | `evidenceInfo.previewUrl`, `videoUrl`, `fileUrl` | 동일 |
 | `POST /api/v1/evidences/upload` | `displayLabel` | 사건 내 순번 라벨 (`증거 1`, `증거 2`, …) — DB에도 저장 |
 
+### 0.11 RBAC · 검토 워크플로우 API (2026-07)
+
+FE `lib/permissions.ts` · 검토 배정(`/admin/reviews`) · 사건 상세 검토 플로우 연동.
+
+**역할 (`UserRole`)**
+
+| BE 값 | FE 정규화 | 설명 |
+| :--- | :--- | :--- |
+| `ROLE_INVESTIGATOR` / `ROLE_USER` | `INVESTIGATOR` | 본인 사건 업로드·분석·검토 요청 |
+| `ROLE_REVIEWER` | `REVIEWER` | 배정된 사건만 조회·검토 결정 |
+| `ROLE_ORG_ADMIN` / `ROLE_ADMIN` | `ORG_ADMIN` | 기관 사건·사용자·검토자 배정 |
+
+**`GET /api/v1/users/me` 확장 (`UserProfileResponse`)**
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `organizationType` | `POLICE` · `PROSECUTION` · … |
+| `organizationId` | 예: `org-police` |
+| `organizationName` | 예: `경찰기관` |
+| `role` | `ROLE_INVESTIGATOR` · `ROLE_REVIEWER` · `ROLE_ORG_ADMIN` 등 |
+
+**`GET /api/v1/mypage/analysis-history` — 역할별 필터 + `CaseSummaryResponse` RBAC 필드**
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `organizationId` | 기관 식별자 |
+| `department` | 담당 부서 |
+| `createdBy` | 사건 생성자 userId (string) |
+| `assigneeId` | 담당자 userId |
+| `reviewerId` | 배정 검토자 userId |
+| `reviewStatus` | `NONE` · `REVIEW_REQUESTED` · `REVIEW_ASSIGNED` · `REPORT_APPROVED` · `REVIEW_SUPPLEMENT_REQUESTED` |
+| `aiResult` | `낮음` · `검토 필요` · `위험` |
+| `reviewRequestedAt` | ISO-8601 UTC |
+
+- **ORG_ADMIN:** 동일 `organizationType` 사건 전체
+- **INVESTIGATOR:** 본인 업로드 사건
+- **REVIEWER:** `reviewerId`가 본인인 사건만
+
+**사건 검토 API (`CaseController`)**
+
+| Method | Path | Auth | Body | 설명 |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/cases/review-request?caseKey=` | User | `{ "memo"?: string }` | 분석 완료 사건 검토 요청 → `REVIEW_REQUESTED` |
+| `PATCH` | `/api/v1/cases/reviewer?caseKey=` | ORG_ADMIN | `{ "reviewerId": string }` | 검토자 배정 → `REVIEW_ASSIGNED` |
+| `POST` | `/api/v1/cases/review-decision?caseKey=` | REVIEWER/ORG_ADMIN | `{ "decision": "APPROVED"\|"REVISION", "memo"?: string }` | 승인 또는 재검토 요청 |
+
+**`GET /api/v1/cases?caseKey=` 확장 (`CaseDetailResponse`)**
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `createdBy` | 사건 소유자 userId |
+| `assigneeId` | 담당자 userId |
+| `reviewerId` | 검토자 userId |
+| `reviewStatus` | 검토 상태 enum name |
+
+검토자·기관관리자는 배정/소속 사건에 대해 `GET /cases` 접근 가능.
+
+**증거 단건 조회 RBAC (`EvidenceAccessService.requireReadable`)**
+
+| API 예시 | 소유자 | 배정 검토자 | 기관 관리자 |
+| :--- | :---: | :---: | :---: |
+| `GET /api/v1/evidences/{id}/detail` | ✅ | ✅ (배정 사건) | ✅ (동일 기관) |
+| `GET /api/v1/evidences/{id}/analysis-status` | ✅ | ✅ | ✅ |
+| `GET /api/v1/evidences/{id}/integrity/verify` | ✅ | ✅ | ✅ |
+| `GET /api/v1/evidences/{id}/reports/pdf` | ✅ | ✅ | ✅ |
+| 업로드·분석·제외·삭제 등 변경 API | ✅ | ❌ | ❌* |
+
+\* 기관 관리자도 증거 변경 API는 소유자 전용 (`requireOwned` 유지)
+
+**관리자 검토자 목록**
+
+| Method | Path | Query | Response |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/admin/reviewers` | `department?` | `{ "reviewers": [ { "id", "name", "department", "organizationId", "organizationName", "organizationType" } ] }` |
+
+- `ROLE_ORG_ADMIN`: 동일 `organizationType`의 승인된 `ROLE_REVIEWER`만
+- `ROLE_ADMIN`: 전체 기관 승인 검토자 (운영용)
+
+**관리자 사용자 API 보강**
+
+| API | 추가 |
+| :--- | :--- |
+| `GET /api/v1/admin/users` | Query `role` (예: `REVIEWER`) · `AdminUserItemResponse`에 `organizationType`, `organizationId`, `organizationName` |
+| `POST /api/v1/admin/users/{id}/approve` | Body `{ "role": "INVESTIGATOR\|REVIEWER\|ORG_ADMIN" }` (선택) |
+
+**DB:** `005_case_review_rbac.postgresql.sql` (`case_profiles` 검토 메타데이터)
+
 ---
 
 ## 1. 공통
@@ -281,7 +368,7 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 
 #### GET `/api/v1/users/me`
 
-**Auth:** User · **Response:** `UserProfileResponse`
+**Auth:** User · **Response:** `UserProfileResponse` (`userId`, `loginId`, `email`, `name`, `department`, `role`, `status`, `darkMode`, `themeMode`, `createdAt`, `organizationType`, `organizationId`, `organizationName`)
 
 #### PATCH `/api/v1/users/me`
 
@@ -305,6 +392,14 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 | `evidenceCount` | number | 해당 사건에 속한 증거 수 |
 | `representativeFileName` | string? | 최근 분석 요청 증거의 파일명 |
 | `riskScore` | number? | 사건 내 완료 분석 결과의 **최대** riskScore |
+| `organizationId` | string? | 기관 식별자 (§0.11) |
+| `department` | string? | 담당 부서 |
+| `createdBy` | string? | 사건 생성자 userId |
+| `assigneeId` | string? | 담당자 userId |
+| `reviewerId` | string? | 배정 검토자 userId |
+| `reviewStatus` | string? | 검토 상태 (§0.11) |
+| `aiResult` | string? | `낮음` · `검토 필요` · `위험` |
+| `reviewRequestedAt` | string? | 검토 요청 시각 (ISO-8601 UTC) |
 
 ```json
 {
@@ -757,7 +852,8 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 | :--- | :--- | :--- |
 | GET | `/api/v1/admin/dashboard/stats` | `AdminDashboardStatsResponse` · **RQ-ADMIN-120** |
 | GET | `/api/v1/admin/dashboard/analysis-stats` | `AdminAnalysisStatsResponse` · **RQ-ADMIN-150** |
-| GET | `/api/v1/admin/users` | 목록 (`search`, `status`, `page`, `size`) |
+| GET | `/api/v1/admin/users` | 목록 (`search`, `status`, `role`, `page`, `size`) |
+| GET | `/api/v1/admin/reviewers` | 검토자 배정용 승인 검토자 목록 (`department?`) |
 | POST | `/api/v1/admin/users/{userId}/approve` | 가입 승인 |
 | POST | `/api/v1/admin/users/{userId}/reject` | 가입 반려 |
 | POST | `/api/v1/admin/users/{userId}/suspend` | 계정 정지 (APPROVED → SUSPENDED) · **RQ-ADMIN-126** |

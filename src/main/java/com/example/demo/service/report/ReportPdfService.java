@@ -44,7 +44,7 @@ public class ReportPdfService {
 
     @Transactional
     public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId) {
-        Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
+        Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         AnalysisRequest request = requireCompletedAnalysis(evidenceId);
         AnalysisResult result = requireAnalysisResult(request.getAnalysisRequestId());
         List<AnalysisModuleResult> modules = analysisModuleResultRepository
@@ -94,7 +94,7 @@ public class ReportPdfService {
 
     @Transactional(readOnly = true)
     public ReportVerifyResponse verifyReportHash(User user, Long evidenceId, String reportHash) {
-        evidenceAccessService.requireOwned(user, evidenceId);
+        evidenceAccessService.requireReadable(user, evidenceId);
         if (reportHash == null || reportHash.isBlank()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "reportHash는 필수입니다.");
         }

@@ -19,7 +19,37 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
             EvidenceStatus status
     );
 
+    @Query("""
+            SELECT e
+            FROM Evidence e
+            WHERE e.deletedAt IS NULL
+              AND e.status = :status
+              AND e.uploaderId IN :uploaderIds
+            ORDER BY e.uploadedAt DESC
+            """)
+    List<Evidence> findByUploaderIdInAndStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
+            @Param("uploaderIds") List<Long> uploaderIds,
+            @Param("status") EvidenceStatus status
+    );
+
+    @Query("""
+            SELECT e
+            FROM Evidence e
+            JOIN CaseProfile cp ON cp.uploaderId = e.uploaderId
+              AND cp.caseKey = COALESCE(NULLIF(e.caseNumber, ''), e.caseName, CONCAT('EVIDENCE-', e.evidenceId))
+            WHERE e.deletedAt IS NULL
+              AND e.status = :status
+              AND cp.reviewerId = :reviewerId
+            ORDER BY e.uploadedAt DESC
+            """)
+    List<Evidence> findByReviewerAssignmentAndStatus(
+            @Param("reviewerId") Long reviewerId,
+            @Param("status") EvidenceStatus status
+    );
+
     Optional<Evidence> findByEvidenceId(Long evidenceId);
+
+    Optional<Evidence> findByEvidenceIdAndDeletedAtIsNull(Long evidenceId);
 
     List<Evidence> findByEvidenceIdInAndUploaderIdAndDeletedAtIsNull(
             List<Long> evidenceIds,
@@ -42,6 +72,19 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
     List<Evidence> findByUploaderIdAndCaseKey(
             @Param("uploaderId") Long uploaderId,
             @Param("caseKey") String caseKey
+    );
+
+    @Query("""
+            SELECT e
+            FROM Evidence e
+            WHERE e.deletedAt IS NULL
+              AND (e.caseNumber = :caseKey OR e.caseName = :caseKey)
+              AND e.uploaderId IN :uploaderIds
+            ORDER BY e.uploadedAt DESC
+            """)
+    List<Evidence> findByCaseKeyAndUploaderIdIn(
+            @Param("caseKey") String caseKey,
+            @Param("uploaderIds") List<Long> uploaderIds
     );
 
     @Query("""

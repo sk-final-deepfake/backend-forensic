@@ -1,11 +1,14 @@
 package com.example.demo.service.evidence;
 
 import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.domain.enums.CaseReviewStatus;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.dto.detail.CaseEvidenceSummaryDto;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.util.AnalysisStatusMapper;
 import com.example.demo.util.ApiDateTimeFormatter;
 import java.time.LocalDateTime;
@@ -21,12 +24,26 @@ public class CaseDetailAssembler {
 
     private final CaseEvidencePresentationService caseEvidencePresentationService;
     private final EvidenceMediaUrlService evidenceMediaUrlService;
+    private final CaseProfileRepository caseProfileRepository;
 
     public CaseDetailResponse assemble(
             User user,
             String caseId,
             List<Evidence> evidences,
             List<AnalysisRequest> analysisRequests
+    ) {
+        Long uploaderId = evidences.isEmpty() ? user.getUserId() : evidences.get(0).getUploaderId();
+        CaseProfile profile = caseProfileRepository.findByUploaderIdAndCaseKey(uploaderId, caseId).orElse(null);
+        return assemble(user, uploaderId, caseId, evidences, analysisRequests, profile);
+    }
+
+    public CaseDetailResponse assemble(
+            User user,
+            Long caseOwnerId,
+            String caseId,
+            List<Evidence> evidences,
+            List<AnalysisRequest> analysisRequests,
+            CaseProfile profile
     ) {
         Map<Long, AnalysisRequest> latestByEvidence = indexLatestRequests(analysisRequests);
         String caseName = evidences.stream()
@@ -39,7 +56,7 @@ public class CaseDetailAssembler {
                 .min(LocalDateTime::compareTo)
                 .orElse(LocalDateTime.now());
         Long representativeEvidenceId = caseEvidencePresentationService
-                .resolveRepresentativeEvidenceId(user, caseId, evidences)
+                .resolveRepresentativeEvidenceId(caseOwnerId, caseId, evidences)
                 .orElse(null);
         List<Evidence> orderedEvidences = caseEvidencePresentationService.orderForDisplay(evidences);
         List<CaseEvidenceSummaryDto> summaries = orderedEvidences.stream()
@@ -56,8 +73,22 @@ public class CaseDetailAssembler {
                 .status(aggregateStatus(evidences, latestByEvidence))
                 .createdAt(ApiDateTimeFormatter.formatUtc(createdAt))
                 .representativeEvidenceId(representativeEvidenceId)
+                .createdBy(String.valueOf(caseOwnerId))
+                .assigneeId(profile != null && profile.getAssigneeId() != null
+                        ? String.valueOf(profile.getAssigneeId())
+                        : String.valueOf(caseOwnerId))
+                .reviewerId(profile != null && profile.getReviewerId() != null
+                        ? String.valueOf(profile.getReviewerId())
+                        : null)
+                .reviewStatus(profile != null && profile.getReviewStatus() != null
+                        ? profile.getReviewStatus().name()
+                        : CaseReviewStatus.NONE.name())
                 .evidences(summaries)
                 .build();
+    }
+
+    public String resolveAggregateStatus(List<Evidence> evidences, List<AnalysisRequest> analysisRequests) {
+        return aggregateStatus(evidences, indexLatestRequests(analysisRequests));
     }
 
     private Map<Long, AnalysisRequest> indexLatestRequests(List<AnalysisRequest> requests) {

@@ -18,4 +18,7 @@ public class UserProfileResponse {
 	private boolean darkMode;
 	private ThemeMode themeMode;
 	private String createdAt;
+	private String organizationType;
+	private String organizationId;
+	private String organizationName;
 }

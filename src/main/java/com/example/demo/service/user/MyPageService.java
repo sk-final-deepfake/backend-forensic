@@ -2,25 +2,30 @@ package com.example.demo.service.user;
 
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
-import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.domain.enums.CaseReviewStatus;
 import com.example.demo.domain.enums.EvidenceStatus;
 import com.example.demo.dto.mypage.AnalysisHistoryPageResponse;
 import com.example.demo.dto.mypage.CaseSummaryResponse;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.repository.UserRepository;
 import com.example.demo.service.evidence.CaseEvidencePresentationService;
+import com.example.demo.util.AiResultMapper;
 import com.example.demo.util.AnalysisStatusMapper;
 import com.example.demo.util.ApiDateTimeFormatter;
-import com.example.demo.util.EvidenceCaseIdResolver;
+import com.example.demo.util.OrganizationIdResolver;
+import com.example.demo.util.UserRoleSupport;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,12 +46,11 @@ public class MyPageService {
 	private final AnalysisRequestRepository analysisRequestRepository;
 	private final AnalysisResultRepository analysisResultRepository;
 	private final CaseEvidencePresentationService caseEvidencePresentationService;
+	private final CaseProfileRepository caseProfileRepository;
+	private final UserRepository userRepository;
 
 	public AnalysisHistoryPageResponse getAnalysisHistory(User user, String sort, int page, int size) {
-		List<Evidence> evidences = evidenceRepository
-				.findByUploaderIdAndStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
-						user.getUserId(), EvidenceStatus.UPLOADED);
-
+		List<Evidence> evidences = loadVisibleEvidences(user);
 		if (evidences.isEmpty()) {
 			return emptyPage(page, size);
 		}
@@ -54,11 +58,12 @@ public class MyPageService {
 		List<Long> evidenceIds = evidences.stream().map(Evidence::getEvidenceId).toList();
 		Map<Long, AnalysisRequest> latestRequestByEvidence = loadLatestRequests(evidenceIds);
 		Map<Long, AnalysisResult> resultByRequestId = loadResults(latestRequestByEvidence.values());
+
+		Map<Long, User> uploaderById = loadUploaders(evidences);
+		Map<String, CaseProfile> profileByCaseOwnerKey = loadCaseProfiles(evidences);
+
 		Map<String, List<Evidence>> groupedByCase = caseEvidencePresentationService.groupByCaseKey(evidences);
-		Map<String, Long> representativeByCase = caseEvidencePresentationService.loadRepresentativeEvidenceIds(
-				user,
-				new ArrayList<>(groupedByCase.keySet())
-		);
+		Map<String, Long> representativeByCase = loadRepresentativeEvidenceIds(user, groupedByCase, profileByCaseOwnerKey);
 
 		List<CaseSummaryResponse> caseSummaries = groupedByCase.entrySet().stream()
 				.map(entry -> toCaseSummary(
@@ -66,8 +71,11 @@ public class MyPageService {
 						entry.getValue(),
 						latestRequestByEvidence,
 						resultByRequestId,
-						representativeByCase.get(entry.getKey())
+						representativeByCase.get(entry.getKey()),
+						uploaderById,
+						profileByCaseOwnerKey
 				))
+				.filter(summary -> isVisibleCaseForUser(user, summary))
 				.sorted(buildCaseComparator(sort))
 				.toList();
 
@@ -86,12 +94,91 @@ public class MyPageService {
 				.build();
 	}
 
+	private List<Evidence> loadVisibleEvidences(User user) {
+		if (UserRoleSupport.isOrgAdmin(user.getRole())) {
+			List<Long> orgUploaderIds = userRepository.findUserIdsByOrganizationType(user.getOrganizationType());
+			if (orgUploaderIds.isEmpty()) {
+				return List.of();
+			}
+			return evidenceRepository.findByUploaderIdInAndStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
+					orgUploaderIds,
+					EvidenceStatus.UPLOADED
+			);
+		}
+		if (UserRoleSupport.isReviewer(user.getRole())) {
+			return evidenceRepository.findByReviewerAssignmentAndStatus(user.getUserId(), EvidenceStatus.UPLOADED);
+		}
+		return evidenceRepository.findByUploaderIdAndStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
+				user.getUserId(),
+				EvidenceStatus.UPLOADED
+		);
+	}
+
+	private boolean isVisibleCaseForUser(User user, CaseSummaryResponse summary) {
+		if (UserRoleSupport.isOrgAdmin(user.getRole())) {
+			return Objects.equals(summary.getOrganizationId(), OrganizationIdResolver.resolve(user.getOrganizationType()));
+		}
+		if (UserRoleSupport.isReviewer(user.getRole())) {
+			return String.valueOf(user.getUserId()).equals(summary.getReviewerId());
+		}
+		String userId = String.valueOf(user.getUserId());
+		return userId.equals(summary.getCreatedBy()) || userId.equals(summary.getAssigneeId());
+	}
+
+	private Map<Long, User> loadUploaders(List<Evidence> evidences) {
+		List<Long> uploaderIds = evidences.stream()
+				.map(Evidence::getUploaderId)
+				.distinct()
+				.toList();
+		Map<Long, User> uploaders = new HashMap<>();
+		for (User uploader : userRepository.findAllById(uploaderIds)) {
+			uploaders.put(uploader.getUserId(), uploader);
+		}
+		return uploaders;
+	}
+
+	private Map<String, CaseProfile> loadCaseProfiles(List<Evidence> evidences) {
+		List<Long> uploaderIds = evidences.stream().map(Evidence::getUploaderId).distinct().toList();
+		if (uploaderIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<String, CaseProfile> profiles = new HashMap<>();
+		for (CaseProfile profile : caseProfileRepository.findByUploaderIdIn(uploaderIds)) {
+			profiles.put(caseOwnerKey(profile.getUploaderId(), profile.getCaseKey()), profile);
+		}
+		return profiles;
+	}
+
+	private Map<String, Long> loadRepresentativeEvidenceIds(
+			User user,
+			Map<String, List<Evidence>> groupedByCase,
+			Map<String, CaseProfile> profileByCaseOwnerKey
+	) {
+		if (UserRoleSupport.isOrgAdmin(user.getRole()) || UserRoleSupport.isReviewer(user.getRole())) {
+			Map<String, Long> representatives = new HashMap<>();
+			for (Map.Entry<String, List<Evidence>> entry : groupedByCase.entrySet()) {
+				Evidence first = entry.getValue().get(0);
+				CaseProfile profile = profileByCaseOwnerKey.get(caseOwnerKey(first.getUploaderId(), entry.getKey()));
+				if (profile != null && profile.getRepresentativeEvidenceId() != null) {
+					representatives.put(entry.getKey(), profile.getRepresentativeEvidenceId());
+				}
+			}
+			return representatives;
+		}
+		return caseEvidencePresentationService.loadRepresentativeEvidenceIds(
+				user,
+				new ArrayList<>(groupedByCase.keySet())
+		);
+	}
+
 	private CaseSummaryResponse toCaseSummary(
 			String caseId,
 			List<Evidence> caseEvidences,
 			Map<Long, AnalysisRequest> latestRequestByEvidence,
 			Map<Long, AnalysisResult> resultByRequestId,
-			Long representativeEvidenceId
+			Long representativeEvidenceId,
+			Map<Long, User> uploaderById,
+			Map<String, CaseProfile> profileByCaseOwnerKey
 	) {
 		List<Evidence> ordered = caseEvidencePresentationService.orderForDisplay(caseEvidences);
 		Evidence representativeEvidence = caseEvidencePresentationService.findRepresentativeEvidence(
@@ -117,7 +204,7 @@ public class MyPageService {
 
 		Double maxRiskScore = ordered.stream()
 				.map(evidence -> latestRequestByEvidence.get(evidence.getEvidenceId()))
-				.filter(request -> request != null)
+				.filter(Objects::nonNull)
 				.map(request -> resultByRequestId.get(request.getAnalysisRequestId()))
 				.filter(result -> result != null && result.getRiskScore() != null)
 				.map(AnalysisResult::getRiskScore)
@@ -127,6 +214,14 @@ public class MyPageService {
 		String caseName = representativeEvidence.getCaseName() != null && !representativeEvidence.getCaseName().isBlank()
 				? representativeEvidence.getCaseName()
 				: caseId;
+
+		User uploader = uploaderById.get(representativeEvidence.getUploaderId());
+		CaseProfile profile = profileByCaseOwnerKey.get(
+				caseOwnerKey(representativeEvidence.getUploaderId(), caseId)
+		);
+		Long ownerId = representativeEvidence.getUploaderId();
+		Long assigneeId = profile != null && profile.getAssigneeId() != null ? profile.getAssigneeId() : ownerId;
+		CaseReviewStatus reviewStatus = profile != null ? profile.getReviewStatus() : CaseReviewStatus.NONE;
 
 		return CaseSummaryResponse.builder()
 				.caseId(caseId)
@@ -140,7 +235,25 @@ public class MyPageService {
 						caseEvidencePresentationService.resolveDisplayLabel(representativeEvidence, ordered)
 				)
 				.riskScore(maxRiskScore)
+				.organizationId(uploader == null
+						? null
+						: OrganizationIdResolver.resolve(uploader.getOrganizationType()))
+				.department(uploader == null ? null : uploader.getDepartment())
+				.createdBy(String.valueOf(ownerId))
+				.assigneeId(String.valueOf(assigneeId))
+				.reviewerId(profile != null && profile.getReviewerId() != null
+						? String.valueOf(profile.getReviewerId())
+						: null)
+				.reviewStatus(reviewStatus.name())
+				.aiResult(AiResultMapper.fromRiskScore(maxRiskScore))
+				.reviewRequestedAt(profile != null && profile.getReviewRequestedAt() != null
+						? ApiDateTimeFormatter.formatUtc(profile.getReviewRequestedAt())
+						: null)
 				.build();
+	}
+
+	private String caseOwnerKey(Long uploaderId, String caseKey) {
+		return uploaderId + "::" + caseKey;
 	}
 
 	private String resolveEvidenceStatus(Evidence evidence, Map<Long, AnalysisRequest> latestRequestByEvidence) {

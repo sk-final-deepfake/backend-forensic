@@ -20,4 +20,7 @@ public class UpdateAdminUserRequest {
 
     @NotBlank(message = "소속을 입력해 주세요.")
     private String department;
+
+    /** INVESTIGATOR | REVIEWER | ORG_ADMIN (optional) */
+    private String role;
 }
