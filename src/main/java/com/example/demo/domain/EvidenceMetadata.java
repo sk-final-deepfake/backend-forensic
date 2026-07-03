@@ -63,6 +63,10 @@ public class EvidenceMetadata {
     @Column(name = "ffprobe_json", columnDefinition = "json")
     private String ffprobeJson;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "readiness_json", columnDefinition = "json")
+    private String readinessJson;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "extraction_status", nullable = false, length = 20)
     private ExtractionStatus extractionStatus = ExtractionStatus.FAILED;
