@@ -73,11 +73,11 @@ public class BlockchainAnchor {
     @Column(name = "error_code", length = 50)
     private String errorCode;
 
-    @Column(name = "error_message", columnDefinition = "clob")
+    @Column(name = "error_message", columnDefinition = "text")
     private String errorMessage;
 
     /** Ledger snapshot: manifest signature value at anchor time. */
-    @Column(name = "signature_value", columnDefinition = "clob")
+    @Column(name = "signature_value", columnDefinition = "text")
     private String signatureValue;
 
     @Column(name = "signer_certificate_hash", length = 64)
@@ -89,6 +89,6 @@ public class BlockchainAnchor {
     @Column(name = "offchain_log_hash", length = 64)
     private String offchainLogHash;
 
-    @Column(name = "offchain_ref_json", columnDefinition = "clob")
+    @Column(name = "offchain_ref_json", columnDefinition = "text")
     private String offchainRefJson;
 }
