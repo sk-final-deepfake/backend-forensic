@@ -2,6 +2,7 @@ package com.example.demo.dto;
 
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.UserRole;
+import com.example.demo.util.UserRoleSupport;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -38,7 +39,7 @@ public class LoginResponse {
                 .userId(user.getUserId())
                 .loginId(user.getLoginId())
                 .name(user.getName())
-                .role(user.getRole())
+                .role(UserRoleSupport.toApiRole(user.getRole()))
                 .build();
     }
 }

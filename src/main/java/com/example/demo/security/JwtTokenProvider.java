@@ -3,6 +3,7 @@ package com.example.demo.security;
 import com.example.demo.config.JwtProperties;
 import com.example.demo.domain.User;
 import com.example.demo.dto.TokenResponse;
+import com.example.demo.util.UserRoleSupport;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -103,7 +104,7 @@ public class JwtTokenProvider {
                 .subject(String.valueOf(user.getUserId()))
                 .claim(CLAIM_USER_ID, user.getUserId())
                 .claim(CLAIM_LOGIN_ID, user.getLoginId())
-                .claim(CLAIM_ROLE, user.getRole().name())
+                .claim(CLAIM_ROLE, UserRoleSupport.toApiRole(user.getRole()).name())
                 .claim(CLAIM_TYPE, TOKEN_TYPE_ACCESS)
                 .issuedAt(now)
                 .expiration(expiry)

@@ -2,6 +2,8 @@ package com.example.demo.service.admin;
 
 import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.domain.User;
+import com.example.demo.domain.enums.OrgType;
+import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.dto.admin.AdminUserItemResponse;
 import com.example.demo.dto.admin.AdminUserPageResponse;
@@ -9,6 +11,8 @@ import com.example.demo.dto.admin.AdminUserStatusResponse;
 import com.example.demo.dto.admin.UpdateAdminUserRequest;
 import com.example.demo.exception.AdminException;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.util.OrganizationIdResolver;
+import com.example.demo.util.UserRoleSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,12 +30,16 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
 
     @Transactional(readOnly = true)
-    public AdminUserPageResponse listUsers(String search, String status, int page, int size) {
+    public AdminUserPageResponse listUsers(User admin, String search, String status, String role, int page, int size) {
         UserStatus statusFilter = parseStatusFilter(status);
+        UserRole roleFilter = parseRoleFilter(role);
         String normalizedSearch = search == null ? "" : search.trim();
+        OrgType organizationFilter = resolveOrganizationFilter(admin);
 
         Page<User> result = userRepository.findAdminUsers(
                 statusFilter,
+                roleFilter,
+                organizationFilter,
                 normalizedSearch,
                 PageRequest.of(page, size)
         );
@@ -46,10 +54,13 @@ public class AdminUserService {
     }
 
     @Transactional
-    public AdminUserStatusResponse approve(User admin, Long userId) {
+    public AdminUserStatusResponse approve(User admin, Long userId, String role) {
         User target = findActiveUser(userId);
         ensurePending(target, "승인");
         target.updateStatus(UserStatus.APPROVED);
+        if (role != null && !role.isBlank()) {
+            target.updateRole(parseAssignableRole(role));
+        }
         custodyLogService.recordUserAction(admin, target, "USER_APPROVED", target.getLoginId());
         return toStatusResponse(target, admin.getUserId());
     }
@@ -95,6 +106,9 @@ public class AdminUserService {
         }
 
         target.updateAccountInfo(request.getDisplayName(), request.getEmail(), request.getDepartment());
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            target.updateRole(parseAssignableRole(request.getRole()));
+        }
         return toItem(target);
     }
 
@@ -142,6 +156,32 @@ public class AdminUserService {
         }
     }
 
+    private UserRole parseRoleFilter(String role) {
+        if (role == null || role.isBlank()) {
+            return null;
+        }
+        try {
+            return UserRoleSupport.parseAssignableRole(role);
+        } catch (IllegalArgumentException ex) {
+            throw new AdminException(HttpStatus.BAD_REQUEST, "INVALID_ROLE", "유효하지 않은 역할 값입니다.");
+        }
+    }
+
+    private UserRole parseAssignableRole(String role) {
+        try {
+            return UserRoleSupport.parseAssignableRole(role);
+        } catch (IllegalArgumentException ex) {
+            throw new AdminException(HttpStatus.BAD_REQUEST, "INVALID_ROLE", "유효하지 않은 역할 값입니다.");
+        }
+    }
+
+    private OrgType resolveOrganizationFilter(User admin) {
+        if (admin.getRole() == UserRole.ROLE_ORG_ADMIN) {
+            return admin.getOrganizationType();
+        }
+        return null;
+    }
+
     private AdminUserItemResponse toItem(User user) {
         return AdminUserItemResponse.builder()
                 .id(String.valueOf(user.getUserId()))
@@ -151,6 +191,10 @@ public class AdminUserService {
                 .department(user.getDepartment())
                 .joinedAt(user.getCreatedAt().toLocalDate().toString())
                 .status(user.getStatus().name())
+                .role(UserRoleSupport.toApiRole(user.getRole()).name())
+                .organizationType(user.getOrganizationType() == null ? null : user.getOrganizationType().name())
+                .organizationId(OrganizationIdResolver.resolve(user.getOrganizationType()))
+                .organizationName(OrganizationIdResolver.displayName(user.getOrganizationType()))
                 .build();
     }
 
