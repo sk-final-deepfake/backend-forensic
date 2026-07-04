@@ -12,6 +12,10 @@ public interface CaseProfileRepository extends JpaRepository<CaseProfile, Long> 
 
     List<CaseProfile> findByUploaderId(Long uploaderId);
 
+    List<CaseProfile> findByUploaderIdIn(Collection<Long> uploaderIds);
+
+    List<CaseProfile> findByReviewerId(Long reviewerId);
+
     List<CaseProfile> findByUploaderIdAndCaseKeyIn(Long uploaderId, Collection<String> caseKeys);
 
     boolean existsByUploaderIdAndCaseKey(Long uploaderId, String caseKey);

@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.demo.util.UserRoleSupport;
 import java.time.format.DateTimeFormatter;
 
 @Service
@@ -66,7 +67,7 @@ public class UserService {
 				.email(user.getEmail())
 				.name(user.getName())
 				.department(user.getDepartment())
-				.role(user.getRole().name())
+				.role(UserRoleSupport.toApiRole(user.getRole()).name())
 				.status(user.getStatus().name())
 				.darkMode(themeMode == ThemeMode.DARK || Boolean.TRUE.equals(user.getDarkMode()))
 				.themeMode(themeMode)

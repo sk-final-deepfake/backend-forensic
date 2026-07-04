@@ -35,9 +35,21 @@ public class CaseProfile {
     @Column(name = "representative_evidence_id")
     private Long representativeEvidenceId;
 
+    @Column(name = "assignee_id")
+    private Long assigneeId;
+
+    @Column(name = "reviewer_id")
+    private Long reviewerId;
+
     /** FE review workflow: NONE | REVIEW_REQUESTED | REVIEW_ASSIGNED | ... */
     @Column(name = "review_status", nullable = false, length = 30)
     private String reviewStatus = "NONE";
+
+    @Column(name = "review_requested_at")
+    private LocalDateTime reviewRequestedAt;
+
+    @Column(name = "review_request_memo", length = 500)
+    private String reviewRequestMemo;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
@@ -46,6 +58,7 @@ public class CaseProfile {
         this.uploaderId = uploaderId;
         this.caseKey = caseKey;
         this.representativeEvidenceId = representativeEvidenceId;
+        this.assigneeId = uploaderId;
         this.reviewStatus = "NONE";
         this.updatedAt = LocalDateTime.now();
     }
@@ -57,6 +70,12 @@ public class CaseProfile {
 
     public void updateCaseKey(String caseKey) {
         this.caseKey = caseKey;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void assignReviewer(Long reviewerId) {
+        this.reviewerId = reviewerId;
+        this.reviewStatus = "REVIEW_ASSIGNED";
         this.updatedAt = LocalDateTime.now();
     }
 }
