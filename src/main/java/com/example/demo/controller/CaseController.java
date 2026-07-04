@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.caseworkflow.AssignCaseReviewerRequest;
 import com.example.demo.dto.caseworkflow.CreateCaseRequest;
 import com.example.demo.dto.caseworkflow.SetRepresentativeEvidenceRequest;
 import com.example.demo.dto.caseworkflow.UpdateCaseNameRequest;
@@ -36,12 +37,14 @@ public class CaseController {
     @GetMapping(value = {"", "/{caseId}"}, produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
     public CaseDetailResponse getCaseDetail(
             @PathVariable(required = false) String caseId,
-            @RequestParam(required = false) String caseKey
+            @RequestParam(required = false) String caseKey,
+            @RequestParam(required = false) Long uploaderId
     ) {
         return evidenceDetailService.getCaseDetail(
                 authUserResolver.requireCurrentUser(),
                 caseKey,
-                caseId
+                caseId,
+                uploaderId
         );
     }
 
@@ -86,6 +89,24 @@ public class CaseController {
         return evidenceDetailService.getCaseDetail(
                 authUserResolver.requireCurrentUser(),
                 newCaseKey
+        );
+    }
+
+    @Operation(summary = "검토자 배정", description = "기관 관리자가 사건에 검토자를 배정합니다.")
+    @PatchMapping(value = "/{caseId}/reviewer", produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
+    public CaseDetailResponse assignReviewer(
+            @PathVariable String caseId,
+            @Valid @RequestBody AssignCaseReviewerRequest request
+    ) {
+        Long ownerId = caseWorkflowService.assignReviewer(
+                authUserResolver.requireCurrentUser(),
+                caseId,
+                request
+        );
+        return evidenceDetailService.getCaseDetail(
+                authUserResolver.requireCurrentUser(),
+                caseId,
+                ownerId
         );
     }
 }

@@ -75,6 +75,15 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
     @Query("""
             SELECT e
             FROM Evidence e
+            WHERE e.deletedAt IS NULL
+              AND (e.caseNumber = :caseKey OR e.caseName = :caseKey)
+            ORDER BY e.uploadedAt DESC
+            """)
+    List<Evidence> findByCaseKey(@Param("caseKey") String caseKey);
+
+    @Query("""
+            SELECT e
+            FROM Evidence e
             WHERE e.uploaderId = :uploaderId
               AND e.deletedAt IS NULL
               AND (

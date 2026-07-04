@@ -6,15 +6,23 @@ import com.example.demo.domain.User;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.EvidenceLifecycleStatus;
 import com.example.demo.domain.enums.EvidenceRole;
+import com.example.demo.domain.User;
+import com.example.demo.domain.enums.UserRole;
+import com.example.demo.domain.enums.UserStatus;
+import com.example.demo.dto.caseworkflow.AssignCaseReviewerRequest;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.repository.UserRepository;
 import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.util.CaseKeyNormalizer;
 import com.example.demo.util.EvidenceCaseIdResolver;
+import com.example.demo.util.UserRoleSupport;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -27,6 +35,7 @@ public class CaseWorkflowService {
 
     private final EvidenceRepository evidenceRepository;
     private final CaseProfileRepository caseProfileRepository;
+    private final UserRepository userRepository;
     private final EvidenceAccessService evidenceAccessService;
     private final FileService fileService;
     private final CustodyLogService custodyLogService;
@@ -153,6 +162,141 @@ public class CaseWorkflowService {
 
         upsertRepresentative(user, normalizedCaseKey, evidenceId);
         syncPrimaryRole(user, normalizedCaseKey, evidenceId);
+    }
+
+    @Transactional
+    public Long assignReviewer(User actor, String caseKey, AssignCaseReviewerRequest request) {
+        if (!UserRoleSupport.isOrgAdmin(actor.getRole())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "검토자 배정 권한이 없습니다.");
+        }
+
+        String normalizedCaseKey = CaseKeyNormalizer.requireCaseKey(caseKey);
+        Long reviewerId = parseUserId(request.getReviewerId(), "reviewerId");
+        User reviewer = userRepository.findByUserIdAndDeletedAtIsNull(reviewerId)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "REVIEWER_NOT_FOUND", "검토자를 찾을 수 없습니다."));
+        if (reviewer.getRole() != UserRole.ROLE_REVIEWER) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "검토자 역할 사용자만 배정할 수 있습니다.");
+        }
+        if (reviewer.getStatus() != UserStatus.APPROVED) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "승인된 검토자만 배정할 수 있습니다.");
+        }
+        ensureSameOrganization(actor, reviewer);
+
+        Long uploaderId = resolveCaseOwnerForAssignment(
+                actor,
+                normalizedCaseKey,
+                parseOptionalUserId(request.getUploaderId())
+        );
+        User uploader = userRepository.findByUserIdAndDeletedAtIsNull(uploaderId)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다."));
+        ensureSameOrganization(actor, uploader);
+
+        CaseProfile profile = caseProfileRepository.findByUploaderIdAndCaseKey(uploaderId, normalizedCaseKey)
+                .orElseGet(() -> createProfileFromExistingEvidences(uploaderId, normalizedCaseKey));
+        profile.assignReviewer(reviewer.getUserId());
+        caseProfileRepository.save(profile);
+        return uploaderId;
+    }
+
+    private CaseProfile createProfileFromExistingEvidences(Long uploaderId, String caseKey) {
+        List<Evidence> evidences = evidenceRepository.findByUploaderIdAndCaseKey(uploaderId, caseKey);
+        if (evidences.isEmpty()) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
+        }
+        Long representativeEvidenceId = evidences.get(0).getEvidenceId();
+        return caseProfileRepository.save(new CaseProfile(uploaderId, caseKey, representativeEvidenceId));
+    }
+
+    private Long resolveCaseOwnerForAssignment(User actor, String normalizedCaseKey, Long requestedUploaderId) {
+        if (requestedUploaderId != null) {
+            return requestedUploaderId;
+        }
+        if (actor.getRole() == UserRole.ROLE_ADMIN) {
+            return resolveUniqueOwnerGlobally(normalizedCaseKey);
+        }
+        return resolveUniqueOwnerInOrganization(
+                userRepository.findUserIdsByOrganizationType(actor.getOrganizationType()),
+                normalizedCaseKey
+        );
+    }
+
+    private Long resolveUniqueOwnerInOrganization(List<Long> orgUploaderIds, String normalizedCaseKey) {
+        Set<Long> ownerIds = collectOwnerIds(orgUploaderIds, normalizedCaseKey);
+        if (ownerIds.isEmpty()) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
+        }
+        if (ownerIds.size() > 1) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "UPLOADER_ID_REQUIRED",
+                    "동일 사건명이 여러 건 존재합니다. uploaderId를 지정해 주세요."
+            );
+        }
+        return ownerIds.iterator().next();
+    }
+
+    private Long resolveUniqueOwnerGlobally(String normalizedCaseKey) {
+        Set<Long> ownerIds = new HashSet<>();
+        for (CaseProfile profile : caseProfileRepository.findByCaseKey(normalizedCaseKey)) {
+            ownerIds.add(profile.getUploaderId());
+        }
+        for (Evidence evidence : evidenceRepository.findByCaseKey(normalizedCaseKey)) {
+            ownerIds.add(evidence.getUploaderId());
+        }
+        if (ownerIds.isEmpty()) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
+        }
+        if (ownerIds.size() > 1) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "UPLOADER_ID_REQUIRED",
+                    "동일 사건명이 여러 건 존재합니다. uploaderId를 지정해 주세요."
+            );
+        }
+        return ownerIds.iterator().next();
+    }
+
+    private Set<Long> collectOwnerIds(List<Long> orgUploaderIds, String normalizedCaseKey) {
+        Set<Long> ownerIds = new HashSet<>();
+        for (Long orgUploaderId : orgUploaderIds) {
+            if (caseProfileRepository.findByUploaderIdAndCaseKey(orgUploaderId, normalizedCaseKey).isPresent()) {
+                ownerIds.add(orgUploaderId);
+            }
+            if (!evidenceRepository.findByUploaderIdAndCaseKey(orgUploaderId, normalizedCaseKey).isEmpty()) {
+                ownerIds.add(orgUploaderId);
+            }
+        }
+        return ownerIds;
+    }
+
+    private void ensureSameOrganization(User actor, User target) {
+        if (actor.getRole() == UserRole.ROLE_ADMIN) {
+            return;
+        }
+        if (!Objects.equals(actor.getOrganizationType(), target.getOrganizationType())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "같은 기관 사용자만 배정할 수 있습니다.");
+        }
+    }
+
+    private Long parseOptionalUserId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return parseUserId(raw, "uploaderId");
+    }
+
+    private Long parseUserId(String raw, String fieldName) {
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException ex) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_USER_ID",
+                    fieldName + " must be a numeric user id."
+            );
+        }
     }
 
     @Transactional

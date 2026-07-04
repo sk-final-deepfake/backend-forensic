@@ -60,7 +60,7 @@ class CaseDetailAssemblerTest {
         when(evidenceMediaUrlService.resolve(evidence))
                 .thenReturn(new EvidenceMediaUrlService.MediaUrls("preview", "video", "file"));
 
-        var response = assembler.assemble(user, "case-a", List.of(evidence), List.of(request));
+        var response = assembler.assemble(user, "case-a", List.of(evidence), List.of(request), null, user);
 
         assertThat(response.getStatus()).isEqualTo("PROCESSING");
         assertThat(response.getEvidences()).hasSize(1);
