@@ -42,6 +42,7 @@ public class CompareVerificationService {
     private final CompareCandidateFileHandler candidateFileHandler;
     private final CompareItemEvaluator compareItemEvaluator;
     private final CompareVerificationAssembler compareVerificationAssembler;
+    private final CompareTrustMetadataAssembler compareTrustMetadataAssembler;
 
     @Transactional
     public CompareVerifyResponse verify(User user, Long evidenceId, MultipartFile candidateFile) {
@@ -77,7 +78,14 @@ public class CompareVerificationService {
                     items
             );
 
-            return compareVerificationAssembler.toVerifyResponse(saved, items, summary);
+            return compareVerificationAssembler.toVerifyResponse(
+                    saved,
+                    original,
+                    items,
+                    summary,
+                    compareTrustMetadataAssembler.buildSignatureInfo(original),
+                    compareTrustMetadataAssembler.buildBlockchainInfo(original)
+            );
         } finally {
             candidateFileHandler.deleteQuietly(tempFile);
         }
@@ -86,8 +94,14 @@ public class CompareVerificationService {
     @Transactional(readOnly = true)
     public CompareResultResponse getResult(User user, Long compareId) {
         CompareVerification verification = requireOwnedVerification(user, compareId);
+        Evidence original = evidenceAccessService.requireOwned(user, verification.getOriginalEvidenceId());
         List<CompareItemDto> items = compareVerificationAssembler.deserializeItems(verification.getResultJson());
-        return compareVerificationAssembler.toResultResponse(verification, items);
+        return compareVerificationAssembler.toResultResponse(
+                verification,
+                items,
+                compareTrustMetadataAssembler.buildSignatureInfo(original),
+                compareTrustMetadataAssembler.buildBlockchainInfo(original)
+        );
     }
 
     @Transactional(readOnly = true)

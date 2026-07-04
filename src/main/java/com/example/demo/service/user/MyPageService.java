@@ -2,6 +2,7 @@ package com.example.demo.service.user;
 
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
@@ -10,6 +11,7 @@ import com.example.demo.dto.mypage.AnalysisHistoryPageResponse;
 import com.example.demo.dto.mypage.CaseSummaryResponse;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.service.evidence.CaseEvidencePresentationService;
 import com.example.demo.util.AnalysisStatusMapper;
@@ -18,8 +20,10 @@ import com.example.demo.util.EvidenceCaseIdResolver;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,6 +42,7 @@ public class MyPageService {
 	);
 
 	private final EvidenceRepository evidenceRepository;
+	private final CaseProfileRepository caseProfileRepository;
 	private final AnalysisRequestRepository analysisRequestRepository;
 	private final AnalysisResultRepository analysisResultRepository;
 	private final CaseEvidencePresentationService caseEvidencePresentationService;
@@ -47,12 +52,10 @@ public class MyPageService {
 				.findByUploaderIdAndStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
 						user.getUserId(), EvidenceStatus.UPLOADED);
 
-		if (evidences.isEmpty()) {
-			return emptyPage(page, size);
-		}
-
 		List<Long> evidenceIds = evidences.stream().map(Evidence::getEvidenceId).toList();
-		Map<Long, AnalysisRequest> latestRequestByEvidence = loadLatestRequests(evidenceIds);
+		Map<Long, AnalysisRequest> latestRequestByEvidence = evidenceIds.isEmpty()
+				? Map.of()
+				: loadLatestRequests(evidenceIds);
 		Map<Long, AnalysisResult> resultByRequestId = loadResults(latestRequestByEvidence.values());
 		Map<String, List<Evidence>> groupedByCase = caseEvidencePresentationService.groupByCaseKey(evidences);
 		Map<String, Long> representativeByCase = caseEvidencePresentationService.loadRepresentativeEvidenceIds(
@@ -60,7 +63,7 @@ public class MyPageService {
 				new ArrayList<>(groupedByCase.keySet())
 		);
 
-		List<CaseSummaryResponse> caseSummaries = groupedByCase.entrySet().stream()
+		List<CaseSummaryResponse> caseSummaries = new ArrayList<>(groupedByCase.entrySet().stream()
 				.map(entry -> toCaseSummary(
 						entry.getKey(),
 						entry.getValue(),
@@ -68,8 +71,16 @@ public class MyPageService {
 						resultByRequestId,
 						representativeByCase.get(entry.getKey())
 				))
-				.sorted(buildCaseComparator(sort))
-				.toList();
+				.toList());
+
+		Set<String> caseKeysWithEvidence = new HashSet<>(groupedByCase.keySet());
+		for (CaseProfile profile : caseProfileRepository.findByUploaderId(user.getUserId())) {
+			if (!caseKeysWithEvidence.contains(profile.getCaseKey())) {
+				caseSummaries.add(toProfileOnlyCaseSummary(profile));
+			}
+		}
+
+		caseSummaries.sort(buildCaseComparator(sort));
 
 		int safeSize = Math.max(size, 1);
 		int fromIndex = Math.min(page * safeSize, caseSummaries.size());
@@ -140,6 +151,16 @@ public class MyPageService {
 						caseEvidencePresentationService.resolveDisplayLabel(representativeEvidence, ordered)
 				)
 				.riskScore(maxRiskScore)
+				.build();
+	}
+
+	private CaseSummaryResponse toProfileOnlyCaseSummary(CaseProfile profile) {
+		return CaseSummaryResponse.builder()
+				.caseId(profile.getCaseKey())
+				.caseName(profile.getCaseKey())
+				.status("PENDING")
+				.createdAt(ApiDateTimeFormatter.formatUtc(profile.getUpdatedAt()))
+				.evidenceCount(0)
 				.build();
 	}
 

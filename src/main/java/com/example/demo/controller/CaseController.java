@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.caseworkflow.CreateCaseRequest;
 import com.example.demo.dto.caseworkflow.SetRepresentativeEvidenceRequest;
 import com.example.demo.dto.caseworkflow.UpdateCaseNameRequest;
 import com.example.demo.dto.detail.CaseDetailResponse;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -40,6 +42,19 @@ public class CaseController {
                 authUserResolver.requireCurrentUser(),
                 caseKey,
                 caseId
+        );
+    }
+
+    @Operation(summary = "사건 등록", description = "증거 없이 사건명만으로 case_profiles를 생성합니다. v2 사건 생성 UI 연동.")
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
+    public CaseDetailResponse createCase(@Valid @RequestBody CreateCaseRequest request) {
+        String caseKey = caseWorkflowService.createCase(
+                authUserResolver.requireCurrentUser(),
+                request.getCaseName()
+        );
+        return evidenceDetailService.getCaseDetail(
+                authUserResolver.requireCurrentUser(),
+                caseKey
         );
     }
 

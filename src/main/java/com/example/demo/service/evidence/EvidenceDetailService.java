@@ -6,6 +6,7 @@ import com.example.demo.service.manifest.EvidenceManifestService;
 import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceManifest;
@@ -20,6 +21,7 @@ import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
@@ -36,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class EvidenceDetailService {
 
     private final EvidenceRepository evidenceRepository;
+    private final CaseProfileRepository caseProfileRepository;
     private final EvidenceAccessService evidenceAccessService;
     private final EvidenceMetadataRepository evidenceMetadataRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
@@ -99,7 +102,11 @@ public class EvidenceDetailService {
         String normalizedCaseId = CaseKeyNormalizer.requireCaseKey(caseId);
         List<Evidence> evidences = evidenceRepository.findByUploaderIdAndCaseKey(user.getUserId(), normalizedCaseId);
         if (evidences.isEmpty()) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
+            CaseProfile profile = caseProfileRepository
+                    .findByUploaderIdAndCaseKey(user.getUserId(), normalizedCaseId)
+                    .orElseThrow(() -> new BusinessException(
+                            HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다."));
+            return caseDetailAssembler.assembleEmptyCase(normalizedCaseId, profile);
         }
 
         List<AnalysisRequest> requests = analysisRequestRepository.findByEvidenceIdInOrderByRequestedAtDesc(
