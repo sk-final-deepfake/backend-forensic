@@ -108,7 +108,7 @@ docs/
 | `develop` | 통합·스프린트 merge 대상 |
 | `feature/*` | 기능 단위 PR |
 
-시크릿: `.env`는 **커밋 금지** · `.env.example`만 버전 관리 · `scripts/git/pre-commit-block-secrets` 설치 권장
+시크릿: `.env`·PEM·`config/*secrets*.env`는 **커밋 금지** · `.env.example`만 버전 관리 · clone 후 `pwsh ./scripts/git/install-hooks.ps1` (또는 `./scripts/git/install-hooks.sh`) · CI `secret-scan.yml`
 
 ---
 

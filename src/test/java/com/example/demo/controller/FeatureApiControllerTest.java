@@ -277,14 +277,19 @@ class FeatureApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.verdict").value("TAMPERED"))
                 .andExpect(jsonPath("$.summary.matchCount").exists())
-                .andExpect(jsonPath("$.items").isArray());
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.signature.originalStatus").value("UNSIGNED"))
+                .andExpect(jsonPath("$.signature.candidateStatus").value("UNSIGNED"))
+                .andExpect(jsonPath("$.blockchain.status").value("NOT_ANCHORED"));
 
         Long compareId = compareVerificationRepository.findAll().get(0).getCompareId();
 
         mockMvc.perform(get("/api/v1/compare/" + compareId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.compareId").value(compareId));
+                .andExpect(jsonPath("$.compareId").value(compareId))
+                .andExpect(jsonPath("$.signature.originalStatus").value("UNSIGNED"))
+                .andExpect(jsonPath("$.blockchain.status").value("NOT_ANCHORED"));
 
         mockMvc.perform(get("/api/v1/compare/" + compareId + "/candidate")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))

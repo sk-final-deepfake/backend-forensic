@@ -1,6 +1,7 @@
 package com.example.demo.service.evidence;
 
 import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
@@ -21,6 +22,17 @@ public class CaseDetailAssembler {
 
     private final CaseEvidencePresentationService caseEvidencePresentationService;
     private final EvidenceMediaUrlService evidenceMediaUrlService;
+
+    public CaseDetailResponse assembleEmptyCase(String caseId, CaseProfile profile) {
+        return CaseDetailResponse.builder()
+                .caseId(caseId)
+                .caseName(caseId)
+                .status("PENDING")
+                .createdAt(ApiDateTimeFormatter.formatUtc(profile.getUpdatedAt()))
+                .representativeEvidenceId(null)
+                .evidences(List.of())
+                .build();
+    }
 
     public CaseDetailResponse assemble(
             User user,
@@ -94,6 +106,9 @@ public class CaseDetailAssembler {
     }
 
     private String aggregateStatus(List<Evidence> evidences, Map<Long, AnalysisRequest> latestByEvidence) {
+        if (evidences.isEmpty()) {
+            return "PENDING";
+        }
         String result = "COMPLETED";
         for (Evidence evidence : evidences) {
             String status = toCaseStatus(latestByEvidence.get(evidence.getEvidenceId()));
