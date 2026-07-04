@@ -12,8 +12,6 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -54,8 +52,8 @@ public class CustodyLog {
     @Column(name = "client_ip", length = 45)
     private String clientIp;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "event_payload_json", columnDefinition = "json")
+    /** Opaque JSON string — must stay text so CoC hash input is not reformatted by the DB driver. */
+    @Column(name = "event_payload_json", columnDefinition = "text")
     private String eventPayloadJson;
 
     @Column(name = "previous_log_hash", length = 64)
