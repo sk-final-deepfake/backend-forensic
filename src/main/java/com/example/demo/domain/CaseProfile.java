@@ -35,6 +35,10 @@ public class CaseProfile {
     @Column(name = "representative_evidence_id")
     private Long representativeEvidenceId;
 
+    /** FE review workflow: NONE | REVIEW_REQUESTED | REVIEW_ASSIGNED | ... */
+    @Column(name = "review_status", nullable = false, length = 30)
+    private String reviewStatus = "NONE";
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
@@ -42,6 +46,7 @@ public class CaseProfile {
         this.uploaderId = uploaderId;
         this.caseKey = caseKey;
         this.representativeEvidenceId = representativeEvidenceId;
+        this.reviewStatus = "NONE";
         this.updatedAt = LocalDateTime.now();
     }
 
