@@ -9,6 +9,7 @@ import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.dto.detail.CaseEvidenceSummaryDto;
 import com.example.demo.util.AnalysisStatusMapper;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.OrganizationIdResolver;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -23,22 +24,26 @@ public class CaseDetailAssembler {
     private final CaseEvidencePresentationService caseEvidencePresentationService;
     private final EvidenceMediaUrlService evidenceMediaUrlService;
 
-    public CaseDetailResponse assembleEmptyCase(String caseId, CaseProfile profile) {
-        return CaseDetailResponse.builder()
+    public CaseDetailResponse assembleEmptyCase(String caseId, CaseProfile profile, User uploader) {
+        Long ownerId = profile.getUploaderId();
+        CaseDetailResponse.CaseDetailResponseBuilder builder = CaseDetailResponse.builder()
                 .caseId(caseId)
                 .caseName(caseId)
                 .status("PENDING")
                 .createdAt(ApiDateTimeFormatter.formatUtc(profile.getUpdatedAt()))
-                .representativeEvidenceId(null)
-                .evidences(List.of())
-                .build();
+                .representativeEvidenceId(profile.getRepresentativeEvidenceId())
+                .evidences(List.of());
+        applyRbacFields(builder, profile, uploader, ownerId);
+        return builder.build();
     }
 
     public CaseDetailResponse assemble(
-            User user,
+            User ownerUser,
             String caseId,
             List<Evidence> evidences,
-            List<AnalysisRequest> analysisRequests
+            List<AnalysisRequest> analysisRequests,
+            CaseProfile profile,
+            User uploader
     ) {
         Map<Long, AnalysisRequest> latestByEvidence = indexLatestRequests(analysisRequests);
         String caseName = evidences.stream()
@@ -51,8 +56,9 @@ public class CaseDetailAssembler {
                 .min(LocalDateTime::compareTo)
                 .orElse(LocalDateTime.now());
         Long representativeEvidenceId = caseEvidencePresentationService
-                .resolveRepresentativeEvidenceId(user, caseId, evidences)
+                .resolveRepresentativeEvidenceId(ownerUser, caseId, evidences)
                 .orElse(null);
+        Long ownerId = evidences.isEmpty() ? null : evidences.get(0).getUploaderId();
         List<Evidence> orderedEvidences = caseEvidencePresentationService.orderForDisplay(evidences);
         List<CaseEvidenceSummaryDto> summaries = orderedEvidences.stream()
                 .map(evidence -> toCaseEvidenceSummary(
@@ -62,14 +68,39 @@ public class CaseDetailAssembler {
                 ))
                 .toList();
 
-        return CaseDetailResponse.builder()
+        CaseDetailResponse.CaseDetailResponseBuilder builder = CaseDetailResponse.builder()
                 .caseId(caseId)
                 .caseName(caseName)
                 .status(aggregateStatus(evidences, latestByEvidence))
                 .createdAt(ApiDateTimeFormatter.formatUtc(createdAt))
                 .representativeEvidenceId(representativeEvidenceId)
-                .evidences(summaries)
-                .build();
+                .evidences(summaries);
+        applyRbacFields(builder, profile, uploader, ownerId);
+        return builder.build();
+    }
+
+    private void applyRbacFields(
+            CaseDetailResponse.CaseDetailResponseBuilder builder,
+            CaseProfile profile,
+            User uploader,
+            Long ownerId
+    ) {
+        Long assigneeId = profile != null && profile.getAssigneeId() != null
+                ? profile.getAssigneeId()
+                : ownerId;
+        builder
+                .organizationId(uploader == null
+                        ? null
+                        : OrganizationIdResolver.resolve(uploader.getOrganizationType()))
+                .createdBy(ownerId == null ? null : String.valueOf(ownerId))
+                .assigneeId(assigneeId == null ? null : String.valueOf(assigneeId))
+                .reviewerId(profile != null && profile.getReviewerId() != null
+                        ? String.valueOf(profile.getReviewerId())
+                        : null)
+                .reviewStatus(profile != null ? profile.getReviewStatus() : "NONE")
+                .reviewRequestedAt(profile != null && profile.getReviewRequestedAt() != null
+                        ? ApiDateTimeFormatter.formatUtc(profile.getReviewRequestedAt())
+                        : null);
     }
 
     private Map<Long, AnalysisRequest> indexLatestRequests(List<AnalysisRequest> requests) {

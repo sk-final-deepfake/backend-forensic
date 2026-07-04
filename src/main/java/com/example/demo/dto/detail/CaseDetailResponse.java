@@ -15,4 +15,10 @@ public class CaseDetailResponse {
     private String createdAt;
     private Long representativeEvidenceId;
     private List<CaseEvidenceSummaryDto> evidences;
+    private String organizationId;
+    private String createdBy;
+    private String assigneeId;
+    private String reviewerId;
+    private String reviewStatus;
+    private String reviewRequestedAt;
 }
