@@ -94,6 +94,21 @@ public class HttpBlockchainAnchorClient implements BlockchainAnchorClient {
         if (request.merkleLeafCount() != null) {
             body.put("merkleLeafCount", request.merkleLeafCount());
         }
+        if (request.signature() != null && !request.signature().isBlank()) {
+            body.put("signature", request.signature());
+        }
+        if (request.signerCertHash() != null && !request.signerCertHash().isBlank()) {
+            body.put("signerCertHash", request.signerCertHash());
+        }
+        if (request.certVerified() != null) {
+            body.put("certVerified", request.certVerified());
+        }
+        if (request.offchainLogHash() != null && !request.offchainLogHash().isBlank()) {
+            body.put("offchainLogHash", request.offchainLogHash());
+        }
+        if (request.offchainRef() != null && !request.offchainRef().isEmpty()) {
+            body.put("offchainRef", request.offchainRef().toMap());
+        }
         return body;
     }
 }

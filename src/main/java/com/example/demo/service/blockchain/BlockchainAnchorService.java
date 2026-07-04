@@ -1,15 +1,10 @@
 package com.example.demo.service.blockchain;
 
-import com.example.demo.service.evidence.EvidenceAccessService;
-import com.example.demo.service.evidence.HashService;
-import com.example.demo.service.notification.NotificationService;
-import com.example.demo.service.blockchain.client.BlockchainAnchorClient;
-import com.example.demo.service.blockchain.client.BlockchainAnchorRequest;
-import com.example.demo.service.blockchain.client.BlockchainAnchorResult;
 import com.example.demo.config.BlockchainAnchorProperties;
 import com.example.demo.domain.BlockchainAnchor;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.Report;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
@@ -20,32 +15,48 @@ import com.example.demo.dto.detail.BlockchainInfoDto;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.BlockchainAnchorRepository;
 import com.example.demo.repository.CustodyLogRepository;
+import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.service.blockchain.client.BlockchainAnchorClient;
+import com.example.demo.service.blockchain.client.BlockchainAnchorRequest;
+import com.example.demo.service.blockchain.client.BlockchainAnchorResult;
+import com.example.demo.service.blockchain.client.OffchainRef;
+import com.example.demo.service.evidence.EvidenceAccessService;
+import com.example.demo.service.evidence.HashService;
+import com.example.demo.service.manifest.EvidenceManifestService;
+import com.example.demo.service.notification.NotificationService;
 import com.example.demo.util.ApiDateTimeFormatter;
 import com.example.demo.util.MerkleTreeUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class BlockchainAnchorService {
 
+    public static final String ERROR_MANIFEST_SIGNATURE_INVALID = "MANIFEST_SIGNATURE_INVALID";
+
     private final BlockchainAnchorProperties properties;
     private final BlockchainAnchorClient anchorClient;
     private final BlockchainAnchorRepository anchorRepository;
     private final CustodyLogRepository custodyLogRepository;
+    private final EvidenceRepository evidenceRepository;
     private final EvidenceAccessService evidenceAccessService;
+    private final EvidenceManifestService evidenceManifestService;
+    private final OffchainLogHashService offchainLogHashService;
     private final HashService hashService;
     private final NotificationService notificationService;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public BlockchainAnchor anchorEvidenceHash(Evidence evidence, Long userId) {
@@ -53,20 +64,59 @@ public class BlockchainAnchorService {
             return null;
         }
 
-        return anchorRepository.findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
+        Optional<BlockchainAnchor> existingAnchored = anchorRepository
+                .findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
                         evidence.getEvidenceId(),
                         BlockchainAnchorType.EVIDENCE_HASH
                 )
-                .filter(existing -> existing.getStatus() == BlockchainAnchorStatus.ANCHORED)
-                .orElseGet(() -> executeAnchor(
-                        BlockchainAnchorType.EVIDENCE_HASH,
-                        evidence.getOriginalHashValue(),
-                        evidence.getEvidenceId(),
-                        null,
-                        userId,
-                        null,
-                        null
-                ));
+                .filter(existing -> existing.getStatus() == BlockchainAnchorStatus.ANCHORED);
+        if (existingAnchored.isPresent()) {
+            return existingAnchored.get();
+        }
+
+        EvidenceManifest manifest = evidenceManifestService.ensureManifest(evidence);
+        boolean certVerified = evidenceManifestService.isSignatureValid(manifest);
+        String offchainLogHash = offchainLogHashService.hashEvidenceCustodyBundle(evidence.getEvidenceId());
+        OffchainRef offchainRef = OffchainRef.ofEvidence(
+                manifest.getManifestStoragePath(),
+                evidence.getOriginalStoragePath()
+        );
+
+        if (!certVerified) {
+            return persistFailedWithoutTx(
+                    BlockchainAnchorType.EVIDENCE_HASH,
+                    evidence.getOriginalHashValue(),
+                    evidence.getEvidenceId(),
+                    null,
+                    userId,
+                    null,
+                    null,
+                    manifest.getSignatureValue(),
+                    manifest.getSignerCertificateHash(),
+                    false,
+                    offchainLogHash,
+                    offchainRef,
+                    ERROR_MANIFEST_SIGNATURE_INVALID,
+                    "Manifest signature is not valid; blockchain anchor held."
+            );
+        }
+
+        BlockchainAnchorRequest request = new BlockchainAnchorRequest(
+                evidence.getOriginalHashValue(),
+                BlockchainAnchorType.EVIDENCE_HASH,
+                properties.getNetwork(),
+                properties.getClientId(),
+                evidence.getEvidenceId(),
+                null,
+                null,
+                null,
+                manifest.getSignatureValue(),
+                manifest.getSignerCertificateHash(),
+                true,
+                offchainLogHash,
+                offchainRef
+        );
+        return executeAnchor(request, userId);
     }
 
     @Transactional
@@ -75,20 +125,39 @@ public class BlockchainAnchorService {
             return null;
         }
 
-        return anchorRepository.findTopByReportIdAndAnchorTypeOrderByCreatedAtDesc(
+        Optional<BlockchainAnchor> existingAnchored = anchorRepository
+                .findTopByReportIdAndAnchorTypeOrderByCreatedAtDesc(
                         report.getReportId(),
                         BlockchainAnchorType.REPORT_HASH
                 )
-                .filter(existing -> existing.getStatus() == BlockchainAnchorStatus.ANCHORED)
-                .orElseGet(() -> executeAnchor(
-                        BlockchainAnchorType.REPORT_HASH,
-                        report.getReportHash(),
-                        report.getEvidenceId(),
-                        report.getReportId(),
-                        userId,
-                        null,
-                        null
-                ));
+                .filter(existing -> existing.getStatus() == BlockchainAnchorStatus.ANCHORED);
+        if (existingAnchored.isPresent()) {
+            return existingAnchored.get();
+        }
+
+        String originalStoragePath = evidenceRepository.findById(report.getEvidenceId())
+                .map(Evidence::getOriginalStoragePath)
+                .orElse(null);
+        String offchainLogHash = offchainLogHashService.hashReportBundle(report);
+        OffchainRef offchainRef = OffchainRef.ofReport(report.getStoragePath(), originalStoragePath);
+
+        // PDF signing not introduced yet — omit signature / certVerified.
+        BlockchainAnchorRequest request = new BlockchainAnchorRequest(
+                report.getReportHash(),
+                BlockchainAnchorType.REPORT_HASH,
+                properties.getNetwork(),
+                properties.getClientId(),
+                report.getEvidenceId(),
+                report.getReportId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                offchainLogHash,
+                offchainRef
+        );
+        return executeAnchor(request, userId);
     }
 
     @Transactional
@@ -109,7 +178,9 @@ public class BlockchainAnchorService {
         LocalDateTime start = targetDate.atStartOfDay();
         LocalDateTime end = targetDate.plusDays(1).atStartOfDay();
         List<String> leafHashes = custodyLogRepository.findAll().stream()
-                .filter(log -> !log.getCreatedAt().isBefore(start) && log.getCreatedAt().isBefore(end))
+                .filter(logEntry -> logEntry.getCreatedAt() != null)
+                .filter(logEntry -> !logEntry.getCreatedAt().isBefore(start)
+                        && logEntry.getCreatedAt().isBefore(end))
                 .map(CustodyLog::getCurrentLogHash)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -121,15 +192,25 @@ public class BlockchainAnchorService {
         }
 
         String merkleRoot = MerkleTreeUtil.computeRoot(leafHashes, hashService);
-        return executeAnchor(
-                BlockchainAnchorType.MERKLE_ROOT,
+        String offchainLogHash = offchainLogHashService.hashDailyCustodyBundle(targetDate);
+        OffchainRef offchainRef = OffchainRef.ofMerkleBatch(targetDate.toString());
+
+        BlockchainAnchorRequest request = new BlockchainAnchorRequest(
                 merkleRoot,
+                BlockchainAnchorType.MERKLE_ROOT,
+                properties.getNetwork(),
+                properties.getClientId(),
+                null,
+                null,
+                targetDate.toString(),
+                leafHashes.size(),
                 null,
                 null,
                 null,
-                targetDate,
-                leafHashes.size()
+                offchainLogHash,
+                offchainRef
         );
+        return executeAnchor(request, null);
     }
 
     @Transactional
@@ -151,6 +232,15 @@ public class BlockchainAnchorService {
             );
         }
         return toDto(anchor);
+    }
+
+    /**
+     * Optional admin retry: re-run evidence hash anchor when previous attempt failed
+     * (e.g. MANIFEST_SIGNATURE_INVALID) or was never anchored.
+     */
+    @Transactional
+    public BlockchainAnchor retryEvidenceHashAnchor(Evidence evidence, Long userId) {
+        return anchorEvidenceHash(evidence, userId);
     }
 
     @Transactional(readOnly = true)
@@ -224,14 +314,95 @@ public class BlockchainAnchorService {
                 .build();
     }
 
-    private BlockchainAnchor executeAnchor(
+    private BlockchainAnchor persistFailedWithoutTx(
             BlockchainAnchorType anchorType,
             String subjectHash,
             Long evidenceId,
             Long reportId,
             Long userId,
             LocalDate merkleBatchDate,
-            Integer merkleLeafCount
+            Integer merkleLeafCount,
+            String signature,
+            String signerCertHash,
+            Boolean certVerified,
+            String offchainLogHash,
+            OffchainRef offchainRef,
+            String errorCode,
+            String errorMessage
+    ) {
+        BlockchainAnchor anchor = newPendingAnchor(
+                anchorType,
+                subjectHash,
+                evidenceId,
+                reportId,
+                userId,
+                merkleBatchDate,
+                merkleLeafCount,
+                signature,
+                signerCertHash,
+                certVerified,
+                offchainLogHash,
+                offchainRef
+        );
+        anchor.setStatus(BlockchainAnchorStatus.FAILED);
+        anchor.setErrorCode(errorCode);
+        anchor.setErrorMessage(errorMessage);
+        log.warn("Blockchain anchor held type={} evidenceId={} errorCode={}",
+                anchorType, evidenceId, errorCode);
+        return anchorRepository.save(anchor);
+    }
+
+    private BlockchainAnchor executeAnchor(BlockchainAnchorRequest request, Long userId) {
+        LocalDate merkleBatchDate = request.merkleBatchDate() == null
+                ? null
+                : LocalDate.parse(request.merkleBatchDate());
+        BlockchainAnchor anchor = newPendingAnchor(
+                request.anchorType(),
+                request.subjectHash(),
+                request.evidenceId(),
+                request.reportId(),
+                userId,
+                merkleBatchDate,
+                request.merkleLeafCount(),
+                request.signature(),
+                request.signerCertHash(),
+                request.certVerified(),
+                request.offchainLogHash(),
+                request.offchainRef()
+        );
+        anchorRepository.save(anchor);
+
+        BlockchainAnchorResult result = anchorClient.anchor(request);
+        if (result.success()) {
+            anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
+            anchor.setTransactionHash(result.transactionHash());
+            anchor.setBlockNumber(result.blockNumber());
+            anchor.setAnchoredAt(LocalDateTime.now());
+            notifyIfNeeded(anchor, userId);
+        } else {
+            anchor.setStatus(BlockchainAnchorStatus.FAILED);
+            anchor.setErrorCode("FABRIC_SUBMIT_FAILED");
+            anchor.setErrorMessage(result.errorMessage());
+            log.warn("Blockchain anchor failed type={} subjectHash={} error={}",
+                    request.anchorType(), request.subjectHash(), result.errorMessage());
+        }
+
+        return anchorRepository.save(anchor);
+    }
+
+    private BlockchainAnchor newPendingAnchor(
+            BlockchainAnchorType anchorType,
+            String subjectHash,
+            Long evidenceId,
+            Long reportId,
+            Long userId,
+            LocalDate merkleBatchDate,
+            Integer merkleLeafCount,
+            String signature,
+            String signerCertHash,
+            Boolean certVerified,
+            String offchainLogHash,
+            OffchainRef offchainRef
     ) {
         BlockchainAnchor anchor = new BlockchainAnchor();
         anchor.setAnchorType(anchorType);
@@ -244,33 +415,24 @@ public class BlockchainAnchorService {
         anchor.setStatus(BlockchainAnchorStatus.PENDING);
         anchor.setNetwork(properties.getNetwork());
         anchor.setCreatedAt(LocalDateTime.now());
-        anchorRepository.save(anchor);
+        anchor.setSignatureValue(signature);
+        anchor.setSignerCertificateHash(signerCertHash);
+        anchor.setCertVerified(certVerified);
+        anchor.setOffchainLogHash(offchainLogHash);
+        anchor.setOffchainRefJson(toOffchainRefJson(offchainRef));
+        return anchor;
+    }
 
-        BlockchainAnchorRequest request = new BlockchainAnchorRequest(
-                subjectHash,
-                anchorType,
-                properties.getNetwork(),
-                properties.getClientId(),
-                evidenceId,
-                reportId,
-                merkleBatchDate == null ? null : merkleBatchDate.toString(),
-                merkleLeafCount
-        );
-        BlockchainAnchorResult result = anchorClient.anchor(request);
-        if (result.success()) {
-            anchor.setStatus(BlockchainAnchorStatus.ANCHORED);
-            anchor.setTransactionHash(result.transactionHash());
-            anchor.setBlockNumber(result.blockNumber());
-            anchor.setAnchoredAt(LocalDateTime.now());
-            notifyIfNeeded(anchor, userId);
-        } else {
-            anchor.setStatus(BlockchainAnchorStatus.FAILED);
-            anchor.setErrorMessage(result.errorMessage());
-            log.warn("Blockchain anchor failed type={} subjectHash={} error={}",
-                    anchorType, subjectHash, result.errorMessage());
+    private String toOffchainRefJson(OffchainRef offchainRef) {
+        if (offchainRef == null || offchainRef.isEmpty()) {
+            return null;
         }
-
-        return anchorRepository.save(anchor);
+        try {
+            return objectMapper.writeValueAsString(offchainRef.toMap());
+        } catch (JsonProcessingException ex) {
+            log.warn("Failed to serialize offchainRef", ex);
+            return null;
+        }
     }
 
     private void notifyIfNeeded(BlockchainAnchor anchor, Long userId) {
@@ -301,12 +463,33 @@ public class BlockchainAnchorService {
                         ? null
                         : anchor.getMerkleBatchDate().toString())
                 .merkleLeafCount(anchor.getMerkleLeafCount())
+                .signature(anchor.getSignatureValue())
+                .signerCertHash(anchor.getSignerCertificateHash())
+                .certVerified(anchor.getCertVerified())
+                .offchainLogHash(anchor.getOffchainLogHash())
+                .offchainRefJson(anchor.getOffchainRefJson())
+                .errorCode(anchor.getErrorCode())
                 .message(resolveMessage(anchor))
                 .transactionExplorerUrl(buildTransactionExplorerUrl(anchor.getTransactionHash()))
                 .build();
     }
 
     private BlockchainInfoDto toInfoDto(BlockchainAnchor anchor, Evidence evidence) {
+        if (anchor.getStatus() == BlockchainAnchorStatus.FAILED
+                && ERROR_MANIFEST_SIGNATURE_INVALID.equals(anchor.getErrorCode())) {
+            return BlockchainInfoDto.builder()
+                    .status(anchor.getStatus().name())
+                    .anchorType(anchor.getAnchorType().name())
+                    .subjectHash(anchor.getSubjectHash())
+                    .network(anchor.getNetwork())
+                    .hashValid(true)
+                    .certVerified(false)
+                    .errorCode(anchor.getErrorCode())
+                    .verificationMessage(
+                            "원본 해시는 저장되었으나 매니페스트 서명 검증 실패로 블록체인 앵커가 보류되었습니다.")
+                    .build();
+        }
+
         BlockchainHashIntegrityEvaluator.HashIntegrityResult integrity =
                 BlockchainHashIntegrityEvaluator.evaluate(evidence, anchor);
         return BlockchainInfoDto.builder()
@@ -317,6 +500,8 @@ public class BlockchainAnchorService {
                 .anchoredAt(ApiDateTimeFormatter.formatUtc(anchor.getAnchoredAt()))
                 .network(anchor.getNetwork())
                 .hashValid(integrity.hashValid())
+                .certVerified(anchor.getCertVerified())
+                .errorCode(anchor.getErrorCode())
                 .verificationMessage(integrity.verificationMessage())
                 .transactionExplorerUrl(buildTransactionExplorerUrl(anchor.getTransactionHash()))
                 .build();
@@ -337,9 +522,14 @@ public class BlockchainAnchorService {
         return switch (anchor.getStatus()) {
             case ANCHORED -> "블록체인 앵커링이 완료되었습니다.";
             case PENDING -> "블록체인 앵커링이 진행 중입니다.";
-            case FAILED -> anchor.getErrorMessage() == null
-                    ? "블록체인 앵커링에 실패했습니다."
-                    : anchor.getErrorMessage();
+            case FAILED -> {
+                if (ERROR_MANIFEST_SIGNATURE_INVALID.equals(anchor.getErrorCode())) {
+                    yield "매니페스트 서명 검증 실패로 블록체인 앵커가 보류되었습니다.";
+                }
+                yield anchor.getErrorMessage() == null
+                        ? "블록체인 앵커링에 실패했습니다."
+                        : anchor.getErrorMessage();
+            }
         };
     }
 }

@@ -55,3 +55,5 @@ src/test/resources/crypto/*.pem
 docs/_spec_export.json
 docs/_spec_structured.json
 docs/requirements/_extracted/
+
+resources/crypto/*.pem

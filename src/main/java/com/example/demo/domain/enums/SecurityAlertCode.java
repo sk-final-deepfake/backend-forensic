@@ -4,5 +4,6 @@ package com.example.demo.domain.enums;
 public enum SecurityAlertCode {
     SIGNATURE_INVALID,
     CHAIN_INTEGRITY_FAILED,
-    BLOCKCHAIN_HASH_MISMATCH
+    BLOCKCHAIN_HASH_MISMATCH,
+    BLOCKCHAIN_CERT_MISMATCH
 }

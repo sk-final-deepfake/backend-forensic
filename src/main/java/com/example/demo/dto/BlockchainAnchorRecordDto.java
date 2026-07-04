@@ -21,6 +21,12 @@ public class BlockchainAnchorRecordDto {
     private Long reportId;
     private String merkleBatchDate;
     private Integer merkleLeafCount;
+    private String signature;
+    private String signerCertHash;
+    private Boolean certVerified;
+    private String offchainLogHash;
+    private String offchainRefJson;
+    private String errorCode;
     private String message;
     /** RQ-DTL-080 */
     private String transactionExplorerUrl;

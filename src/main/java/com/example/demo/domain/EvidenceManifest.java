@@ -46,6 +46,10 @@ public class EvidenceManifest {
     @Column(name = "signer_certificate_subject", length = 500)
     private String signerCertificateSubject;
 
+    /** SHA-256 of normalized signer X.509 PEM (anchor-time fingerprint). */
+    @Column(name = "signer_certificate_hash", length = 64)
+    private String signerCertificateHash;
+
     @Column(name = "signed_at")
     private LocalDateTime signedAt;
 

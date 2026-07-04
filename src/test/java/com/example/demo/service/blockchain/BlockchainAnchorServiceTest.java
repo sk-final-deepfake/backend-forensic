@@ -1,38 +1,44 @@
 package com.example.demo.service.blockchain;
 
-import com.example.demo.service.evidence.HashService;
-import com.example.demo.service.notification.NotificationService;
-import com.example.demo.service.blockchain.client.BlockchainAnchorClient;
-import com.example.demo.service.blockchain.client.BlockchainAnchorRequest;
-import com.example.demo.service.blockchain.client.BlockchainAnchorResult;
 import com.example.demo.config.BlockchainAnchorProperties;
 import com.example.demo.domain.BlockchainAnchor;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.enums.FileType;
+import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.dto.detail.BlockchainInfoDto;
 import com.example.demo.repository.BlockchainAnchorRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
+import com.example.demo.service.blockchain.client.BlockchainAnchorClient;
+import com.example.demo.service.blockchain.client.BlockchainAnchorRequest;
+import com.example.demo.service.blockchain.client.BlockchainAnchorResult;
+import com.example.demo.service.evidence.EvidenceAccessService;
+import com.example.demo.service.evidence.HashService;
+import com.example.demo.service.manifest.EvidenceManifestService;
+import com.example.demo.service.notification.NotificationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,16 +61,28 @@ class BlockchainAnchorServiceTest {
     private EvidenceRepository evidenceRepository;
 
     @Mock
+    private EvidenceAccessService evidenceAccessService;
+
+    @Mock
+    private EvidenceManifestService evidenceManifestService;
+
+    @Mock
+    private OffchainLogHashService offchainLogHashService;
+
+    @Mock
     private HashService hashService;
 
     @Mock
     private NotificationService notificationService;
 
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
+
     @InjectMocks
     private BlockchainAnchorService blockchainAnchorService;
 
     @Test
-    void anchorEvidenceHash_persistsAnchoredRecord() {
+    void anchorEvidenceHash_persistsAnchoredRecordWithExtendedFields() {
         when(properties.isEnabled()).thenReturn(true);
         when(properties.getNetwork()).thenReturn("local-simulated");
         when(properties.getClientId()).thenReturn("forenshield-be");
@@ -86,15 +104,76 @@ class BlockchainAnchorServiceTest {
                 .fileSize(1L)
                 .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
                 .originalHashValue("abc")
-                .originalStoragePath("path")
+                .originalStoragePath("path/original.mp4")
                 .uploadedAt(LocalDateTime.now())
                 .build();
+
+        EvidenceManifest manifest = new EvidenceManifest();
+        manifest.setEvidenceId(null);
+        manifest.setSignatureStatus(SignatureStatus.SIGNED);
+        manifest.setSignatureValue("sig-value");
+        manifest.setSignerCertificateHash("cert-hash");
+        manifest.setManifestStoragePath("path/manifest.json");
+        when(evidenceManifestService.ensureManifest(evidence)).thenReturn(manifest);
+        when(evidenceManifestService.isSignatureValid(manifest)).thenReturn(true);
+        when(offchainLogHashService.hashEvidenceCustodyBundle(any())).thenReturn("offchain-hash");
 
         BlockchainAnchor result = blockchainAnchorService.anchorEvidenceHash(evidence, 5L);
 
         assertThat(result.getStatus()).isEqualTo(BlockchainAnchorStatus.ANCHORED);
         assertThat(result.getTransactionHash()).isEqualTo("0xtx");
+        assertThat(result.getSignatureValue()).isEqualTo("sig-value");
+        assertThat(result.getSignerCertificateHash()).isEqualTo("cert-hash");
+        assertThat(result.getCertVerified()).isTrue();
+        assertThat(result.getOffchainLogHash()).isEqualTo("offchain-hash");
+
+        ArgumentCaptor<BlockchainAnchorRequest> requestCaptor = ArgumentCaptor.forClass(BlockchainAnchorRequest.class);
+        verify(anchorClient).anchor(requestCaptor.capture());
+        BlockchainAnchorRequest request = requestCaptor.getValue();
+        assertThat(request.signature()).isEqualTo("sig-value");
+        assertThat(request.signerCertHash()).isEqualTo("cert-hash");
+        assertThat(request.certVerified()).isTrue();
+        assertThat(request.offchainLogHash()).isEqualTo("offchain-hash");
+        assertThat(request.offchainRef().manifestStoragePath()).isEqualTo("path/manifest.json");
+        assertThat(request.offchainRef().originalStoragePath()).isEqualTo("path/original.mp4");
+
         verify(notificationService).notifyBlockchainAnchored(eq(5L), isNull(), eq(BlockchainAnchorType.EVIDENCE_HASH), eq("0xtx"));
+    }
+
+    @Test
+    void anchorEvidenceHash_holdsWithoutTxWhenCertNotVerified() {
+        when(properties.isEnabled()).thenReturn(true);
+        when(properties.getNetwork()).thenReturn("local-simulated");
+        when(anchorRepository.findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(any(), eq(BlockchainAnchorType.EVIDENCE_HASH)))
+                .thenReturn(Optional.empty());
+        when(anchorRepository.save(any(BlockchainAnchor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Evidence evidence = Evidence.builder()
+                .uploaderId(5L)
+                .fileName("sample.mp4")
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
+                .fileSize(1L)
+                .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
+                .originalHashValue("abc")
+                .originalStoragePath("path")
+                .uploadedAt(LocalDateTime.now())
+                .build();
+
+        EvidenceManifest manifest = new EvidenceManifest();
+        manifest.setSignatureStatus(SignatureStatus.FAILED);
+        manifest.setSignatureValue(null);
+        when(evidenceManifestService.ensureManifest(evidence)).thenReturn(manifest);
+        when(evidenceManifestService.isSignatureValid(manifest)).thenReturn(false);
+
+        BlockchainAnchor result = blockchainAnchorService.anchorEvidenceHash(evidence, 5L);
+
+        assertThat(result.getStatus()).isEqualTo(BlockchainAnchorStatus.FAILED);
+        assertThat(result.getErrorCode()).isEqualTo(BlockchainAnchorService.ERROR_MANIFEST_SIGNATURE_INVALID);
+        assertThat(result.getCertVerified()).isFalse();
+        assertThat(result.getTransactionHash()).isNull();
+        verify(anchorClient, never()).anchor(any());
+        verify(notificationService, never()).notifyBlockchainAnchored(any(), any(), any(), any());
     }
 
     @Test
@@ -112,7 +191,7 @@ class BlockchainAnchorServiceTest {
     }
 
     @Test
-    void anchorDailyMerkleRoot_buildsRootFromCustodyLogs() {
+    void anchorDailyMerkleRoot_buildsRootFromCustodyLogsWithOffchainFields() {
         when(properties.isEnabled()).thenReturn(true);
         when(properties.getNetwork()).thenReturn("local-simulated");
         when(properties.getClientId()).thenReturn("forenshield-be");
@@ -124,6 +203,7 @@ class BlockchainAnchorServiceTest {
         log.setCurrentLogHash("1111111111111111111111111111111111111111111111111111111111111111");
         log.setCreatedAt(batchDate.atTime(10, 0));
         when(custodyLogRepository.findAll()).thenReturn(List.of(log));
+        when(offchainLogHashService.hashDailyCustodyBundle(batchDate)).thenReturn("daily-offchain");
         when(anchorClient.anchor(any(BlockchainAnchorRequest.class)))
                 .thenReturn(new BlockchainAnchorResult("0xmerkle", 2L, true, null));
         when(anchorRepository.save(any(BlockchainAnchor.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -133,6 +213,14 @@ class BlockchainAnchorServiceTest {
         assertThat(result.getStatus()).isEqualTo(BlockchainAnchorStatus.ANCHORED);
         assertThat(result.getMerkleLeafCount()).isEqualTo(1);
         assertThat(result.getSubjectHash()).isEqualTo(log.getCurrentLogHash());
+        assertThat(result.getOffchainLogHash()).isEqualTo("daily-offchain");
+
+        ArgumentCaptor<BlockchainAnchorRequest> requestCaptor = ArgumentCaptor.forClass(BlockchainAnchorRequest.class);
+        verify(anchorClient).anchor(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().offchainRef().custodyLogBundleRef())
+                .isEqualTo("rds:custody_logs?batchDate=2026-06-16");
+        assertThat(requestCaptor.getValue().signature()).isNull();
+        assertThat(requestCaptor.getValue().certVerified()).isNull();
     }
 
     @Test
@@ -150,6 +238,7 @@ class BlockchainAnchorServiceTest {
         anchor.setTransactionHash("0xabc123");
         anchor.setNetwork("local-simulated");
         anchor.setAnchoredAt(LocalDateTime.now());
+        anchor.setCertVerified(true);
 
         when(anchorRepository.findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
                 7L,
@@ -159,8 +248,34 @@ class BlockchainAnchorServiceTest {
         BlockchainInfoDto info = blockchainAnchorService.getEvidenceBlockchainInfo(evidence);
 
         assertThat(info.getHashValid()).isTrue();
+        assertThat(info.getCertVerified()).isTrue();
         assertThat(info.getVerificationMessage()).contains("일치");
         assertThat(info.getTransactionExplorerUrl()).isEqualTo("https://explorer.test/tx/0xabc123");
+    }
+
+    @Test
+    void getEvidenceBlockchainInfo_reportsHeldWhenManifestSignatureInvalid() {
+        Evidence evidence = mock(Evidence.class);
+        when(evidence.getEvidenceId()).thenReturn(8L);
+
+        BlockchainAnchor anchor = new BlockchainAnchor();
+        anchor.setStatus(BlockchainAnchorStatus.FAILED);
+        anchor.setAnchorType(BlockchainAnchorType.EVIDENCE_HASH);
+        anchor.setSubjectHash("abc");
+        anchor.setErrorCode(BlockchainAnchorService.ERROR_MANIFEST_SIGNATURE_INVALID);
+        anchor.setCertVerified(false);
+
+        when(anchorRepository.findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
+                8L,
+                BlockchainAnchorType.EVIDENCE_HASH
+        )).thenReturn(Optional.of(anchor));
+
+        BlockchainInfoDto info = blockchainAnchorService.getEvidenceBlockchainInfo(evidence);
+
+        assertThat(info.getHashValid()).isTrue();
+        assertThat(info.getCertVerified()).isFalse();
+        assertThat(info.getErrorCode()).isEqualTo(BlockchainAnchorService.ERROR_MANIFEST_SIGNATURE_INVALID);
+        assertThat(info.getVerificationMessage()).contains("보류");
     }
 
     @Test

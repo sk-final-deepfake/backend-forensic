@@ -1,5 +1,6 @@
 package com.example.demo.service.manifest;
 
+import com.example.demo.service.blockchain.SignerCertificateHashCalculator;
 import com.example.demo.service.evidence.EvidenceStoragePaths;
 import com.example.demo.service.evidence.HashService;
 import com.example.demo.config.EvidenceManifestProperties;
@@ -36,6 +37,7 @@ public class EvidenceManifestService {
     private final EvidenceManifestRepository evidenceManifestRepository;
     private final HashService hashService;
     private final ManifestSignatureService manifestSignatureService;
+    private final SignerCertificateHashCalculator signerCertificateHashCalculator;
     private final EvidenceManifestProperties manifestProperties;
     private final S3Client s3Client;
     private final ObjectMapper objectMapper;
@@ -68,12 +70,15 @@ public class EvidenceManifestService {
         String signatureAlgorithm = null;
         String signatureValue = null;
         String signerSubject = null;
+        String signerCertificateHash = null;
         LocalDateTime signedAt = null;
 
         try {
             signatureValue = manifestSignatureService.signManifest(manifestJson);
             signatureAlgorithm = manifestSignatureService.getSignatureAlgorithm();
             signerSubject = manifestSignatureService.getSignerCertificateSubject();
+            signerCertificateHash = signerCertificateHashCalculator.hashPem(
+                    manifestSignatureService.getSignerCertificatePem());
             signedAt = now;
             signatureStatus = SignatureStatus.SIGNED;
         } catch (Exception ex) {
@@ -92,6 +97,7 @@ public class EvidenceManifestService {
         manifest.setSignatureAlgorithm(signatureAlgorithm);
         manifest.setSignatureValue(signatureValue);
         manifest.setSignerCertificateSubject(signerSubject);
+        manifest.setSignerCertificateHash(signerCertificateHash);
         manifest.setSignedAt(signedAt);
         manifest.setCreatedAt(now);
 
