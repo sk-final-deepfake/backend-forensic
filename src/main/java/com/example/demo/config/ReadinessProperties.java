@@ -32,4 +32,12 @@ public class ReadinessProperties {
     public boolean isFrameSamplingConfigured() {
         return frameCheckEnabled && scriptPath != null && !scriptPath.isBlank();
     }
+
+    /** script-path 가 설정됐을 때 실제 파일이 이미지/볼륨에 존재하는지 */
+    public boolean isScriptPresent() {
+        if (!isFrameSamplingConfigured()) {
+            return false;
+        }
+        return java.nio.file.Path.of(scriptPath).toFile().exists();
+    }
 }

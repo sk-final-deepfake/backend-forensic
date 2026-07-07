@@ -84,6 +84,16 @@ public class EvidenceReadinessService {
             return toResponse(evidenceId, fallback);
         }
 
+        if (!readinessProperties.isScriptPresent()) {
+            ReadinessSnapshot fallback = readinessEvaluator.evaluateFromFfprobe(metadata);
+            fallback = fallback.toBuilder()
+                    .frameCheckStatus("SKIPPED")
+                    .frameCheckMessage("readiness 스크립트가 컨테이너에 없습니다. backend 이미지 배포를 확인하세요.")
+                    .build();
+            persistSnapshot(metadata, fallback);
+            return toResponse(evidenceId, fallback);
+        }
+
         Path localFile = null;
         try {
             localFile = evidenceReadinessFileService.downloadOriginal(evidence);

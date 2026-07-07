@@ -26,7 +26,6 @@ public final class LogCategoryMapper {
             "HASH_CREATED",
             "METADATA_EXTRACTED",
             "EVIDENCE_VIEWED",
-            "EVIDENCE_CAPTURE_ATTEMPTED",
             "ANALYSIS_COPY_CREATED",
             "ANALYSIS_COPY_VERIFIED",
             "ANALYSIS_COPY_DELETED",
@@ -86,7 +85,6 @@ public final class LogCategoryMapper {
             case "HASH_CREATED" -> "해시 생성";
             case "METADATA_EXTRACTED" -> "메타데이터 추출";
             case "EVIDENCE_VIEWED" -> "증거 열람";
-            case "EVIDENCE_CAPTURE_ATTEMPTED" -> "증거 화면 캡처 시도";
             case "ANALYSIS_COPY_CREATED" -> "분석 복사본 생성";
             case "ANALYSIS_COPY_VERIFIED" -> "분석 복사본 검증";
             case "ANALYSIS_COPY_DELETED" -> "분석 복사본 삭제";
