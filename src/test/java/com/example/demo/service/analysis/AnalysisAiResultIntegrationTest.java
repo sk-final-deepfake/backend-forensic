@@ -204,6 +204,84 @@ class AnalysisAiResultIntegrationTest {
     }
 
     @Test
+    void applyAiResult_persistsClipAndPairTimelines() {
+        AnalysisResponseMessage response = AnalysisResponseMessage.builder()
+                .analysisRequestId(queuedRequest.getAnalysisRequestId())
+                .evidenceId(evidence.getEvidenceId())
+                .status("COMPLETED")
+                .riskScore(77.0)
+                .confidenceScore(0.35)
+                .riskLevel("HIGH")
+                .analysisReasons(List.of("Late fusion timeline payload"))
+                .analyzedAt("2026-07-07T01:00:00Z")
+                .results(List.of(AnalysisResponseMessage.AnalysisVideoResultItem.builder()
+                        .type("video")
+                        .deepfakeDetected(true)
+                        .deepfakeScore(0.77)
+                        .frameRisks(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.builder()
+                                        .frameIndex(0)
+                                        .timestampSec(0.0)
+                                        .riskScore(0.86)
+                                        .build()
+                        ))
+                        .clipRisks(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.ClipRiskItem.builder()
+                                        .clipIndex(0)
+                                        .startFrameIndex(0)
+                                        .endFrameIndex(8)
+                                        .startTimeSec(0.0)
+                                        .endTimeSec(0.375)
+                                        .riskScore(0.12)
+                                        .build()
+                        ))
+                        .pairRisks(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.PairRiskItem.builder()
+                                        .pairIndex(0)
+                                        .frameIndexA(0)
+                                        .frameIndexB(1)
+                                        .timestampSec(0.04)
+                                        .riskScore(0.34)
+                                        .motionMagnitude(1.2)
+                                        .build()
+                        ))
+                        .temporalSuspiciousSegments(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.SuspiciousSegmentItem.builder()
+                                        .startTime(0.0)
+                                        .endTime(0.5)
+                                        .maxRiskScore(0.12)
+                                        .reason("temporal high risk")
+                                        .build()
+                        ))
+                        .opticalSuspiciousSegments(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.SuspiciousSegmentItem.builder()
+                                        .startTime(0.0)
+                                        .endTime(0.1)
+                                        .maxRiskScore(0.34)
+                                        .reason("optical high risk")
+                                        .build()
+                        ))
+                        .build()))
+                .build();
+
+        analysisWorkerService.applyAiResult(response);
+
+        AnalysisResult result = analysisResultRepository.findByAnalysisRequestId(queuedRequest.getAnalysisRequestId())
+                .orElseThrow();
+        var timelineModule = analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(
+                        result.getAnalysisResultId()).stream()
+                .filter(module -> VideoAnalysisDetailsBuilder.MODULE_VIDEO_TIMELINE.equals(module.getModuleName()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(timelineModule.getDetailsJson()).contains("\"clipRisks\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"pairRisks\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"temporalSuspiciousSegments\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"opticalSuspiciousSegments\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"riskScore\":0.12");
+        assertThat(timelineModule.getDetailsJson()).contains("\"motionMagnitude\":1.2");
+    }
+
+    @Test
     void applyAiResult_marksFailedWhenAiReturnsFailed() {
         AnalysisResponseMessage response = AnalysisResponseMessage.builder()
                 .analysisRequestId(queuedRequest.getAnalysisRequestId())

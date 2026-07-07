@@ -49,6 +49,11 @@ public class AnalysisInfoAssembler {
                 .evidenceItems(List.of())
                 .frameRisks(List.of())
                 .suspiciousSegments(List.of())
+                .clipRisks(List.of())
+                .pairRisks(List.of())
+                .temporalSuspiciousSegments(List.of())
+                .opticalSuspiciousSegments(List.of())
+                .moduleTimelines(List.of())
                 .build();
     }
 
@@ -69,7 +74,12 @@ public class AnalysisInfoAssembler {
                 .modelScores(List.of())
                 .evidenceItems(List.of())
                 .frameRisks(List.of())
-                .suspiciousSegments(List.of());
+                .suspiciousSegments(List.of())
+                .clipRisks(List.of())
+                .pairRisks(List.of())
+                .temporalSuspiciousSegments(List.of())
+                .opticalSuspiciousSegments(List.of())
+                .moduleTimelines(List.of());
     }
 
     private AnalysisInfoDto.AnalysisInfoDtoBuilder completedBuilder(
@@ -97,7 +107,12 @@ public class AnalysisInfoAssembler {
                 .modelScores(AnalysisDetailFormatters.toModelScores(moduleResults))
                 .evidenceItems(visualization.evidenceItems())
                 .frameRisks(visualization.frameRisks())
-                .suspiciousSegments(visualization.suspiciousSegments());
+                .suspiciousSegments(visualization.suspiciousSegments())
+                .clipRisks(visualization.clipRisks())
+                .pairRisks(visualization.pairRisks())
+                .temporalSuspiciousSegments(visualization.temporalSuspiciousSegments())
+                .opticalSuspiciousSegments(visualization.opticalSuspiciousSegments())
+                .moduleTimelines(visualization.moduleTimelines());
     }
 
     private String pendingSummary(String status) {

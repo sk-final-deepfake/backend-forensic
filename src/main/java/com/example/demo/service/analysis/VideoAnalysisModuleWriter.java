@@ -3,8 +3,7 @@ package com.example.demo.service.analysis;
 import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.enums.FileType;
 import com.example.demo.dto.AnalysisResponseMessage;
-import com.example.demo.dto.FrameRiskDto;
-import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.dto.VideoDeepfakeTimelineDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.util.JsonPayloadWriter;
 import java.time.LocalDateTime;
@@ -46,8 +45,7 @@ public class VideoAnalysisModuleWriter {
             AnalysisResponseMessage.AnalysisVideoResultItem videoResult,
             AnalysisResponseMessage response,
             Double confidenceScore,
-            List<FrameRiskDto> frameRisks,
-            List<SuspiciousSegmentDto> suspiciousSegments
+            VideoDeepfakeTimelineDto timeline
     ) {
         List<String> evidenceItems = responseResolver.resolveEvidenceItems(videoResult, response);
         String defaultModelName = responseResolver.resolveModelName(videoResult, response);
@@ -84,7 +82,7 @@ public class VideoAnalysisModuleWriter {
             }
         }
 
-        saveTimelineModule(analysisResultId, videoResult, frameRisks, suspiciousSegments, evidenceItems);
+        saveTimelineModule(analysisResultId, videoResult, timeline, evidenceItems);
     }
 
     private void saveDetectionModule(
@@ -113,27 +111,36 @@ public class VideoAnalysisModuleWriter {
     private void saveTimelineModule(
             Long analysisResultId,
             AnalysisResponseMessage.AnalysisVideoResultItem videoResult,
-            List<FrameRiskDto> frameRisks,
-            List<SuspiciousSegmentDto> suspiciousSegments,
+            VideoDeepfakeTimelineDto timeline,
             List<String> evidenceItems
     ) {
+        boolean hasTimelineData = hasTimelineData(timeline);
         AnalysisModuleResult module = new AnalysisModuleResult();
         module.setAnalysisResultId(analysisResultId);
         module.setFileType(FileType.VIDEO);
         module.setModuleName(VideoAnalysisDetailsBuilder.MODULE_VIDEO_TIMELINE);
-        module.setDetected(!frameRisks.isEmpty() || !suspiciousSegments.isEmpty());
+        module.setDetected(hasTimelineData);
         module.setScore(0.0);
         module.setConfidence(0.0);
         module.setModelName(responseResolver.resolveModelName(videoResult, null));
         module.setModelVersion(responseResolver.resolveModelVersion(videoResult, null));
         module.setDetailsJson(jsonPayloadWriter.toJson(detailsBuilder.buildTimelineDetails(
                 videoResult,
-                frameRisks,
-                suspiciousSegments,
+                timeline,
                 evidenceItems
         )));
         module.setCreatedAt(LocalDateTime.now());
         analysisModuleResultRepository.save(module);
+    }
+
+    private boolean hasTimelineData(VideoDeepfakeTimelineDto timeline) {
+        return !timeline.getFrameRisks().isEmpty()
+                || !timeline.getSuspiciousSegments().isEmpty()
+                || !timeline.getClipRisks().isEmpty()
+                || !timeline.getPairRisks().isEmpty()
+                || !timeline.getTemporalSuspiciousSegments().isEmpty()
+                || !timeline.getOpticalSuspiciousSegments().isEmpty()
+                || !timeline.getModuleTimelines().isEmpty();
     }
 
     private record DetectionSpec(
