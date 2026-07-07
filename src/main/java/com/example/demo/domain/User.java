@@ -143,6 +143,10 @@ public class User {
         this.status = status;
     }
 
+    public void updateRole(UserRole role) {
+        this.role = role;
+    }
+
     public void updateDarkMode(boolean darkMode) {
         this.darkMode = darkMode;
     }

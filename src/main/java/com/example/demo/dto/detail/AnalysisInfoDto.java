@@ -1,6 +1,8 @@
 package com.example.demo.dto.detail;
 
+import com.example.demo.dto.ClipRiskDto;
 import com.example.demo.dto.FrameRiskDto;
+import com.example.demo.dto.PairRiskDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
 import lombok.Builder;
 import lombok.Getter;
@@ -33,4 +35,12 @@ public class AnalysisInfoDto {
     /** SK-943~945, SK-458~459 */
     private List<FrameRiskDto> frameRisks;
     private List<SuspiciousSegmentDto> suspiciousSegments;
+    /** Late fusion — TimeSformer clip-level timeline */
+    private List<ClipRiskDto> clipRisks;
+    /** Late fusion — GMFlow frame-pair timeline */
+    private List<PairRiskDto> pairRisks;
+    private List<SuspiciousSegmentDto> temporalSuspiciousSegments;
+    private List<SuspiciousSegmentDto> opticalSuspiciousSegments;
+    /** Unified per-module timeline (cnn / temporal / optical) */
+    private List<ModuleTimelineDto> moduleTimelines;
 }

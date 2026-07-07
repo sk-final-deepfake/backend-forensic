@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CustodyTargetType;
@@ -323,7 +324,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                         .content("""
                                 {
                                   "caseName": "2026-서울-0123 딥페이크 유포 사건",
-                                  "evidenceIds": [%d, %d, %d]
+                                  "evidenceIds": [%d, %d, %d],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(imageEvidenceId, videoEvidenceId, audioEvidenceId)))
                 .andExpect(status().isOk())
@@ -562,7 +564,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "evidenceIds": [%d]
+                                  "evidenceIds": [%d],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(evidence.getEvidenceId())))
                 .andExpect(status().isBadRequest())
@@ -625,7 +628,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                         .content("""
                                 {
                                   "caseName": "큐 대기 테스트",
-                                  "evidenceIds": [%d]
+                                  "evidenceIds": [%d],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(evidenceId)))
                 .andExpect(status().isOk());
@@ -749,7 +753,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                         .content("""
                                 {
                                   "caseName": "취소 불가 테스트",
-                                  "evidenceIds": [%d]
+                                  "evidenceIds": [%d],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(evidenceId)))
                 .andExpect(status().isOk());
@@ -890,8 +895,9 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                 .andExpect(jsonPath("$.analysisInfo.status").value("PENDING"))
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isArray())
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isEmpty())
-                .andExpect(jsonPath("$.signatureInfo.signatureStatus").value("UNSIGNED"))
-                .andExpect(jsonPath("$.manifestInfo").doesNotExist())
+                .andExpect(jsonPath("$.signatureInfo.signatureStatus").value("SIGNED"))
+                .andExpect(jsonPath("$.signatureInfo.signatureValid").value(true))
+                .andExpect(jsonPath("$.manifestInfo.evidenceId").value(evidenceId))
                 .andExpect(jsonPath("$.cocLogs").isArray())
                 .andExpect(jsonPath("$.cocLogs").isNotEmpty());
 
@@ -931,7 +937,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                         .content("""
                                 {
                                   "caseName": "%s",
-                                  "evidenceIds": [%d]
+                                  "evidenceIds": [%d],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(caseName, evidenceId)))
                 .andExpect(status().isOk());
@@ -981,7 +988,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                         .content("""
                                 {
                                   "caseName": "%s",
-                                  "evidenceIds": [%d]
+                                  "evidenceIds": [%d],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(caseName, evidenceId)))
                 .andExpect(status().isOk())
@@ -1041,7 +1049,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                         .content("""
                                 {
                                   "caseName": "%s",
-                                  "evidenceIds": [%d]
+                                  "evidenceIds": [%d],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(caseName, evidenceId)))
                 .andExpect(status().isOk())
@@ -1093,7 +1102,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                         .content("""
                                 {
                                   "caseName": "%s",
-                                  "evidenceIds": [%d]
+                                  "evidenceIds": [%d],
+                                  "acknowledgeQualityWarning": true
                                 }
                                 """.formatted(caseName, evidenceId)))
                 .andExpect(status().isOk())
@@ -1187,5 +1197,98 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                 .anyMatch(n -> n.getType() == NotificationType.SECURITY_ALERT
                         && n.getReferenceId().equals(evidenceId)
                         && n.getReferenceType().equals("SEC:SIG_INVALID"));
+    }
+
+    @Test
+    @DisplayName("화질 POOR 증거는 acknowledge 없이 분석 시작 시 409 QUALITY_WARNING_REQUIRED")
+    void startAnalysis_poorQualityWithoutAck_returnsConflict() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "poor-quality.mp4",
+                "video/mp4",
+                "poor quality video bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String caseName = "2026-서울-화질-부적합 사건";
+
+        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
+        EvidenceMetadata metadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElseThrow();
+        metadata.setWidth(320);
+        metadata.setHeight(240);
+        metadata.setDurationSec(30);
+        metadata.setFps(30.0);
+        evidenceMetadataRepository.save(metadata);
+        evidenceReadinessService.seedFfprobeReadiness(evidenceId);
+
+        mockMvc.perform(post("/api/v1/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "%s",
+                                  "evidenceIds": [%d]
+                                }
+                                """.formatted(caseName, evidenceId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("QUALITY_WARNING_REQUIRED"));
+    }
+
+    @Test
+    @DisplayName("화질 POOR 증거는 acknowledge=true 시 분석 시작 및 QUALITY_WARNING_ACKNOWLEDGED CoC 기록")
+    void startAnalysis_poorQualityWithAck_recordsAcknowledgementAndStarts() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "poor-quality-ack.mp4",
+                "video/mp4",
+                "poor quality ack video bytes".getBytes(StandardCharsets.UTF_8)
+        );
+        String caseName = "2026-서울-화질-확인 사건";
+
+        String uploadResponseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
+        EvidenceMetadata metadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElseThrow();
+        metadata.setWidth(320);
+        metadata.setHeight(240);
+        metadata.setDurationSec(30);
+        metadata.setFps(30.0);
+        evidenceMetadataRepository.save(metadata);
+        evidenceReadinessService.seedFfprobeReadiness(evidenceId);
+
+        mockMvc.perform(post("/api/v1/evidences/analyze")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseName": "%s",
+                                  "evidenceIds": [%d],
+                                  "acknowledgeQualityWarning": true
+                                }
+                                """.formatted(caseName, evidenceId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.startedCount").value(1));
+
+        List<CustodyLog> evidenceLogs = custodyLogRepository
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
+        assertThat(evidenceLogs)
+                .extracting(CustodyLog::getActionType)
+                .contains("QUALITY_WARNING_ACKNOWLEDGED");
     }
 }

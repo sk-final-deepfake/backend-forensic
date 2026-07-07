@@ -3,9 +3,11 @@ package com.example.demo.service.compare;
 import com.example.demo.domain.CompareVerification;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.enums.CompareVerdict;
+import com.example.demo.dto.compare.CompareBlockchainInfoDto;
 import com.example.demo.dto.compare.CompareFileInfoDto;
 import com.example.demo.dto.compare.CompareItemDto;
 import com.example.demo.dto.compare.CompareResultResponse;
+import com.example.demo.dto.compare.CompareSignatureInfoDto;
 import com.example.demo.dto.compare.CompareSummaryDto;
 import com.example.demo.dto.compare.CompareVerifyResponse;
 import com.example.demo.util.ApiDateTimeFormatter;
@@ -24,8 +26,11 @@ public class CompareVerificationAssembler {
 
     public CompareVerifyResponse toVerifyResponse(
             CompareVerification saved,
+            Evidence original,
             List<CompareItemDto> items,
-            CompareSummaryDto summary
+            CompareSummaryDto summary,
+            CompareSignatureInfoDto signature,
+            CompareBlockchainInfoDto blockchain
     ) {
         CompareSummaryDto summaryWithLabel = CompareSummaryDto.builder()
                 .matchCount(summary.getMatchCount())
@@ -41,11 +46,18 @@ public class CompareVerificationAssembler {
                 .verdict(saved.getVerdict())
                 .summary(summaryWithLabel)
                 .items(items)
+                .signature(signature)
+                .blockchain(blockchain)
                 .createdAt(ApiDateTimeFormatter.formatUtc(saved.getCreatedAt()))
                 .build();
     }
 
-    public CompareResultResponse toResultResponse(CompareVerification verification, List<CompareItemDto> items) {
+    public CompareResultResponse toResultResponse(
+            CompareVerification verification,
+            List<CompareItemDto> items,
+            CompareSignatureInfoDto signature,
+            CompareBlockchainInfoDto blockchain
+    ) {
         CompareSummaryDto summary = CompareSummaryDto.builder()
                 .matchCount(verification.getMatchCount())
                 .mismatchCount(verification.getMismatchCount())
@@ -60,6 +72,8 @@ public class CompareVerificationAssembler {
                 .verdict(verification.getVerdict())
                 .summary(summary)
                 .items(items)
+                .signature(signature)
+                .blockchain(blockchain)
                 .createdAt(ApiDateTimeFormatter.formatUtc(verification.getCreatedAt()))
                 .build();
     }

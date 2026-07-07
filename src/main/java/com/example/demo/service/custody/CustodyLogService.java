@@ -5,6 +5,8 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.repository.CustodyLogRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ import java.util.Objects;
 public class CustodyLogService {
 
     private final CustodyLogRepository custodyLogRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public void recordUserAction(User actor, User target, String actionType, String reason) {
@@ -107,10 +110,22 @@ public class CustodyLogService {
                 valueOf(log.getSubjectHash()),
                 valueOf(log.getStoragePathAtEvent()),
                 valueOf(log.getReason()),
-                valueOf(log.getEventPayloadJson()),
+                // PG json columns may reformat spacing; always hash the canonical Jackson form.
+                canonicalJson(log.getEventPayloadJson()),
                 valueOf(log.getClientIp()),
-                valueOf(formatCreatedAt(log.getCreatedAt()))
+                formatCreatedAt(log.getCreatedAt())
         );
+    }
+
+    private String canonicalJson(String json) {
+        if (json == null || json.isBlank()) {
+            return "";
+        }
+        try {
+            return objectMapper.writeValueAsString(objectMapper.readTree(json));
+        } catch (JsonProcessingException ex) {
+            return json;
+        }
     }
 
     private LocalDateTime normalizeCreatedAt(LocalDateTime value) {

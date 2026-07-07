@@ -61,7 +61,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.token").value(not("")))
                 .andExpect(jsonPath("$.loginId").value("1111"))
-                .andExpect(jsonPath("$.role").value("ROLE_USER"));
+                .andExpect(jsonPath("$.role").value("ROLE_INVESTIGATOR"));
     }
 
     @Test
@@ -73,7 +73,7 @@ class AuthControllerTest {
                                 {"loginId":"3333","password":"4444"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("ROLE_ADMIN"));
+                .andExpect(jsonPath("$.role").value("ROLE_ORG_ADMIN"));
     }
 
     @Test

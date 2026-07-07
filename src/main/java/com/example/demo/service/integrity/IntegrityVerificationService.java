@@ -1,10 +1,5 @@
 package com.example.demo.service.integrity;
 
-import com.example.demo.service.custody.CustodyChainVerifier;
-import com.example.demo.service.evidence.EvidenceAccessService;
-import com.example.demo.service.blockchain.BlockchainHashIntegrityEvaluator;
-import com.example.demo.service.manifest.EvidenceManifestService;
-import com.example.demo.service.notification.NotificationService;
 import com.example.demo.domain.BlockchainAnchor;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceManifest;
@@ -17,8 +12,16 @@ import com.example.demo.dto.IntegrityCheckItem;
 import com.example.demo.dto.IntegrityVerifyResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.BlockchainAnchorRepository;
+import com.example.demo.service.blockchain.BlockchainAnchorService;
+import com.example.demo.service.blockchain.BlockchainHashIntegrityEvaluator;
+import com.example.demo.service.custody.CustodyChainVerifier;
+import com.example.demo.service.evidence.EvidenceAccessService;
+import com.example.demo.service.manifest.EvidenceManifestService;
+import com.example.demo.service.notification.NotificationService;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,7 +42,7 @@ public class IntegrityVerificationService {
      */
     @Transactional
     public EvidenceIntegrityResult verifyAndNotifySecurityIssues(User user, Long evidenceId) {
-        Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
+        Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         IntegrityVerifyResponse response = buildVerification(evidence);
         dispatchSecurityAlerts(user.getUserId(), evidenceId, response);
         return new EvidenceIntegrityResult(evidence, response);
@@ -71,7 +74,7 @@ public class IntegrityVerificationService {
         List<IntegrityCheckItem> checks = new ArrayList<>();
         checks.add(checkManifestSignature(evidenceId));
         checks.add(checkCustodyChain(evidenceId));
-        checks.add(checkBlockchainHash(evidence));
+        checks.addAll(checkBlockchain(evidence));
 
         boolean valid = checks.stream().allMatch(IntegrityCheckItem::isValid);
         return IntegrityVerifyResponse.builder()
@@ -128,22 +131,54 @@ public class IntegrityVerificationService {
         );
     }
 
-    private IntegrityCheckItem checkBlockchainHash(Evidence evidence) {
-        return blockchainAnchorRepository
+    private List<IntegrityCheckItem> checkBlockchain(Evidence evidence) {
+        Optional<BlockchainAnchor> latest = blockchainAnchorRepository
                 .findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(
                         evidence.getEvidenceId(),
                         BlockchainAnchorType.EVIDENCE_HASH
-                )
-                .filter(anchor -> anchor.getStatus() == BlockchainAnchorStatus.ANCHORED)
-                .map(anchor -> evaluateBlockchainAnchor(evidence, anchor))
-                .orElse(IntegrityCheckItem.builder()
-                        .checkType("BLOCKCHAIN_HASH")
-                        .valid(true)
-                        .message("앵커링된 블록체인 기록이 없습니다.")
-                        .build());
+                );
+
+        if (latest.isEmpty()) {
+            return List.of(IntegrityCheckItem.builder()
+                    .checkType("BLOCKCHAIN_HASH")
+                    .valid(true)
+                    .message("앵커링된 블록체인 기록이 없습니다.")
+                    .build());
+        }
+
+        BlockchainAnchor anchor = latest.get();
+        List<IntegrityCheckItem> checks = new ArrayList<>();
+
+        if (anchor.getStatus() == BlockchainAnchorStatus.FAILED
+                && BlockchainAnchorService.ERROR_MANIFEST_SIGNATURE_INVALID.equals(anchor.getErrorCode())) {
+            checks.add(IntegrityCheckItem.builder()
+                    .checkType("BLOCKCHAIN_HASH")
+                    .valid(true)
+                    .message("원본 해시는 저장되었으나 매니페스트 서명 실패로 블록체인 앵커가 없습니다.")
+                    .build());
+            checks.add(IntegrityCheckItem.builder()
+                    .checkType("BLOCKCHAIN_CERT")
+                    .valid(true)
+                    .message("앵커 시점 certVerified=false — Fabric TX 없음(보류).")
+                    .build());
+            return checks;
+        }
+
+        if (anchor.getStatus() != BlockchainAnchorStatus.ANCHORED) {
+            checks.add(IntegrityCheckItem.builder()
+                    .checkType("BLOCKCHAIN_HASH")
+                    .valid(true)
+                    .message("블록체인 앵커가 아직 완료되지 않았습니다. status=" + anchor.getStatus())
+                    .build());
+            return checks;
+        }
+
+        checks.add(evaluateBlockchainHash(evidence, anchor));
+        checks.add(evaluateBlockchainCert(evidence.getEvidenceId(), anchor));
+        return checks;
     }
 
-    private IntegrityCheckItem evaluateBlockchainAnchor(Evidence evidence, BlockchainAnchor anchor) {
+    private IntegrityCheckItem evaluateBlockchainHash(Evidence evidence, BlockchainAnchor anchor) {
         if (BlockchainHashIntegrityEvaluator.anchoredOriginalHashMatches(evidence, anchor)) {
             return IntegrityCheckItem.builder()
                     .checkType("BLOCKCHAIN_HASH")
@@ -156,6 +191,37 @@ public class IntegrityVerificationService {
                 .valid(false)
                 .errorCode(SecurityAlertCode.BLOCKCHAIN_HASH_MISMATCH.name())
                 .message("블록체인에 등록된 해시와 현재 증거 원본 해시가 일치하지 않습니다.")
+                .build();
+    }
+
+    private IntegrityCheckItem evaluateBlockchainCert(Long evidenceId, BlockchainAnchor anchor) {
+        if (anchor.getCertVerified() == null) {
+            return IntegrityCheckItem.builder()
+                    .checkType("BLOCKCHAIN_CERT")
+                    .valid(true)
+                    .message("앵커에 certVerified 스냅샷이 없습니다.")
+                    .build();
+        }
+
+        boolean currentValid = evidenceManifestService.findByEvidenceId(evidenceId)
+                .map(evidenceManifestService::isSignatureValid)
+                .orElse(false);
+
+        if (Objects.equals(anchor.getCertVerified(), currentValid)) {
+            return IntegrityCheckItem.builder()
+                    .checkType("BLOCKCHAIN_CERT")
+                    .valid(true)
+                    .message("원장 certVerified(" + anchor.getCertVerified()
+                            + ")와 현재 서명 재검증 결과가 일치합니다.")
+                    .build();
+        }
+
+        return IntegrityCheckItem.builder()
+                .checkType("BLOCKCHAIN_CERT")
+                .valid(false)
+                .errorCode(SecurityAlertCode.BLOCKCHAIN_CERT_MISMATCH.name())
+                .message("원장 certVerified(" + anchor.getCertVerified()
+                        + ")와 현재 서명 재검증(" + currentValid + ")이 일치하지 않습니다.")
                 .build();
     }
 

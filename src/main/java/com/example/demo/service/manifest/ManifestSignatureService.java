@@ -9,6 +9,9 @@ public interface ManifestSignatureService {
 
     String getSignerCertificateSubject();
 
+    /** Normalized PEM of the platform signer certificate (for signerCertHash). */
+    String getSignerCertificatePem();
+
     String signManifest(String canonicalManifestJson);
 
     boolean verifyManifest(String canonicalManifestJson, String signatureBase64);

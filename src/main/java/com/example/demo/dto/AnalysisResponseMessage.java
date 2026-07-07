@@ -67,7 +67,12 @@ public class AnalysisResponseMessage {
         private Boolean reEncodingDetected;
         private Double reEncodingScore;
         private List<FrameRiskItem> frameRisks;
+        private List<ClipRiskItem> clipRisks;
+        private List<PairRiskItem> pairRisks;
         private List<SuspiciousSegmentItem> suspiciousSegments;
+        private List<SuspiciousSegmentItem> temporalSuspiciousSegments;
+        private List<SuspiciousSegmentItem> opticalSuspiciousSegments;
+        private List<ModuleTimelineItem> moduleTimelines;
         private String modelName;
         private String modelVersion;
         private List<ModelScoreItem> modelScores;
@@ -91,11 +96,60 @@ public class AnalysisResponseMessage {
         @NoArgsConstructor
         @AllArgsConstructor
         @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class ClipRiskItem {
+            private Integer clipIndex;
+            private Integer startFrameIndex;
+            private Integer endFrameIndex;
+            private Double startTimeSec;
+            private Double endTimeSec;
+            private Double riskScore;
+        }
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class PairRiskItem {
+            private Integer pairIndex;
+            private Integer frameIndexA;
+            private Integer frameIndexB;
+            private Double timestampSec;
+            private Double riskScore;
+            private Double motionMagnitude;
+        }
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
         public static class SuspiciousSegmentItem {
             private Double startTime;
             private Double endTime;
             private Double maxRiskScore;
             private String reason;
+        }
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class ModuleTimelineItem {
+            private String module;
+            private String modelName;
+            private String modelVersion;
+            private Double videoScore;
+            private Double threshold;
+            private Boolean detected;
+            private List<FrameRiskItem> frameRisks;
+            private List<ClipRiskItem> clipRisks;
+            private List<PairRiskItem> pairRisks;
+            private List<SuspiciousSegmentItem> suspiciousSegments;
         }
     }
 }

@@ -31,6 +31,7 @@ public class NotificationService {
             case SIGNATURE_INVALID -> "SEC:SIG_INVALID";
             case CHAIN_INTEGRITY_FAILED -> "SEC:CHAIN_FAIL";
             case BLOCKCHAIN_HASH_MISMATCH -> "SEC:BC_MISMATCH";
+            case BLOCKCHAIN_CERT_MISMATCH -> "SEC:BC_CERT_MISMATCH";
         };
     }
 
@@ -135,6 +136,8 @@ public class NotificationService {
                     "증거(ID " + evidenceId + ") 관리(CoC) 해시 체인 무결성 검증에 실패했습니다.";
             case BLOCKCHAIN_HASH_MISMATCH ->
                     "증거(ID " + evidenceId + ") 블록체인 앵커 해시와 현재 원본 해시가 일치하지 않습니다.";
+            case BLOCKCHAIN_CERT_MISMATCH ->
+                    "증거(ID " + evidenceId + ") 블록체인 앵커 certVerified와 현재 서명 재검증 결과가 일치하지 않습니다.";
         };
 
         Notification notification = new Notification();

@@ -141,6 +141,147 @@ class AnalysisAiResultIntegrationTest {
     }
 
     @Test
+    void applyAiResult_updatesExistingResultWithFrameRisks() {
+        AnalysisResponseMessage initial = AnalysisResponseMessage.builder()
+                .analysisRequestId(queuedRequest.getAnalysisRequestId())
+                .evidenceId(evidence.getEvidenceId())
+                .status("COMPLETED")
+                .riskScore(11.0)
+                .confidenceScore(0.83)
+                .riskLevel("LOW")
+                .analysisReasons(List.of("Initial GPU result without frame risks"))
+                .analyzedAt("2026-07-03T07:27:36Z")
+                .results(List.of(AnalysisResponseMessage.AnalysisVideoResultItem.builder()
+                        .type("video")
+                        .deepfakeDetected(false)
+                        .deepfakeScore(0.11)
+                        .build()))
+                .build();
+
+        analysisWorkerService.applyAiResult(initial);
+
+        AnalysisResponseMessage updated = AnalysisResponseMessage.builder()
+                .analysisRequestId(queuedRequest.getAnalysisRequestId())
+                .evidenceId(evidence.getEvidenceId())
+                .status("COMPLETED")
+                .riskScore(10.8)
+                .confidenceScore(0.84)
+                .riskLevel("LOW")
+                .analysisReasons(List.of("GPU frameRisks payload"))
+                .analyzedAt("2026-07-03T07:27:37Z")
+                .results(List.of(AnalysisResponseMessage.AnalysisVideoResultItem.builder()
+                        .type("video")
+                        .deepfakeDetected(false)
+                        .deepfakeScore(0.108)
+                        .frameRisks(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.builder()
+                                        .frameIndex(0)
+                                        .timestampSec(0.0)
+                                        .riskScore(0.12)
+                                        .build(),
+                                AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.builder()
+                                        .frameIndex(1)
+                                        .timestampSec(2.1)
+                                        .riskScore(0.18)
+                                        .build()
+                        ))
+                        .build()))
+                .build();
+
+        analysisWorkerService.applyAiResult(updated);
+
+        AnalysisResult result = analysisResultRepository.findByAnalysisRequestId(queuedRequest.getAnalysisRequestId())
+                .orElseThrow();
+        assertThat(result.getRiskScore()).isEqualTo(10.8);
+
+        var timelineModule = analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(
+                        result.getAnalysisResultId()).stream()
+                .filter(module -> VideoAnalysisDetailsBuilder.MODULE_VIDEO_TIMELINE.equals(module.getModuleName()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(timelineModule.getDetailsJson()).contains("\"frameRisks\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"riskScore\":0.12");
+    }
+
+    @Test
+    void applyAiResult_persistsClipAndPairTimelines() {
+        AnalysisResponseMessage response = AnalysisResponseMessage.builder()
+                .analysisRequestId(queuedRequest.getAnalysisRequestId())
+                .evidenceId(evidence.getEvidenceId())
+                .status("COMPLETED")
+                .riskScore(77.0)
+                .confidenceScore(0.35)
+                .riskLevel("HIGH")
+                .analysisReasons(List.of("Late fusion timeline payload"))
+                .analyzedAt("2026-07-07T01:00:00Z")
+                .results(List.of(AnalysisResponseMessage.AnalysisVideoResultItem.builder()
+                        .type("video")
+                        .deepfakeDetected(true)
+                        .deepfakeScore(0.77)
+                        .frameRisks(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.builder()
+                                        .frameIndex(0)
+                                        .timestampSec(0.0)
+                                        .riskScore(0.86)
+                                        .build()
+                        ))
+                        .clipRisks(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.ClipRiskItem.builder()
+                                        .clipIndex(0)
+                                        .startFrameIndex(0)
+                                        .endFrameIndex(8)
+                                        .startTimeSec(0.0)
+                                        .endTimeSec(0.375)
+                                        .riskScore(0.12)
+                                        .build()
+                        ))
+                        .pairRisks(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.PairRiskItem.builder()
+                                        .pairIndex(0)
+                                        .frameIndexA(0)
+                                        .frameIndexB(1)
+                                        .timestampSec(0.04)
+                                        .riskScore(0.34)
+                                        .motionMagnitude(1.2)
+                                        .build()
+                        ))
+                        .temporalSuspiciousSegments(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.SuspiciousSegmentItem.builder()
+                                        .startTime(0.0)
+                                        .endTime(0.5)
+                                        .maxRiskScore(0.12)
+                                        .reason("temporal high risk")
+                                        .build()
+                        ))
+                        .opticalSuspiciousSegments(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.SuspiciousSegmentItem.builder()
+                                        .startTime(0.0)
+                                        .endTime(0.1)
+                                        .maxRiskScore(0.34)
+                                        .reason("optical high risk")
+                                        .build()
+                        ))
+                        .build()))
+                .build();
+
+        analysisWorkerService.applyAiResult(response);
+
+        AnalysisResult result = analysisResultRepository.findByAnalysisRequestId(queuedRequest.getAnalysisRequestId())
+                .orElseThrow();
+        var timelineModule = analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(
+                        result.getAnalysisResultId()).stream()
+                .filter(module -> VideoAnalysisDetailsBuilder.MODULE_VIDEO_TIMELINE.equals(module.getModuleName()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(timelineModule.getDetailsJson()).contains("\"clipRisks\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"pairRisks\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"temporalSuspiciousSegments\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"opticalSuspiciousSegments\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"riskScore\":0.12");
+        assertThat(timelineModule.getDetailsJson()).contains("\"motionMagnitude\":1.2");
+    }
+
+    @Test
     void applyAiResult_marksFailedWhenAiReturnsFailed() {
         AnalysisResponseMessage response = AnalysisResponseMessage.builder()
                 .analysisRequestId(queuedRequest.getAnalysisRequestId())

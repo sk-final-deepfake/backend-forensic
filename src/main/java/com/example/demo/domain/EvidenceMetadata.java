@@ -63,6 +63,11 @@ public class EvidenceMetadata {
     @Column(name = "ffprobe_json", columnDefinition = "json")
     private String ffprobeJson;
 
+    // video_readiness.py 프레임 샘플링 후 갱신
+    @JdbcTypeCode(SqlTypes.JSON) // readiness_json 산출 경로.
+    @Column(name = "readiness_json", columnDefinition = "json") // JSON 형식으로 저장
+    private String readinessJson; // 등급(GOOD/CAUTION/POOR/BLOCK) + JSON
+
     @Enumerated(EnumType.STRING)
     @Column(name = "extraction_status", nullable = false, length = 20)
     private ExtractionStatus extractionStatus = ExtractionStatus.FAILED;

@@ -1,0 +1,33 @@
+package com.example.demo.dto;
+
+import lombok.Builder;
+import lombok.Getter;
+
+@Getter
+@Builder
+public class PublicReportVerifyResponse {
+
+    private final String status;
+    private final boolean valid;
+    private final String message;
+
+    private final Long reportId;
+    private final String reportNo;
+    private final String verificationCode;
+    private final Long evidenceId;
+    private final String reportHash;
+    private final String reportFileName;
+    private final String createdAt;
+
+    private final Boolean hashMatched;
+    private final Boolean signatureValid;
+    private final String signatureStatus;
+    private final String signatureAlgorithm;
+    private final String signerCertificateSubject;
+
+    private final Boolean blockchainMatched;
+    private final String blockchainStatus;
+    private final String blockchainTxHash;
+    private final String blockchainNetwork;
+    private final String blockchainAnchoredAt;
+}

@@ -112,3 +112,16 @@ evidence:
       certificate-pem: ${MANIFEST_SIGNING_CERTIFICATE_PEM:}
       certificate-location: ${MANIFEST_SIGNING_CERT_LOCATION:classpath:crypto/platform-signing-cert.pem}
       secrets-manager-secret-id: ${MANIFEST_SIGNING_SECRET_ID:}
+
+# AI 분석 전 화질 적합성 (video_readiness.py 연동)
+readiness:
+  frame-check-enabled: ${READINESS_FRAME_CHECK_ENABLED:true}
+  python-executable: ${READINESS_PYTHON:python}
+  # 예: C:/FINAL/ai-forensic/scripts/profile/video_readiness.py
+  script-path: ${READINESS_SCRIPT_PATH:}
+  sample-every: ${READINESS_SAMPLE_EVERY:10}
+  process-timeout-seconds: ${READINESS_PROCESS_TIMEOUT_SEC:180}
+
+springdoc:
+  swagger-ui:
+    persist-authorization: true

@@ -32,7 +32,10 @@ class CaseDetailAssemblerTest {
 
     @BeforeEach
     void setUp() {
-        assembler = new CaseDetailAssembler(caseEvidencePresentationService, evidenceMediaUrlService);
+        assembler = new CaseDetailAssembler(
+                caseEvidencePresentationService,
+                evidenceMediaUrlService
+        );
     }
 
     @Test
@@ -41,6 +44,7 @@ class CaseDetailAssemblerTest {
 
         Evidence evidence = mock(Evidence.class);
         when(evidence.getEvidenceId()).thenReturn(10L);
+        when(evidence.getUploaderId()).thenReturn(99L);
         when(evidence.getCaseName()).thenReturn("case-a");
         when(evidence.getFileName()).thenReturn("video.mp4");
         when(evidence.getFileType()).thenReturn(FileType.VIDEO);
@@ -52,7 +56,7 @@ class CaseDetailAssemblerTest {
         request.setProgressPercent(40);
 
         when(caseEvidencePresentationService.orderForDisplay(List.of(evidence))).thenReturn(List.of(evidence));
-        when(caseEvidencePresentationService.resolveRepresentativeEvidenceId(user, "case-a", List.of(evidence)))
+        when(caseEvidencePresentationService.resolveRepresentativeEvidenceId(eq(user), eq("case-a"), eq(List.of(evidence))))
                 .thenReturn(java.util.Optional.of(10L));
         when(caseEvidencePresentationService.resolveDisplayLabel(eq(evidence), any())).thenReturn("증거 1");
         when(caseEvidencePresentationService.lifecycleStatusName(evidence)).thenReturn("ACTIVE");
@@ -60,7 +64,7 @@ class CaseDetailAssemblerTest {
         when(evidenceMediaUrlService.resolve(evidence))
                 .thenReturn(new EvidenceMediaUrlService.MediaUrls("preview", "video", "file"));
 
-        var response = assembler.assemble(user, "case-a", List.of(evidence), List.of(request));
+        var response = assembler.assemble(user, "case-a", List.of(evidence), List.of(request), null, user);
 
         assertThat(response.getStatus()).isEqualTo("PROCESSING");
         assertThat(response.getEvidences()).hasSize(1);

@@ -7,13 +7,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import com.example.demo.util.UserRoleSupport;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
 
 // 요청마다 Authorization Bearer 헤더의 액세스 JWT를 검증하고 SecurityContext에 로그인 정보를 넣는다.
 // JwtTokenProvider로 파싱하고, AuthUserResolver·@PreAuthorize가 이후 사용자 조회에 사용한다.
@@ -43,9 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     loginId = claims.getSubject();
                 }
                 String role = claims.get("role", String.class);
-                var authorities = role == null
-                        ? List.<SimpleGrantedAuthority>of()
-                        : List.of(new SimpleGrantedAuthority(role));
+                var authorities = UserRoleSupport.toAuthorities(role);
 
                 var authentication = new UsernamePasswordAuthenticationToken(loginId, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);

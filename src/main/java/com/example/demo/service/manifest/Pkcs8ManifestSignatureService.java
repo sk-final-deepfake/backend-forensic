@@ -22,6 +22,7 @@ public class Pkcs8ManifestSignatureService implements ManifestSignatureService {
     private final PrivateKey privateKey;
     private final PublicKey publicKey;
     private final String signerCertificateSubject;
+    private final String signerCertificatePem;
 
     public Pkcs8ManifestSignatureService(
             ManifestSigningKeyLoader keyLoader,
@@ -32,6 +33,7 @@ public class Pkcs8ManifestSignatureService implements ManifestSignatureService {
         this.privateKey = material.privateKey();
         this.publicKey = certificate.getPublicKey();
         this.signerCertificateSubject = certificate.getSubjectX500Principal().getName();
+        this.signerCertificatePem = toPem(certificate);
         log.info("Platform manifest signing ready subject={}", signerCertificateSubject);
     }
 
@@ -43,6 +45,21 @@ public class Pkcs8ManifestSignatureService implements ManifestSignatureService {
     @Override
     public String getSignerCertificateSubject() {
         return signerCertificateSubject;
+    }
+
+    @Override
+    public String getSignerCertificatePem() {
+        return signerCertificatePem;
+    }
+
+    private static String toPem(X509Certificate certificate) {
+        try {
+            String base64 = Base64.getMimeEncoder(64, new byte[]{'\n'})
+                    .encodeToString(certificate.getEncoded());
+            return "-----BEGIN CERTIFICATE-----\n" + base64 + "\n-----END CERTIFICATE-----";
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to encode signer certificate PEM", ex);
+        }
     }
 
     @Override

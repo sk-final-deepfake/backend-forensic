@@ -12,6 +12,7 @@ public class AdminLogItemResponse {
     private String category;
     private String actor;
     private String actorId;
+    private String actorName;
     private String department;
     private String action;
     private String detail;

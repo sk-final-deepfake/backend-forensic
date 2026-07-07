@@ -1,0 +1,237 @@
+package com.example.demo.controller;
+
+import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.CaseProfile;
+import com.example.demo.domain.Evidence;
+import com.example.demo.domain.User;
+import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.domain.enums.FileType;
+import com.example.demo.domain.enums.OrgType;
+import com.example.demo.domain.enums.UserRole;
+import com.example.demo.domain.enums.UserStatus;
+import com.example.demo.repository.AnalysisRequestRepository;
+import com.example.demo.repository.CaseProfileRepository;
+import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.repository.UserRepository;
+import com.example.demo.support.JwtTestSupport;
+import java.time.LocalDateTime;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = {
+        "spring.autoconfigure.exclude=org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
+})
+@AutoConfigureMockMvc
+class CaseReviewControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private EvidenceRepository evidenceRepository;
+
+    @Autowired
+    private CaseProfileRepository caseProfileRepository;
+
+    @Autowired
+    private AnalysisRequestRepository analysisRequestRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    private User investigator;
+    private User reviewer;
+    private User orgAdmin;
+    private String investigatorToken;
+    private String reviewerToken;
+    private String orgAdminToken;
+    private Evidence completedEvidence;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        caseProfileRepository.deleteAll();
+        analysisRequestRepository.deleteAll();
+        evidenceRepository.deleteAll();
+        userRepository.deleteAll();
+
+        investigator = userRepository.save(User.builder()
+                .loginId("inv02")
+                .email("inv02@local.dev")
+                .password(passwordEncoder.encode("pass1111"))
+                .name("분석관")
+                .organizationType(OrgType.POLICE)
+                .department("사이버수사팀")
+                .role(UserRole.ROLE_INVESTIGATOR)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+
+        reviewer = userRepository.save(User.builder()
+                .loginId("rev02")
+                .email("rev02@local.dev")
+                .password(passwordEncoder.encode("pass2222"))
+                .name("검토자")
+                .organizationType(OrgType.POLICE)
+                .department("사이버수사팀")
+                .role(UserRole.ROLE_REVIEWER)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+
+        orgAdmin = userRepository.save(User.builder()
+                .loginId("adm02")
+                .email("adm02@local.dev")
+                .password(passwordEncoder.encode("pass3333"))
+                .name("기관관리자")
+                .organizationType(OrgType.POLICE)
+                .department("관리자실")
+                .role(UserRole.ROLE_ORG_ADMIN)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+
+        investigatorToken = JwtTestSupport.loginAndGetToken(mockMvc, "inv02", "pass1111");
+        reviewerToken = JwtTestSupport.loginAndGetToken(mockMvc, "rev02", "pass2222");
+        orgAdminToken = JwtTestSupport.loginAndGetToken(mockMvc, "adm02", "pass3333");
+
+        completedEvidence = saveCompletedEvidence("review-case", "completed.mp4");
+    }
+
+    @AfterEach
+    void tearDown() {
+        caseProfileRepository.deleteAll();
+        analysisRequestRepository.deleteAll();
+        evidenceRepository.deleteAll();
+        userRepository.deleteAll();
+    }
+
+    @Test
+    void reviewWorkflow_requestAssignAndApprove() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/review-request?caseKey=review-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + investigatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"memo":"검토 부탁드립니다"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("REVIEW_REQUESTED"))
+                .andExpect(jsonPath("$.createdBy").value(String.valueOf(investigator.getUserId())));
+
+        mockMvc.perform(patch("/api/v1/cases/reviewer?caseKey=review-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reviewerId": "%s"}
+                                """.formatted(reviewer.getUserId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("REVIEW_ASSIGNED"))
+                .andExpect(jsonPath("$.reviewerId").value(String.valueOf(reviewer.getUserId())));
+
+        mockMvc.perform(post("/api/v1/cases/review-decision?caseKey=review-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decision":"APPROVED"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("REPORT_APPROVED"));
+    }
+
+    @Test
+    void reviewWorkflow_reviewerCanRequestRevision() throws Exception {
+        CaseProfile profile = caseProfileRepository.save(new CaseProfile(
+                investigator.getUserId(),
+                "review-case",
+                completedEvidence.getEvidenceId()
+        ));
+        profile.requestReview("memo");
+        profile.assignReviewer(reviewer.getUserId());
+        caseProfileRepository.save(profile);
+
+        mockMvc.perform(post("/api/v1/cases/review-decision?caseKey=review-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decision":"REVISION"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("REVIEW_SUPPLEMENT_REQUESTED"));
+    }
+
+    @Test
+    void getCaseDetail_reviewerCanAccessAssignedCase() throws Exception {
+        CaseProfile profile = caseProfileRepository.save(new CaseProfile(
+                investigator.getUserId(),
+                "review-case",
+                completedEvidence.getEvidenceId()
+        ));
+        profile.assignReviewer(reviewer.getUserId());
+        caseProfileRepository.save(profile);
+
+        mockMvc.perform(get("/api/v1/cases?caseKey=review-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseId").value("review-case"))
+                .andExpect(jsonPath("$.reviewerId").value(String.valueOf(reviewer.getUserId())))
+                .andExpect(jsonPath("$.reviewStatus").value("REVIEW_ASSIGNED"));
+    }
+
+    @Test
+    void requestReview_rejectsIncompleteCase() throws Exception {
+        Evidence pendingEvidence = saveEvidence("pending-case", "pending.mp4");
+
+        mockMvc.perform(post("/api/v1/cases/review-request?caseKey=pending-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + investigatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict());
+
+        analysisRequestRepository.deleteAll();
+        evidenceRepository.delete(pendingEvidence);
+    }
+
+    private Evidence saveCompletedEvidence(String caseName, String fileName) {
+        Evidence evidence = saveEvidence(caseName, fileName);
+        AnalysisRequest request = new AnalysisRequest();
+        request.setEvidenceId(evidence.getEvidenceId());
+        request.setRequestedBy(investigator.getUserId());
+        request.setStatus(AnalysisStatus.COMPLETED);
+        request.setProgressPercent(100);
+        request.setRequestedAt(LocalDateTime.now());
+        analysisRequestRepository.save(request);
+        return evidence;
+    }
+
+    private Evidence saveEvidence(String caseName, String fileName) {
+        return evidenceRepository.save(Evidence.builder()
+                .uploaderId(investigator.getUserId())
+                .caseName(caseName)
+                .caseNumber(caseName)
+                .fileName(fileName)
+                .fileType(FileType.VIDEO)
+                .mimeType("video/mp4")
+                .fileSize(12L)
+                .hashAlgorithm("SHA-256")
+                .originalHashValue("d".repeat(64))
+                .originalStoragePath("uploads/test/" + fileName)
+                .uploadedAt(LocalDateTime.now())
+                .build());
+    }
+}

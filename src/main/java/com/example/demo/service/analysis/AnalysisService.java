@@ -17,6 +17,8 @@ import com.example.demo.exception.AnalysisDispatchException;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.service.readiness.EvidenceReadinessService;
+import com.example.demo.dto.readiness.ReadinessSnapshot;
 import com.example.demo.util.AnalysisStatusMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -43,6 +45,7 @@ public class AnalysisService {
     private final AnalysisWorkerProperties workerProperties;
     private final AnalysisWorkerService analysisWorkerService;
     private final DashboardStatsCache dashboardStatsCache;
+    private final EvidenceReadinessService evidenceReadinessService;
 
     @Transactional
     public StartAnalysisResponse startAnalysis(User user, StartAnalysisRequest request) {
@@ -55,6 +58,11 @@ public class AnalysisService {
         if (evidences.isEmpty()) {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "분석할 수 있는 증거를 찾을 수 없습니다.");
+        }
+
+        for (Evidence evidence : evidences) {
+            evidenceReadinessService.assertQualityAcknowledged(
+                    evidence.getEvidenceId(), request.getAcknowledgeQualityWarning());
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -77,6 +85,15 @@ public class AnalysisService {
                         .orElseThrow();
                 results.add(toStartResult(existing, evidence.getEvidenceId(), true, null, null));
                 continue;
+            }
+
+            ReadinessSnapshot readinessSnapshot =
+                    evidenceReadinessService.resolveStoredSnapshot(evidence.getEvidenceId());
+            if (readinessSnapshot != null
+                    && readinessSnapshot.isRequiresAcknowledgement()
+                    && Boolean.TRUE.equals(request.getAcknowledgeQualityWarning())) {
+                analysisCustodyLogService.recordQualityWarningAcknowledged(
+                        user.getUserId(), evidence, readinessSnapshot);
             }
 
             evidence.updateCaseInfo(trimmedCaseName);

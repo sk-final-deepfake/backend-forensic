@@ -22,7 +22,7 @@ public class AnalysisStatusService {
     private final AnalysisQueueMetricsResolver queueMetricsResolver;
 
     public AnalysisStatusResponse getStatus(User user, Long evidenceId) {
-        Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
+        Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
 
         return analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())

@@ -17,5 +17,7 @@ public class CompareVerifyResponse {
     private CompareVerdict verdict;
     private CompareSummaryDto summary;
     private List<CompareItemDto> items;
+    private CompareSignatureInfoDto signature;
+    private CompareBlockchainInfoDto blockchain;
     private String createdAt;
 }

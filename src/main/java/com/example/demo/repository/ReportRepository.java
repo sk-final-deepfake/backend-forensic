@@ -18,5 +18,11 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     Optional<Report> findByEvidenceIdAndReportHash(Long evidenceId, String reportHash);
 
+    Optional<Report> findByVerificationToken(String verificationToken);
+
+    Optional<Report> findByVerificationCode(String verificationCode);
+
+    Optional<Report> findByPublicAccessCode(String publicAccessCode);
+
     Page<Report> findByCreatedByOrderByCreatedAtDesc(Long createdBy, Pageable pageable);
 }

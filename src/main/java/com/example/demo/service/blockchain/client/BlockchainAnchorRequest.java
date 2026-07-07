@@ -3,7 +3,7 @@ package com.example.demo.service.blockchain.client;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 
 /**
- * INF Fabric Anchor Gateway payload (hash anchoring only).
+ * INF Fabric Anchor Gateway payload (hash + optional signature / off-chain refs).
  */
 public record BlockchainAnchorRequest(
         String subjectHash,
@@ -13,6 +13,37 @@ public record BlockchainAnchorRequest(
         Long evidenceId,
         Long reportId,
         String merkleBatchDate,
-        Integer merkleLeafCount
+        Integer merkleLeafCount,
+        String signature,
+        String signerCertHash,
+        Boolean certVerified,
+        String offchainLogHash,
+        OffchainRef offchainRef
 ) {
+    public static BlockchainAnchorRequest of(
+            String subjectHash,
+            BlockchainAnchorType anchorType,
+            String network,
+            String clientId,
+            Long evidenceId,
+            Long reportId,
+            String merkleBatchDate,
+            Integer merkleLeafCount
+    ) {
+        return new BlockchainAnchorRequest(
+                subjectHash,
+                anchorType,
+                network,
+                clientId,
+                evidenceId,
+                reportId,
+                merkleBatchDate,
+                merkleLeafCount,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
 }

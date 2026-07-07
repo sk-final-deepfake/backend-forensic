@@ -1,8 +1,13 @@
 package com.example.demo.service.analysis;
 
 import com.example.demo.dto.AnalysisResponseMessage;
+import com.example.demo.dto.ClipRiskDto;
 import com.example.demo.dto.FrameRiskDto;
+import com.example.demo.dto.PairRiskDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.dto.VideoDeepfakeTimelineDto;
+import com.example.demo.dto.detail.ModuleTimelineDto;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -79,19 +84,86 @@ public class AnalysisResponseResolver {
         return DEFAULT_MODEL_VERSION;
     }
 
+    public VideoDeepfakeTimelineDto toVideoDeepfakeTimeline(
+            AnalysisResponseMessage.AnalysisVideoResultItem videoResult
+    ) {
+        if (videoResult == null) {
+            return VideoDeepfakeTimelineDto.builder()
+                    .frameRisks(List.of())
+                    .suspiciousSegments(List.of())
+                    .clipRisks(List.of())
+                    .pairRisks(List.of())
+                    .temporalSuspiciousSegments(List.of())
+                    .opticalSuspiciousSegments(List.of())
+                    .moduleTimelines(List.of())
+                    .build();
+        }
+        return VideoDeepfakeTimelineDto.builder()
+                .frameRisks(toFrameRiskDtos(videoResult.getFrameRisks()))
+                .suspiciousSegments(toSuspiciousSegmentDtos(videoResult.getSuspiciousSegments()))
+                .clipRisks(toClipRiskDtos(videoResult.getClipRisks()))
+                .pairRisks(toPairRiskDtos(videoResult.getPairRisks()))
+                .temporalSuspiciousSegments(toSuspiciousSegmentDtos(videoResult.getTemporalSuspiciousSegments()))
+                .opticalSuspiciousSegments(toSuspiciousSegmentDtos(videoResult.getOpticalSuspiciousSegments()))
+                .moduleTimelines(toModuleTimelineDtos(videoResult.getModuleTimelines()))
+                .build();
+    }
+
     public List<FrameRiskDto> toFrameRiskDtos(
             List<AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem> frameRisks
     ) {
         if (frameRisks == null || frameRisks.isEmpty()) {
             return List.of();
         }
-        List<FrameRiskDto> converted = new java.util.ArrayList<>();
+        List<FrameRiskDto> converted = new ArrayList<>();
         for (int i = 0; i < frameRisks.size(); i++) {
             AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem item = frameRisks.get(i);
             converted.add(FrameRiskDto.builder()
                     .frameIndex(item.getFrameIndex() == null ? i : item.getFrameIndex())
                     .timestampSec(defaultDouble(item.getTimestampSec()))
                     .riskScore(defaultDouble(item.getRiskScore()))
+                    .build());
+        }
+        return converted;
+    }
+
+    public List<ClipRiskDto> toClipRiskDtos(
+            List<AnalysisResponseMessage.AnalysisVideoResultItem.ClipRiskItem> clipRisks
+    ) {
+        if (clipRisks == null || clipRisks.isEmpty()) {
+            return List.of();
+        }
+        List<ClipRiskDto> converted = new ArrayList<>();
+        for (int i = 0; i < clipRisks.size(); i++) {
+            AnalysisResponseMessage.AnalysisVideoResultItem.ClipRiskItem item = clipRisks.get(i);
+            converted.add(ClipRiskDto.builder()
+                    .clipIndex(item.getClipIndex() == null ? i : item.getClipIndex())
+                    .startFrameIndex(defaultInt(item.getStartFrameIndex()))
+                    .endFrameIndex(defaultInt(item.getEndFrameIndex()))
+                    .startTimeSec(defaultDouble(item.getStartTimeSec()))
+                    .endTimeSec(defaultDouble(item.getEndTimeSec()))
+                    .riskScore(defaultDouble(item.getRiskScore()))
+                    .build());
+        }
+        return converted;
+    }
+
+    public List<PairRiskDto> toPairRiskDtos(
+            List<AnalysisResponseMessage.AnalysisVideoResultItem.PairRiskItem> pairRisks
+    ) {
+        if (pairRisks == null || pairRisks.isEmpty()) {
+            return List.of();
+        }
+        List<PairRiskDto> converted = new ArrayList<>();
+        for (int i = 0; i < pairRisks.size(); i++) {
+            AnalysisResponseMessage.AnalysisVideoResultItem.PairRiskItem item = pairRisks.get(i);
+            converted.add(PairRiskDto.builder()
+                    .pairIndex(item.getPairIndex() == null ? i : item.getPairIndex())
+                    .frameIndexA(defaultInt(item.getFrameIndexA()))
+                    .frameIndexB(defaultInt(item.getFrameIndexB()))
+                    .timestampSec(defaultDouble(item.getTimestampSec()))
+                    .riskScore(defaultDouble(item.getRiskScore()))
+                    .motionMagnitude(item.getMotionMagnitude())
                     .build());
         }
         return converted;
@@ -109,6 +181,28 @@ public class AnalysisResponseResolver {
                         .endTime(defaultDouble(item.getEndTime()))
                         .maxRiskScore(defaultDouble(item.getMaxRiskScore()))
                         .reason(item.getReason())
+                        .build())
+                .toList();
+    }
+
+    public List<ModuleTimelineDto> toModuleTimelineDtos(
+            List<AnalysisResponseMessage.AnalysisVideoResultItem.ModuleTimelineItem> timelines
+    ) {
+        if (timelines == null || timelines.isEmpty()) {
+            return List.of();
+        }
+        return timelines.stream()
+                .map(item -> ModuleTimelineDto.builder()
+                        .module(item.getModule())
+                        .modelName(item.getModelName())
+                        .modelVersion(item.getModelVersion())
+                        .videoScore(defaultDouble(item.getVideoScore()))
+                        .threshold(defaultDouble(item.getThreshold()))
+                        .detected(Boolean.TRUE.equals(item.getDetected()))
+                        .frameRisks(toFrameRiskDtos(item.getFrameRisks()))
+                        .clipRisks(toClipRiskDtos(item.getClipRisks()))
+                        .pairRisks(toPairRiskDtos(item.getPairRisks()))
+                        .suspiciousSegments(toSuspiciousSegmentDtos(item.getSuspiciousSegments()))
                         .build())
                 .toList();
     }
@@ -134,5 +228,9 @@ public class AnalysisResponseResolver {
 
     public double defaultDouble(Double value) {
         return value == null ? 0.0 : value;
+    }
+
+    private int defaultInt(Integer value) {
+        return value == null ? 0 : value;
     }
 }

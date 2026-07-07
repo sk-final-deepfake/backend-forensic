@@ -223,6 +223,26 @@ class CustodyLogServiceTest {
     }
 
     @Test
+    void verifyTargetChain_toleratesJsonWhitespaceReformatting() {
+        CustodyLog log = custodyLogService.record(
+                1L, CustodyTargetType.EVIDENCE, 100L, "EVIDENCE_UPLOADED",
+                "a".repeat(64), "/storage/original/100", "업로드",
+                "{\"caseName\":\"demo\",\"fileSize\":10}",
+                null
+        );
+
+        // Simulate PostgreSQL json column returning spaced JSON on read.
+        log.setEventPayloadJson("{\"caseName\": \"demo\", \"fileSize\": 10}");
+        custodyLogRepository.save(log);
+
+        CustodyLogService.TargetChainVerifyResult result =
+                custodyLogService.verifyTargetChain(CustodyTargetType.EVIDENCE, 100L);
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.logCount()).isEqualTo(1);
+    }
+
+    @Test
     void verifyTargetChain_ignoresLogsFromOtherTargets() {
         custodyLogService.record(
                 1L, CustodyTargetType.EVIDENCE, 100L, "EVIDENCE_UPLOADED",

@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.admin.AdminUserItemResponse;
 import com.example.demo.dto.admin.AdminUserPageResponse;
 import com.example.demo.dto.admin.AdminUserStatusResponse;
+import com.example.demo.dto.admin.ApproveAdminUserRequest;
 import com.example.demo.dto.admin.ResetAdminUserPasswordRequest;
 import com.example.demo.dto.admin.UpdateAdminUserRequest;
 import com.example.demo.security.AuthUserResolver;
@@ -39,16 +40,31 @@ public class AdminUserController {
     public AdminUserPageResponse listUsers(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String role,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        return adminUserService.listUsers(search, status, page, size);
+        return adminUserService.listUsers(
+                authUserResolver.requireCurrentUser(),
+                search,
+                status,
+                role,
+                page,
+                size
+        );
     }
 
     @Operation(summary = "가입 승인")
     @PostMapping("/{userId}/approve")
-    public AdminUserStatusResponse approve(@PathVariable Long userId) {
-        return adminUserService.approve(authUserResolver.requireCurrentUser(), userId);
+    public AdminUserStatusResponse approve(
+            @PathVariable Long userId,
+            @RequestBody(required = false) ApproveAdminUserRequest request
+    ) {
+        return adminUserService.approve(
+                authUserResolver.requireCurrentUser(),
+                userId,
+                request == null ? null : request.getRole()
+        );
     }
 
     @Operation(summary = "가입 반려")

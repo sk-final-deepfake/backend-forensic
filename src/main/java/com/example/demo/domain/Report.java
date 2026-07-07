@@ -39,6 +39,27 @@ public class Report {
     @Column(name = "report_file_name", length = 500)
     private String reportFileName;
 
+    @Column(name = "report_no", length = 40)
+    private String reportNo;
+
+    @Column(name = "verification_token", length = 100)
+    private String verificationToken;
+
+    @Column(name = "verification_code", length = 30)
+    private String verificationCode;
+
+    @Column(name = "public_access_code", length = 30)
+    private String publicAccessCode;
+
+    @Column(name = "public_access_enabled", nullable = false)
+    private Boolean publicAccessEnabled = false;
+
+    @Column(name = "public_access_issued_at")
+    private LocalDateTime publicAccessIssuedAt;
+
+    @Column(name = "public_access_expires_at")
+    private LocalDateTime publicAccessExpiresAt;
+
     @Column(name = "storage_path", nullable = false, columnDefinition = "clob")
     private String storagePath;
 
