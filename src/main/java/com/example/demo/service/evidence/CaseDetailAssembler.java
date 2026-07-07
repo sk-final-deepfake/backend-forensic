@@ -5,6 +5,7 @@ import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.domain.enums.CaseReviewStatus;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.dto.detail.CaseEvidenceSummaryDto;
 import com.example.demo.util.AnalysisStatusMapper;
@@ -97,10 +98,16 @@ public class CaseDetailAssembler {
                 .reviewerId(profile != null && profile.getReviewerId() != null
                         ? String.valueOf(profile.getReviewerId())
                         : null)
-                .reviewStatus(profile != null ? profile.getReviewStatus() : "NONE")
+                .reviewStatus(profile != null && profile.getReviewStatus() != null
+                        ? profile.getReviewStatus().name()
+                        : CaseReviewStatus.NONE.name())
                 .reviewRequestedAt(profile != null && profile.getReviewRequestedAt() != null
                         ? ApiDateTimeFormatter.formatUtc(profile.getReviewRequestedAt())
                         : null);
+    }
+
+    public String resolveAggregateStatus(List<Evidence> evidences, List<AnalysisRequest> analysisRequests) {
+        return aggregateStatus(evidences, indexLatestRequests(analysisRequests));
     }
 
     private Map<Long, AnalysisRequest> indexLatestRequests(List<AnalysisRequest> requests) {

@@ -329,7 +329,9 @@ public class MyPageService {
 		User uploader = uploaderById.get(representativeEvidence.getUploaderId());
 		Long ownerId = representativeEvidence.getUploaderId();
 		Long assigneeId = profile != null && profile.getAssigneeId() != null ? profile.getAssigneeId() : ownerId;
-		String reviewStatus = profile != null ? profile.getReviewStatus() : "NONE";
+		String reviewStatus = profile != null && profile.getReviewStatus() != null
+				? profile.getReviewStatus().name()
+				: "NONE";
 
 		return CaseSummaryResponse.builder()
 				.caseId(caseId)
@@ -375,7 +377,7 @@ public class MyPageService {
 				.createdBy(String.valueOf(profile.getUploaderId()))
 				.assigneeId(String.valueOf(assigneeId))
 				.reviewerId(profile.getReviewerId() != null ? String.valueOf(profile.getReviewerId()) : null)
-				.reviewStatus(profile.getReviewStatus())
+				.reviewStatus(profile.getReviewStatus().name())
 				.build();
 	}
 

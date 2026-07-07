@@ -19,5 +19,6 @@ public class FileUploadResponse {
     /** 원본 파일 SHA-256 (hex 64자). AI·무결성 연동 표준 필드명 */
     private String originalSha256;
     private Object metadata;
+    private Object readiness;
     private String displayLabel;
 }

@@ -42,8 +42,16 @@ public class CaseEvidencePresentationService {
     }
 
     public Optional<Long> resolveRepresentativeEvidenceId(User user, String caseKey, List<Evidence> caseEvidences) {
+        return resolveRepresentativeEvidenceId(user.getUserId(), caseKey, caseEvidences);
+    }
+
+    public Optional<Long> resolveRepresentativeEvidenceId(
+            Long uploaderId,
+            String caseKey,
+            List<Evidence> caseEvidences
+    ) {
         Optional<Long> profileRepresentative = caseProfileRepository
-                .findByUploaderIdAndCaseKey(user.getUserId(), caseKey)
+                .findByUploaderIdAndCaseKey(uploaderId, caseKey)
                 .map(CaseProfile::getRepresentativeEvidenceId);
 
         if (profileRepresentative.isPresent()) {

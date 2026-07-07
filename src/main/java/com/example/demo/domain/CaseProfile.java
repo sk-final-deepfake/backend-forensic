@@ -1,7 +1,10 @@
 package com.example.demo.domain;
 
+import com.example.demo.domain.enums.CaseReviewStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -41,9 +44,9 @@ public class CaseProfile {
     @Column(name = "reviewer_id")
     private Long reviewerId;
 
-    /** FE review workflow: NONE | REVIEW_REQUESTED | REVIEW_ASSIGNED | ... */
-    @Column(name = "review_status", nullable = false, length = 30)
-    private String reviewStatus = "NONE";
+    @Enumerated(EnumType.STRING)
+    @Column(name = "review_status", nullable = false, length = 40)
+    private CaseReviewStatus reviewStatus = CaseReviewStatus.NONE;
 
     @Column(name = "review_requested_at")
     private LocalDateTime reviewRequestedAt;
@@ -59,7 +62,7 @@ public class CaseProfile {
         this.caseKey = caseKey;
         this.representativeEvidenceId = representativeEvidenceId;
         this.assigneeId = uploaderId;
-        this.reviewStatus = "NONE";
+        this.reviewStatus = CaseReviewStatus.NONE;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -75,7 +78,27 @@ public class CaseProfile {
 
     public void assignReviewer(Long reviewerId) {
         this.reviewerId = reviewerId;
-        this.reviewStatus = "REVIEW_ASSIGNED";
+        this.reviewStatus = CaseReviewStatus.REVIEW_ASSIGNED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void requestReview(String memo) {
+        if (this.reviewStatus != CaseReviewStatus.NONE) {
+            throw new IllegalStateException("Review already requested or in progress");
+        }
+        this.reviewStatus = CaseReviewStatus.REVIEW_REQUESTED;
+        this.reviewRequestedAt = LocalDateTime.now();
+        this.reviewRequestMemo = memo;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void approveReview() {
+        this.reviewStatus = CaseReviewStatus.REPORT_APPROVED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void requestRevision() {
+        this.reviewStatus = CaseReviewStatus.REVIEW_SUPPLEMENT_REQUESTED;
         this.updatedAt = LocalDateTime.now();
     }
 }

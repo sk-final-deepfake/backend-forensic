@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.demo.util.UserRoleSupport;
 import java.time.format.DateTimeFormatter;
 
+import com.example.demo.util.OrganizationIdResolver;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -72,6 +74,9 @@ public class UserService {
 				.darkMode(themeMode == ThemeMode.DARK || Boolean.TRUE.equals(user.getDarkMode()))
 				.themeMode(themeMode)
 				.createdAt(ISO_FORMATTER.format(user.getCreatedAt()))
-				.build();
+                .organizationType(user.getOrganizationType().name())
+                .organizationId(OrganizationIdResolver.resolve(user.getOrganizationType()))
+                .organizationName(OrganizationIdResolver.displayName(user.getOrganizationType()))
+                .build();
 	}
 }

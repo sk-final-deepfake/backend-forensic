@@ -132,7 +132,7 @@ public class CompareVerificationService {
 
     @Transactional(readOnly = true)
     public CompareFileInfoDto getOriginalFileInfo(User user, Long evidenceId) {
-        Evidence original = evidenceAccessService.requireOwned(user, evidenceId);
+        Evidence original = evidenceAccessService.requireReadable(user, evidenceId);
         return compareVerificationAssembler.toOriginalFileInfo(original);
     }
 

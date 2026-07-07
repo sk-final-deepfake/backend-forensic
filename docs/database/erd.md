@@ -298,6 +298,7 @@ Evidence와 1:1 관계입니다.
 | `deviceInfo` | String | Nullable | 촬영 기기 정보 |
 | `exifJson` | JSONB/Text | Nullable | EXIF 전체 |
 | `ffprobeJson` | JSONB/Text | Nullable | ffprobe 결과 전체 |
+| `readinessJson` | JSONB/Text | Nullable | AI 분석 전 화질 적합성 스냅샷 (tier, reasons, frame metrics). `source`: `FFPROBE` \| `FRAME_SAMPLE` |
 | `extractionStatus` | ExtractionStatus | Not Null | 메타데이터 추출 상태 |
 | `extractionError` | Text/String | Nullable | 추출 실패 시 오류 메시지 |
 | `createdAt` | LocalDateTime | Not Null | 생성 일시 |
@@ -308,6 +309,8 @@ Evidence와 1:1 관계입니다.
 - 추출 실패 시에도 업로드 자체는 성공 처리 (`extractionStatus = FAILED`)
 - 일부 필드만 추출된 경우 `extractionStatus = PARTIAL`
 - 정상 추출 시 `extractionStatus = SUCCESS`, `extractionError`는 null
+- 업로드 직후 `readinessJson`에 ffprobe 기반 즉시 판정 저장 (`source = FFPROBE`)
+- 분석 시작 전 `POST /evidences/{id}/readiness-check`로 프레임 샘플링 결과로 갱신 가능 (`source = FRAME_SAMPLE`)
 
 ---
 

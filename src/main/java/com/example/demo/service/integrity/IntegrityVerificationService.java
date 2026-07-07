@@ -42,7 +42,7 @@ public class IntegrityVerificationService {
      */
     @Transactional
     public EvidenceIntegrityResult verifyAndNotifySecurityIssues(User user, Long evidenceId) {
-        Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
+        Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         IntegrityVerifyResponse response = buildVerification(evidence);
         dispatchSecurityAlerts(user.getUserId(), evidenceId, response);
         return new EvidenceIntegrityResult(evidence, response);

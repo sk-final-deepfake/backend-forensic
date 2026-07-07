@@ -6,7 +6,6 @@ import com.example.demo.domain.User;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.EvidenceLifecycleStatus;
 import com.example.demo.domain.enums.EvidenceRole;
-import com.example.demo.domain.User;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.dto.caseworkflow.AssignCaseReviewerRequest;
@@ -43,6 +42,10 @@ public class CaseWorkflowService {
 
     @Transactional
     public String createCase(User user, String caseName) {
+        if (!UserRoleSupport.isInvestigator(user.getRole()) && !UserRoleSupport.isOrgAdmin(user.getRole())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "FORBIDDEN", "사건을 생성할 권한이 없습니다.");
+        }
+
         String trimmedName = caseName == null ? "" : caseName.trim();
         if (trimmedName.isBlank()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명을 입력해 주세요.");

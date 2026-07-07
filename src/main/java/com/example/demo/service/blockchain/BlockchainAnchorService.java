@@ -245,7 +245,7 @@ public class BlockchainAnchorService {
 
     @Transactional(readOnly = true)
     public BlockchainAnchorStatusResponse getEvidenceAnchorStatus(User user, Long evidenceId) {
-        evidenceAccessService.requireOwned(user, evidenceId);
+        evidenceAccessService.requireReadable(user, evidenceId);
 
         BlockchainAnchorRecordDto evidenceAnchor = anchorRepository
                 .findTopByEvidenceIdAndAnchorTypeOrderByCreatedAtDesc(evidenceId, BlockchainAnchorType.EVIDENCE_HASH)

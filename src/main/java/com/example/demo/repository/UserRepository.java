@@ -68,4 +68,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("search") String search,
             Pageable pageable
     );
+
+    @Query("""
+            SELECT u FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.status = com.example.demo.domain.enums.UserStatus.APPROVED
+              AND u.role = com.example.demo.domain.enums.UserRole.ROLE_REVIEWER
+              AND (:organizationType IS NULL OR u.organizationType = :organizationType)
+              AND (:department IS NULL OR u.department = :department)
+            ORDER BY u.name ASC, u.userId ASC
+            """)
+    List<User> findApprovedReviewers(
+            @Param("organizationType") OrgType organizationType,
+            @Param("department") String department
+    );
 }

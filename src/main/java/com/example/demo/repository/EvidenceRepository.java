@@ -49,6 +49,8 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
 
     Optional<Evidence> findByEvidenceId(Long evidenceId);
 
+    Optional<Evidence> findByEvidenceIdAndDeletedAtIsNull(Long evidenceId);
+
     List<Evidence> findByEvidenceIdInAndUploaderIdAndDeletedAtIsNull(
             List<Long> evidenceIds,
             Long uploaderId
@@ -80,6 +82,19 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
             ORDER BY e.uploadedAt DESC
             """)
     List<Evidence> findByCaseKey(@Param("caseKey") String caseKey);
+
+    @Query("""
+            SELECT e
+            FROM Evidence e
+            WHERE e.deletedAt IS NULL
+              AND (e.caseNumber = :caseKey OR e.caseName = :caseKey)
+              AND e.uploaderId IN :uploaderIds
+            ORDER BY e.uploadedAt DESC
+            """)
+    List<Evidence> findByCaseKeyAndUploaderIdIn(
+            @Param("caseKey") String caseKey,
+            @Param("uploaderIds") List<Long> uploaderIds
+    );
 
     @Query("""
             SELECT e
