@@ -1,7 +1,6 @@
 package com.example.demo.service.evidence;
 
 import com.example.demo.domain.AnalysisRequest;
-import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
@@ -29,17 +28,13 @@ class CaseDetailAssemblerTest {
     @Mock
     private EvidenceMediaUrlService evidenceMediaUrlService;
 
-    @Mock
-    private CaseProfileRepository caseProfileRepository;
-
     private CaseDetailAssembler assembler;
 
     @BeforeEach
     void setUp() {
         assembler = new CaseDetailAssembler(
                 caseEvidencePresentationService,
-                evidenceMediaUrlService,
-                caseProfileRepository
+                evidenceMediaUrlService
         );
     }
 
@@ -60,10 +55,8 @@ class CaseDetailAssemblerTest {
         request.setStatus(AnalysisStatus.ANALYZING);
         request.setProgressPercent(40);
 
-        when(caseProfileRepository.findByUploaderIdAndCaseKey(99L, "case-a"))
-                .thenReturn(java.util.Optional.empty());
         when(caseEvidencePresentationService.orderForDisplay(List.of(evidence))).thenReturn(List.of(evidence));
-        when(caseEvidencePresentationService.resolveRepresentativeEvidenceId(99L, "case-a", List.of(evidence)))
+        when(caseEvidencePresentationService.resolveRepresentativeEvidenceId(eq(user), eq("case-a"), eq(List.of(evidence))))
                 .thenReturn(java.util.Optional.of(10L));
         when(caseEvidencePresentationService.resolveDisplayLabel(eq(evidence), any())).thenReturn("증거 1");
         when(caseEvidencePresentationService.lifecycleStatusName(evidence)).thenReturn("ACTIVE");

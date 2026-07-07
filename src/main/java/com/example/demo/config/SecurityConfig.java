@@ -40,6 +40,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/username/check",
                                 "/api/v1/invite-codes/validate",
                                 "/api/v1/organizations/**",
+                                "/api/v1/public/**",
                                 "/actuator/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"

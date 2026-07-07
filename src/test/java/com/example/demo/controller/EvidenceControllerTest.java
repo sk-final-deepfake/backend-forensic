@@ -895,8 +895,9 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                 .andExpect(jsonPath("$.analysisInfo.status").value("PENDING"))
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isArray())
                 .andExpect(jsonPath("$.analysisInfo.moduleResults").isEmpty())
-                .andExpect(jsonPath("$.signatureInfo.signatureStatus").value("UNSIGNED"))
-                .andExpect(jsonPath("$.manifestInfo").doesNotExist())
+                .andExpect(jsonPath("$.signatureInfo.signatureStatus").value("SIGNED"))
+                .andExpect(jsonPath("$.signatureInfo.signatureValid").value(true))
+                .andExpect(jsonPath("$.manifestInfo.evidenceId").value(evidenceId))
                 .andExpect(jsonPath("$.cocLogs").isArray())
                 .andExpect(jsonPath("$.cocLogs").isNotEmpty());
 

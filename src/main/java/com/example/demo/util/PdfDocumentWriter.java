@@ -21,6 +21,10 @@ public final class PdfDocumentWriter {
     }
 
     public static byte[] writeReport(String title, List<String> lines, String qrContent) {
+        return writeReport(title, lines, qrContent, null);
+    }
+
+    public static byte[] writeReport(String title, List<String> lines, String qrContent, String verificationCode) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try {
             Document document = new Document();
@@ -38,11 +42,15 @@ public final class PdfDocumentWriter {
 
             if (qrContent != null && !qrContent.isBlank()) {
                 document.add(new Paragraph(" "));
-                document.add(new Paragraph("Report Integrity (SHA-256):", bodyFont));
+                document.add(new Paragraph("Report Authenticity Verification:", bodyFont));
+                document.add(new Paragraph("Mobile: scan the QR code. PC: open the verification URL and enter the verification code.", bodyFont));
                 Image qrImage = QrCodeImageWriter.createPdfImage(qrContent, 120);
                 qrImage.setAlignment(Image.ALIGN_LEFT);
                 document.add(qrImage);
-                document.add(new Paragraph(qrContent, bodyFont));
+                document.add(new Paragraph("Verification URL: " + qrContent, bodyFont));
+                if (verificationCode != null && !verificationCode.isBlank()) {
+                    document.add(new Paragraph("Verification Code: " + verificationCode, bodyFont));
+                }
             }
 
             document.close();

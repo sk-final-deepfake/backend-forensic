@@ -7,6 +7,7 @@ import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.Report;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.FileType;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -340,9 +342,9 @@ class FeatureApiControllerTest {
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
                 .andExpect(header().string("X-Report-Hash", notNullValue(String.class)));
 
-        String reportHash = reportRepository.findTopByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())
-                .orElseThrow()
-                .getReportHash();
+        Report report = reportRepository.findTopByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())
+                .orElseThrow();
+        String reportHash = report.getReportHash();
 
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/verify")
                         .param("reportHash", reportHash)
@@ -350,6 +352,48 @@ class FeatureApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.valid").value(true))
                 .andExpect(jsonPath("$.reportHash").value(reportHash));
+
+        mockMvc.perform(get("/api/v1/public/reports/verify")
+                        .param("token", report.getVerificationToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.reportNo").value(report.getReportNo()))
+                .andExpect(jsonPath("$.verificationCode").value(report.getVerificationCode()))
+                .andExpect(jsonPath("$.hashMatched").value(true))
+                .andExpect(jsonPath("$.reportHash").value(reportHash));
+
+        mockMvc.perform(get("/api/v1/public/reports/verify")
+                        .param("code", report.getVerificationCode()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.reportNo").value(report.getReportNo()))
+                .andExpect(jsonPath("$.reportHash").value(reportHash));
+
+        mockMvc.perform(post("/api/v1/reports/" + report.getReportId() + "/public-access")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportNo").value(report.getReportNo()))
+                .andExpect(jsonPath("$.accessCode", notNullValue(String.class)))
+                .andExpect(jsonPath("$.publicViewUrl", notNullValue(String.class)));
+
+        Report reportWithAccess = reportRepository.findById(report.getReportId()).orElseThrow();
+        String accessCode = reportWithAccess.getPublicAccessCode();
+
+        mockMvc.perform(get("/api/v1/public/reports/view")
+                        .param("code", accessCode))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportNo").value(report.getReportNo()))
+                .andExpect(jsonPath("$.downloadPath", notNullValue(String.class)));
+
+        mockMvc.perform(get("/api/v1/public/reports/view/pdf")
+                        .param("code", accessCode))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE));
+
+        mockMvc.perform(get("/api/v1/public/reports/verify")
+                        .param("token", "missing-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("REPORT_VERIFICATION_NOT_FOUND"));
     }
 
     @Test
