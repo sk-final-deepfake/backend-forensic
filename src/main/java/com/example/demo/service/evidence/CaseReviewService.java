@@ -3,6 +3,7 @@ package com.example.demo.service.evidence;
 import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.CaseReviewStatus;
+import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.exception.BusinessException;
@@ -132,15 +133,16 @@ public class CaseReviewService {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "검토자 역할 계정만 배정할 수 있습니다.");
         }
-        if (admin.getOrganizationType() == null
-                || reviewer.getOrganizationType() == null
-                || admin.getOrganizationType() != reviewer.getOrganizationType()) {
-            throw new BusinessException(
-                    HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "동일 기관 검토자만 배정할 수 있습니다.");
-        }
         if (reviewer.getStatus() != UserStatus.APPROVED) {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "승인된 검토자만 배정할 수 있습니다.");
+        }
+        if (admin.getRole() != UserRole.ROLE_ADMIN
+                && (admin.getOrganizationType() == null
+                || reviewer.getOrganizationType() == null
+                || admin.getOrganizationType() != reviewer.getOrganizationType())) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "동일 기관 검토자만 배정할 수 있습니다.");
         }
         return reviewer;
     }

@@ -19,6 +19,8 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
             EvidenceStatus status
     );
 
+    List<Evidence> findByStatusAndDeletedAtIsNullOrderByUploadedAtDesc(EvidenceStatus status);
+
     @Query("""
             SELECT e
             FROM Evidence e

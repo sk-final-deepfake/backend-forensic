@@ -6,6 +6,7 @@ import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.EvidenceStatus;
+import com.example.demo.domain.enums.UserRole;
 import com.example.demo.dto.mypage.AnalysisHistoryPageResponse;
 import com.example.demo.dto.mypage.CaseSummaryResponse;
 import com.example.demo.repository.AnalysisRequestRepository;
@@ -140,6 +141,11 @@ public class MyPageService {
 
 	private List<Evidence> loadVisibleEvidences(User user) {
 		if (UserRoleSupport.isOrgAdmin(user.getRole())) {
+			if (isGlobalAdmin(user)) {
+				return evidenceRepository.findByStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
+						EvidenceStatus.UPLOADED
+				);
+			}
 			List<Long> orgUploaderIds = userRepository.findUserIdsByOrganizationType(user.getOrganizationType());
 			if (orgUploaderIds.isEmpty()) {
 				return List.of();
@@ -189,6 +195,9 @@ public class MyPageService {
 
 	private List<CaseProfile> loadVisibleProfiles(User user) {
 		if (UserRoleSupport.isOrgAdmin(user.getRole())) {
+			if (isGlobalAdmin(user)) {
+				return caseProfileRepository.findAll();
+			}
 			List<Long> orgUploaderIds = userRepository.findUserIdsByOrganizationType(user.getOrganizationType());
 			if (orgUploaderIds.isEmpty()) {
 				return List.of();
@@ -203,12 +212,19 @@ public class MyPageService {
 
 	private boolean isVisibleCaseForUser(User user, CaseSummaryResponse summary) {
 		if (UserRoleSupport.isOrgAdmin(user.getRole())) {
+			if (isGlobalAdmin(user)) {
+				return true;
+			}
 			return Objects.equals(summary.getOrganizationId(), OrganizationIdResolver.resolve(user.getOrganizationType()));
 		}
 		if (UserRoleSupport.isReviewer(user.getRole())) {
 			return String.valueOf(user.getUserId()).equals(summary.getReviewerId());
 		}
 		return true;
+	}
+
+	private boolean isGlobalAdmin(User user) {
+		return user.getRole() == UserRole.ROLE_ADMIN || user.getOrganizationType() == null;
 	}
 
 	private Map<Long, User> loadUploaders(List<Evidence> evidences) {

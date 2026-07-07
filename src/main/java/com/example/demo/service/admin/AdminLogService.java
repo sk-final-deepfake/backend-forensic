@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +32,7 @@ public class AdminLogService {
 
     private static final DateTimeFormatter LOG_TIMESTAMP_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
     private final CustodyLogRepository custodyLogRepository;
     private final UserRepository userRepository;
@@ -78,7 +81,7 @@ public class AdminLogService {
         Map<Long, User> actorsById = resolveActors(logs);
         StringBuilder csv = new StringBuilder();
         csv.append('\uFEFF');
-        csv.append("timestamp,category,department,actor,action,detail").append('\n');
+        csv.append("timestamp,category,department,actor,actorName,action,detail").append('\n');
 
         for (CustodyLog log : logs) {
             AdminLogItemResponse item = toItem(log, actorsById);
@@ -86,6 +89,7 @@ public class AdminLogService {
             csv.append(escapeCsv(item.getCategory())).append(',');
             csv.append(escapeCsv(item.getDepartment())).append(',');
             csv.append(escapeCsv(item.getActor())).append(',');
+            csv.append(escapeCsv(item.getActorName())).append(',');
             csv.append(escapeCsv(item.getAction())).append(',');
             csv.append(escapeCsv(item.getDetail())).append('\n');
         }
@@ -137,9 +141,14 @@ public class AdminLogService {
             String normalizedSearch = search == null ? "" : search.trim();
             if (!normalizedSearch.isEmpty()) {
                 String pattern = "%" + normalizedSearch.toLowerCase() + "%";
+                List<Long> matchingActorIds = userRepository.findUserIdsByLoginIdOrName(normalizedSearch);
+                Predicate actorMatched = matchingActorIds.isEmpty()
+                        ? cb.disjunction()
+                        : root.get("actorId").in(matchingActorIds);
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("actionType")), pattern),
-                        cb.like(cb.lower(cb.coalesce(root.get("reason"), "")), pattern)
+                        cb.like(cb.lower(cb.coalesce(root.get("reason"), "")), pattern),
+                        actorMatched
                 ));
             }
 
@@ -165,17 +174,28 @@ public class AdminLogService {
     private AdminLogItemResponse toItem(CustodyLog log, Map<Long, User> actorsById) {
         User actor = actorsById.get(log.getActorId());
         String actorLoginId = actor == null ? "unknown" : actor.getLoginId();
+        String actorName = actor == null ? null : actor.getName();
         String department = actor == null ? "-" : actor.getDepartment();
 
         return AdminLogItemResponse.builder()
                 .id(String.valueOf(log.getLogId()))
-                .timestamp(log.getCreatedAt().format(LOG_TIMESTAMP_FORMATTER))
+                .timestamp(formatLogTimestamp(log.getCreatedAt()))
                 .category(LogCategoryMapper.resolveCategory(log.getActionType()))
                 .actor(actorLoginId)
                 .actorId(String.valueOf(log.getActorId()))
+                .actorName(actorName)
                 .department(department)
                 .action(LogCategoryMapper.resolveActionLabel(log.getActionType()))
                 .detail(log.getReason())
                 .build();
+    }
+
+    private String formatLogTimestamp(LocalDateTime value) {
+        if (value == null) {
+            return "-";
+        }
+        return value.atOffset(ZoneOffset.UTC)
+                .atZoneSameInstant(SEOUL_ZONE)
+                .format(LOG_TIMESTAMP_FORMATTER);
     }
 }

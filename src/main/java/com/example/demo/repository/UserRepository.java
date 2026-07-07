@@ -37,6 +37,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u.userId FROM User u WHERE u.organizationType = :organizationType AND u.deletedAt IS NULL")
     List<Long> findUserIdsByOrganizationType(@Param("organizationType") OrgType organizationType);
 
+    @Query("""
+            SELECT u.userId FROM User u
+            WHERE u.deletedAt IS NULL
+              AND (
+                LOWER(u.loginId) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%'))
+              )
+            """)
+    List<Long> findUserIdsByLoginIdOrName(@Param("search") String search);
+
     @Query("SELECT DISTINCT u.department FROM User u WHERE u.deletedAt IS NULL ORDER BY u.department")
     List<String> findDistinctDepartments();
 
