@@ -2,8 +2,7 @@ package com.example.demo.service.analysis;
 
 import com.example.demo.config.VideoFrameAnalysisProperties;
 import com.example.demo.dto.AnalysisResponseMessage;
-import com.example.demo.dto.FrameRiskDto;
-import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.dto.VideoDeepfakeTimelineDto;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +20,7 @@ public class VideoAnalysisDetailsBuilder {
 
     public Map<String, Object> buildTimelineDetails(
             AnalysisResponseMessage.AnalysisVideoResultItem videoResult,
-            List<FrameRiskDto> frameRisks,
-            List<SuspiciousSegmentDto> suspiciousSegments,
+            VideoDeepfakeTimelineDto timeline,
             List<String> evidenceItems
     ) {
         Map<String, Object> details = new LinkedHashMap<>();
@@ -35,8 +33,19 @@ public class VideoAnalysisDetailsBuilder {
         details.put("videoEditScore", responseResolver.defaultDouble(videoResult.getSplicingScore()));
         putDetection(details, "reEncoding", videoResult.getReEncodingDetected(), videoResult.getReEncodingScore());
         details.put("highRiskFrameScoreThreshold", frameAnalysisProperties.getHighRiskFrameScoreThreshold());
-        details.put("frameRisks", frameRisks == null ? List.of() : frameRisks);
-        details.put("suspiciousSegments", suspiciousSegments == null ? List.of() : suspiciousSegments);
+        details.put("frameRisks", timeline.getFrameRisks() == null ? List.of() : timeline.getFrameRisks());
+        details.put("suspiciousSegments", timeline.getSuspiciousSegments() == null ? List.of() : timeline.getSuspiciousSegments());
+        details.put("clipRisks", timeline.getClipRisks() == null ? List.of() : timeline.getClipRisks());
+        details.put("pairRisks", timeline.getPairRisks() == null ? List.of() : timeline.getPairRisks());
+        details.put(
+                "temporalSuspiciousSegments",
+                timeline.getTemporalSuspiciousSegments() == null ? List.of() : timeline.getTemporalSuspiciousSegments()
+        );
+        details.put(
+                "opticalSuspiciousSegments",
+                timeline.getOpticalSuspiciousSegments() == null ? List.of() : timeline.getOpticalSuspiciousSegments()
+        );
+        details.put("moduleTimelines", timeline.getModuleTimelines() == null ? List.of() : timeline.getModuleTimelines());
         details.put("analysisReasons", evidenceItems == null ? List.of() : evidenceItems);
         return details;
     }

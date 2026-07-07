@@ -8,6 +8,7 @@ import com.example.demo.domain.enums.RiskLevel;
 import com.example.demo.dto.AnalysisResponseMessage;
 import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.dto.VideoDeepfakeTimelineDto;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
@@ -103,14 +104,22 @@ public class AnalysisResultPersistenceService {
                 frameAnalysisProperties.getHighRiskFrameScoreThreshold(),
                 frameAnalysisProperties.getMinSuspiciousSegmentSec()
         );
+        VideoDeepfakeTimelineDto timeline = VideoDeepfakeTimelineDto.builder()
+                .frameRisks(frameRisks)
+                .suspiciousSegments(segments)
+                .clipRisks(List.of())
+                .pairRisks(List.of())
+                .temporalSuspiciousSegments(List.of())
+                .opticalSuspiciousSegments(List.of())
+                .moduleTimelines(List.of())
+                .build();
 
         moduleWriter.writeVideoAnalysisModules(
                 savedResult.getAnalysisResultId(),
                 buildSimulatedVideoResultItem(frameRisks, segments),
                 null,
                 0.91,
-                frameRisks,
-                segments
+                timeline
         );
         return savedResult.getAnalysisResultId();
     }
@@ -123,16 +132,22 @@ public class AnalysisResultPersistenceService {
             return;
         }
 
-        List<FrameRiskDto> frameRisks = responseResolver.toFrameRiskDtos(videoResult.getFrameRisks());
-        List<SuspiciousSegmentDto> suspiciousSegments = responseResolver.toSuspiciousSegmentDtos(
-                videoResult.getSuspiciousSegments()
-        );
-        if (suspiciousSegments.isEmpty() && !frameRisks.isEmpty()) {
-            suspiciousSegments = suspiciousSegmentCalculator.compute(
-                    frameRisks,
+        VideoDeepfakeTimelineDto timeline = responseResolver.toVideoDeepfakeTimeline(videoResult);
+        if (timeline.getSuspiciousSegments().isEmpty() && !timeline.getFrameRisks().isEmpty()) {
+            List<SuspiciousSegmentDto> computed = suspiciousSegmentCalculator.compute(
+                    timeline.getFrameRisks(),
                     frameAnalysisProperties.getHighRiskFrameScoreThreshold(),
                     frameAnalysisProperties.getMinSuspiciousSegmentSec()
             );
+            timeline = VideoDeepfakeTimelineDto.builder()
+                    .frameRisks(timeline.getFrameRisks())
+                    .suspiciousSegments(computed)
+                    .clipRisks(timeline.getClipRisks())
+                    .pairRisks(timeline.getPairRisks())
+                    .temporalSuspiciousSegments(timeline.getTemporalSuspiciousSegments())
+                    .opticalSuspiciousSegments(timeline.getOpticalSuspiciousSegments())
+                    .moduleTimelines(timeline.getModuleTimelines())
+                    .build();
         }
 
         moduleWriter.writeVideoAnalysisModules(
@@ -140,8 +155,7 @@ public class AnalysisResultPersistenceService {
                 videoResult,
                 response,
                 response.getConfidenceScore(),
-                frameRisks,
-                suspiciousSegments
+                timeline
         );
     }
 
