@@ -1,8 +1,11 @@
 package com.example.demo.service.analysis;
 
 import com.example.demo.domain.AnalysisModuleResult;
+import com.example.demo.dto.ClipRiskDto;
 import com.example.demo.dto.FrameRiskDto;
+import com.example.demo.dto.PairRiskDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.dto.detail.ModuleTimelineDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -19,6 +22,11 @@ public class VideoModuleDetailsReader {
     public VisualizationData readVisualization(List<AnalysisModuleResult> moduleResults) {
         List<FrameRiskDto> frameRisks = List.of();
         List<SuspiciousSegmentDto> suspiciousSegments = List.of();
+        List<ClipRiskDto> clipRisks = List.of();
+        List<PairRiskDto> pairRisks = List.of();
+        List<SuspiciousSegmentDto> temporalSuspiciousSegments = List.of();
+        List<SuspiciousSegmentDto> opticalSuspiciousSegments = List.of();
+        List<ModuleTimelineDto> moduleTimelines = List.of();
         List<String> evidenceItems = List.of();
 
         for (AnalysisModuleResult module : moduleResults) {
@@ -28,6 +36,21 @@ public class VideoModuleDetailsReader {
             }
             if (suspiciousSegments.isEmpty()) {
                 suspiciousSegments = readSuspiciousSegments(details);
+            }
+            if (clipRisks.isEmpty()) {
+                clipRisks = readClipRisks(details);
+            }
+            if (pairRisks.isEmpty()) {
+                pairRisks = readPairRisks(details);
+            }
+            if (temporalSuspiciousSegments.isEmpty()) {
+                temporalSuspiciousSegments = readSuspiciousSegments(details.get("temporalSuspiciousSegments"));
+            }
+            if (opticalSuspiciousSegments.isEmpty()) {
+                opticalSuspiciousSegments = readSuspiciousSegments(details.get("opticalSuspiciousSegments"));
+            }
+            if (moduleTimelines.isEmpty()) {
+                moduleTimelines = readModuleTimelines(details);
             }
             if (evidenceItems.isEmpty()) {
                 evidenceItems = readEvidenceItems(details);
@@ -42,12 +65,26 @@ public class VideoModuleDetailsReader {
                     .toList();
         }
 
-        return new VisualizationData(frameRisks, suspiciousSegments, evidenceItems);
+        return new VisualizationData(
+                frameRisks,
+                suspiciousSegments,
+                clipRisks,
+                pairRisks,
+                temporalSuspiciousSegments,
+                opticalSuspiciousSegments,
+                moduleTimelines,
+                evidenceItems
+        );
     }
 
     public record VisualizationData(
             List<FrameRiskDto> frameRisks,
             List<SuspiciousSegmentDto> suspiciousSegments,
+            List<ClipRiskDto> clipRisks,
+            List<PairRiskDto> pairRisks,
+            List<SuspiciousSegmentDto> temporalSuspiciousSegments,
+            List<SuspiciousSegmentDto> opticalSuspiciousSegments,
+            List<ModuleTimelineDto> moduleTimelines,
             List<String> evidenceItems
     ) {
     }
@@ -65,7 +102,86 @@ public class VideoModuleDetailsReader {
 
     @SuppressWarnings("unchecked")
     public List<FrameRiskDto> readFrameRisks(Map<String, Object> details) {
-        Object raw = details.get("frameRisks");
+        return readFrameRisks(details.get("frameRisks"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<ClipRiskDto> readClipRisks(Map<String, Object> details) {
+        Object raw = details.get("clipRisks");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return ClipRiskDto.builder()
+                            .clipIndex(asInt(map.get("clipIndex")))
+                            .startFrameIndex(asInt(map.get("startFrameIndex")))
+                            .endFrameIndex(asInt(map.get("endFrameIndex")))
+                            .startTimeSec(asDouble(map.get("startTimeSec")))
+                            .endTimeSec(asDouble(map.get("endTimeSec")))
+                            .riskScore(asDouble(map.get("riskScore")))
+                            .build();
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<PairRiskDto> readPairRisks(Map<String, Object> details) {
+        Object raw = details.get("pairRisks");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return PairRiskDto.builder()
+                            .pairIndex(asInt(map.get("pairIndex")))
+                            .frameIndexA(asInt(map.get("frameIndexA")))
+                            .frameIndexB(asInt(map.get("frameIndexB")))
+                            .timestampSec(asDouble(map.get("timestampSec")))
+                            .riskScore(asDouble(map.get("riskScore")))
+                            .motionMagnitude(asNullableDouble(map.get("motionMagnitude")))
+                            .build();
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<ModuleTimelineDto> readModuleTimelines(Map<String, Object> details) {
+        Object raw = details.get("moduleTimelines");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return ModuleTimelineDto.builder()
+                            .module(asString(map.get("module")))
+                            .modelName(asString(map.get("modelName")))
+                            .modelVersion(asString(map.get("modelVersion")))
+                            .videoScore(asDouble(map.get("videoScore")))
+                            .threshold(asDouble(map.get("threshold")))
+                            .detected(Boolean.TRUE.equals(map.get("detected")))
+                            .frameRisks(readFrameRisks(map.get("frameRisks")))
+                            .clipRisks(readClipRisksFromRaw(map.get("clipRisks")))
+                            .pairRisks(readPairRisksFromRaw(map.get("pairRisks")))
+                            .suspiciousSegments(readSuspiciousSegments(map.get("suspiciousSegments")))
+                            .build();
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<SuspiciousSegmentDto> readSuspiciousSegments(Map<String, Object> details) {
+        return readSuspiciousSegments(details.get("suspiciousSegments"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<FrameRiskDto> readFrameRisks(Object raw) {
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
@@ -83,8 +199,49 @@ public class VideoModuleDetailsReader {
     }
 
     @SuppressWarnings("unchecked")
-    public List<SuspiciousSegmentDto> readSuspiciousSegments(Map<String, Object> details) {
-        Object raw = details.get("suspiciousSegments");
+    private List<ClipRiskDto> readClipRisksFromRaw(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return ClipRiskDto.builder()
+                            .clipIndex(asInt(map.get("clipIndex")))
+                            .startFrameIndex(asInt(map.get("startFrameIndex")))
+                            .endFrameIndex(asInt(map.get("endFrameIndex")))
+                            .startTimeSec(asDouble(map.get("startTimeSec")))
+                            .endTimeSec(asDouble(map.get("endTimeSec")))
+                            .riskScore(asDouble(map.get("riskScore")))
+                            .build();
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<PairRiskDto> readPairRisksFromRaw(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return PairRiskDto.builder()
+                            .pairIndex(asInt(map.get("pairIndex")))
+                            .frameIndexA(asInt(map.get("frameIndexA")))
+                            .frameIndexB(asInt(map.get("frameIndexB")))
+                            .timestampSec(asDouble(map.get("timestampSec")))
+                            .riskScore(asDouble(map.get("riskScore")))
+                            .motionMagnitude(asNullableDouble(map.get("motionMagnitude")))
+                            .build();
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<SuspiciousSegmentDto> readSuspiciousSegments(Object raw) {
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
@@ -126,6 +283,13 @@ public class VideoModuleDetailsReader {
             return number.doubleValue();
         }
         return 0.0;
+    }
+
+    private Double asNullableDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        return null;
     }
 
     private String asString(Object value) {
