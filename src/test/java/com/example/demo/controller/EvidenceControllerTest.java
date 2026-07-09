@@ -23,6 +23,7 @@ import com.example.demo.support.AbstractEvidenceIntegrationTest;
 import com.example.demo.support.EvidenceApiTestSupport;
 import com.example.demo.support.EvidenceTestFixtures;
 import com.example.demo.support.StepUpTestSupport;
+import com.example.demo.service.evidence.EvidenceStoragePaths;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -787,7 +788,10 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
         assertThat(evidenceRepository.count()).isEqualTo(beforeCount + 1);
         assertThat(evidenceRepository.findAll())
                 .allMatch(evidence -> evidence.getHashAlgorithm().equals("SHA-256"))
-                .allMatch(evidence -> evidence.getHashValue().length() == 64);
+                .allMatch(evidence -> evidence.getHashValue().length() == 64)
+                .allMatch(evidence -> evidence.getOriginalStoragePath().endsWith(
+                        "/original/" + EvidenceStoragePaths.storedObjectFileName(evidence, evidence.getFileName())))
+                .allMatch(evidence -> !evidence.getOriginalStoragePath().contains("sample.mp4"));
     }
 
     @Test

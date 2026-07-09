@@ -136,7 +136,7 @@ public class FileService {
             Evidence savedEvidence = evidenceRepository.save(evidence);
 
             String caseKey = EvidenceStoragePaths.resolveCaseKey(savedEvidence);
-            String s3Key = EvidenceStoragePaths.originalKey(caseKey, savedEvidence.getEvidenceId(), originalFilename);
+            String s3Key = EvidenceStoragePaths.originalKey(caseKey, savedEvidence, originalFilename);
             s3Client.putObject(
                     PutObjectRequest.builder()
                             .bucket(evidenceBucket)
