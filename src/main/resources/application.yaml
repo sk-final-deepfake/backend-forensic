@@ -23,7 +23,7 @@ jwt:
   # 로컬: application-local.yaml 기본값 또는 JWT_SECRET_KEY 직접 설정
   access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1200000}  # 액세스 JWT 20분 — JwtTokenProvider
   expiration-ms: ${JWT_EXPIRATION_MS:1200000}
-  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}    # 리프레시·Redis·쿠키 7일
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}    # 리프레시 JWT·Redis TTL (브라우저 세션 동안)
   step-up-expiration-minutes: ${JWT_STEP_UP_EXPIRATION_MINUTES:15}  # Step-up 재인증 TTL
 
 # AuthCookieSupport — 리프레시 JWT HttpOnly 쿠키 (AuthController 로그인·재발급·로그아웃)
@@ -33,6 +33,8 @@ auth:
     path: /
     secure: ${AUTH_COOKIE_SECURE:true}
     same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+    # false(기본): 세션 쿠키 — 브라우저 종료 후 재접속 시 로그아웃
+    persistent: ${AUTH_COOKIE_PERSISTENT:false}
 
 file:
   upload-dir: ${FILE_UPLOAD_DIR:uploads/original}
