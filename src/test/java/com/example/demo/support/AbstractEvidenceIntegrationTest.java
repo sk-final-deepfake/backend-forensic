@@ -90,6 +90,7 @@ public abstract class AbstractEvidenceIntegrationTest {
     protected String uploadDir;
 
     protected String accessToken;
+    protected String stepUpToken;
 
     @BeforeEach
     void setUpEvidenceIntegrationTest() throws Exception {
@@ -103,6 +104,11 @@ public abstract class AbstractEvidenceIntegrationTest {
         accessToken = JwtTestSupport.loginAndGetToken(
                 mockMvc,
                 EvidenceTestFixtures.DEFAULT_LOGIN_ID,
+                EvidenceTestFixtures.DEFAULT_PASSWORD
+        );
+        stepUpToken = StepUpTestSupport.issueStepUpToken(
+                mockMvc,
+                accessToken,
                 EvidenceTestFixtures.DEFAULT_PASSWORD
         );
     }

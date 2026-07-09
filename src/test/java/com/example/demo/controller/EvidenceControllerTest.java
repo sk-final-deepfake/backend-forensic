@@ -22,6 +22,7 @@ import com.example.demo.domain.enums.SecurityAlertCode;
 import com.example.demo.support.AbstractEvidenceIntegrationTest;
 import com.example.demo.support.EvidenceApiTestSupport;
 import com.example.demo.support.EvidenceTestFixtures;
+import com.example.demo.support.StepUpTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -857,6 +858,17 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("증거 상세 API는 Step-up 토큰 없이 403 STEP_UP_REQUIRED를 반환한다")
+    void getEvidenceDetail_withoutStepUpToken_returnsForbidden() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("step-up-guard.mp4", "Step-up 가드 사건");
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("STEP_UP_REQUIRED"));
+    }
+
+    @Test
     @DisplayName("증거 상세 API는 프론트 상세 페이지가 사용하는 필드를 포함한다")
     void getEvidenceDetail_returnsFrontendCompatibleFields() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
@@ -879,7 +891,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
         long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
 
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(evidenceId))
                 .andExpect(jsonPath("$.evidenceInfo.fileName").value("detail-page.mp4"))
@@ -944,7 +957,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.manifestInfo.evidenceId").value(evidenceId))
                 .andExpect(jsonPath("$.manifestInfo.fileId").value(evidenceId))
@@ -1190,7 +1204,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
         evidenceManifestRepository.save(manifest);
 
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk());
 
         assertThat(notificationRepository.findAll())

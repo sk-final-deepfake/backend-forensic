@@ -29,6 +29,7 @@ import com.example.demo.repository.UserSettingRepository;
 import com.example.demo.service.evidence.HashService;
 import com.example.demo.service.notification.NotificationService;
 import com.example.demo.support.JwtTestSupport;
+import com.example.demo.support.StepUpTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -107,6 +108,7 @@ class FeatureApiControllerTest {
     private HashService hashService;
 
     private String accessToken;
+    private String stepUpToken;
     private User testUser;
     private Evidence evidence;
 
@@ -148,6 +150,7 @@ class FeatureApiControllerTest {
                 .build());
 
         accessToken = JwtTestSupport.loginAndGetToken(mockMvc, "1111", "2222");
+        stepUpToken = StepUpTestSupport.issueStepUpToken(mockMvc, accessToken, "2222");
     }
 
     @AfterEach
@@ -429,7 +432,8 @@ class FeatureApiControllerTest {
         analysisModuleResultRepository.save(module);
 
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/detail")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisInfo.moduleResults[0].modelName").value("ForenShield-DF"))
                 .andExpect(jsonPath("$.analysisInfo.moduleResults[0].modelVersion").value("1.2.0"))
@@ -481,7 +485,8 @@ class FeatureApiControllerTest {
         analysisModuleResultRepository.save(timeline);
 
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/detail")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisInfo.frameRisks[0].riskScore").value(0.82))
                 .andExpect(jsonPath("$.analysisInfo.suspiciousSegments[0].startTime").value(12.0))
@@ -531,7 +536,8 @@ class FeatureApiControllerTest {
         blockchainAnchorRepository.save(anchor);
 
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/detail")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.blockchainInfo.status").value("ANCHORED"))
                 .andExpect(jsonPath("$.blockchainInfo.hashValid").value(true))
