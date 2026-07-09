@@ -87,13 +87,14 @@ public class FileService {
     }
 
     @Transactional
-    public FileUploadResponse upload(MultipartFile file, String caseName, Long uploaderId) {
+    public FileUploadResponse upload(MultipartFile file, String caseName, String caseNumber, Long uploaderId) {
         if (caseName == null || caseName.isBlank()) {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명을 입력해 주세요.");
         }
 
         String trimmedCaseName = caseName.trim();
+        String trimmedCaseNumber = resolveCaseNumber(caseNumber, trimmedCaseName);
         ValidatedFile validated = fileValidationService.validate(file);
         String originalFilename = validated.fileName();
 
@@ -122,7 +123,7 @@ public class FileService {
             Evidence evidence = Evidence.builder()
                     .uploaderId(uploaderId)
                     .caseName(trimmedCaseName)
-                    .caseNumber(trimmedCaseName)
+                    .caseNumber(trimmedCaseNumber)
                     .fileName(originalFilename)
                     .fileType(validated.fileType())
                     .mimeType(validated.mimeType())
@@ -174,6 +175,7 @@ public class FileService {
                     .evidenceId(savedEvidence.getEvidenceId())
                     .fileName(originalFilename)
                     .caseName(savedEvidence.getCaseName())
+                    .caseNumber(savedEvidence.getCaseNumber())
                     .displayLabel(displayLabel)
                     .fileSize(validated.fileSize())
                     .hashAlgorithm(savedEvidence.getHashAlgorithm())
@@ -256,7 +258,15 @@ public class FileService {
         payload.put("mimeType", evidence.getMimeType());
         payload.put("fileSize", evidence.getFileSize());
         payload.put("caseName", evidence.getCaseName());
+        payload.put("caseNumber", evidence.getCaseNumber());
         return payload;
+    }
+
+    private static String resolveCaseNumber(String caseNumber, String caseName) {
+        if (caseNumber != null && !caseNumber.isBlank()) {
+            return caseNumber.trim();
+        }
+        return caseName;
     }
 
     private Map<String, Object> hashPayload(Evidence evidence) {
