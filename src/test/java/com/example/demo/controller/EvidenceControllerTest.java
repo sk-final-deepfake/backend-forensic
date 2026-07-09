@@ -869,6 +869,30 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("증거 상세 API는 유효한 Step-up 토큰으로 200을 반환한다")
+    void getEvidenceDetail_withValidStepUpToken_returnsOk() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("step-up-ok.mp4", "Step-up 성공 사건");
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(evidenceId));
+    }
+
+    @Test
+    @DisplayName("증거 상세 API는 잘못된 Step-up 토큰으로 403 STEP_UP_REQUIRED를 반환한다")
+    void getEvidenceDetail_withInvalidStepUpToken_returnsForbidden() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("step-up-invalid.mp4", "Step-up 실패 사건");
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, "invalid-step-up-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("STEP_UP_REQUIRED"));
+    }
+
+    @Test
     @DisplayName("증거 상세 API는 프론트 상세 페이지가 사용하는 필드를 포함한다")
     void getEvidenceDetail_returnsFrontendCompatibleFields() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
