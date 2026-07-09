@@ -7,6 +7,7 @@ import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.security.SignupRateLimitService;
 import com.example.demo.support.JwtTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,10 +46,14 @@ class StepUpAuthControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private SignupRateLimitService signupRateLimitService;
+
     private String accessToken;
 
     @BeforeEach
     void setUp() throws Exception {
+        signupRateLimitService.reset();
         custodyLogRepository.deleteAll();
         userRepository.deleteAll();
         userRepository.save(User.builder()
@@ -115,5 +120,28 @@ class StepUpAuthControllerTest {
                                 {"password":"2222"}
                                 """))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("1분에 5회 초과 시 429 RATE_LIMIT_EXCEEDED를 반환한다")
+    void verifyStepUp_tooManyRequests_returnsRateLimitError() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/v1/auth/step-up/verify")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"password":"wrong-password"}
+                                    """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/v1/auth/step-up/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"password":"wrong-password"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.errorCode").value("RATE_LIMIT_EXCEEDED"));
     }
 }
