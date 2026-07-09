@@ -1,5 +1,6 @@
 package com.example.demo.dto.admin;
 
+import com.example.demo.domain.enums.OrgType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
@@ -20,6 +21,8 @@ public class UpdateAdminUserRequest {
 
     @NotBlank(message = "소속을 입력해 주세요.")
     private String department;
+
+    private OrgType organizationType;
 
     /** INVESTIGATOR · REVIEWER · ORG_ADMIN (optional) */
     private String role;

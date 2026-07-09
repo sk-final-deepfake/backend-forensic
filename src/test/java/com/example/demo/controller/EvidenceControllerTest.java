@@ -23,6 +23,7 @@ import com.example.demo.support.AbstractEvidenceIntegrationTest;
 import com.example.demo.support.EvidenceApiTestSupport;
 import com.example.demo.support.EvidenceTestFixtures;
 import com.example.demo.support.StepUpTestSupport;
+import com.example.demo.service.evidence.EvidenceStoragePaths;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -131,6 +132,35 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
 
         assertThat(evidenceRepository.findAll())
                 .anyMatch(evidence -> caseName.equals(evidence.getCaseName()));
+    }
+
+    @Test
+    @DisplayName("사건번호를 포함하여 업로드하면 S3 파일명과 DB case_number에 반영된다")
+    void shouldUploadFileWithCaseNumber() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "secret-name.mp4",
+                "video/mp4",
+                "Case Number Test Data".getBytes()
+        );
+        String caseName = "딥페이크 테스트";
+        String caseNumber = "2026-서울-0123";
+
+        mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .param("caseNumber", caseNumber)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseName").value(caseName))
+                .andExpect(jsonPath("$.caseNumber").value(caseNumber));
+
+        assertThat(evidenceRepository.findAll())
+                .anyMatch(evidence ->
+                        caseName.equals(evidence.getCaseName())
+                                && caseNumber.equals(evidence.getCaseNumber())
+                                && evidence.getOriginalStoragePath().endsWith(
+                                        EvidenceStoragePaths.storedObjectFileName(evidence, evidence.getFileName())));
     }
 
     @Test
@@ -787,7 +817,10 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
         assertThat(evidenceRepository.count()).isEqualTo(beforeCount + 1);
         assertThat(evidenceRepository.findAll())
                 .allMatch(evidence -> evidence.getHashAlgorithm().equals("SHA-256"))
-                .allMatch(evidence -> evidence.getHashValue().length() == 64);
+                .allMatch(evidence -> evidence.getHashValue().length() == 64)
+                .allMatch(evidence -> evidence.getOriginalStoragePath().endsWith(
+                        "/original/" + EvidenceStoragePaths.storedObjectFileName(evidence, evidence.getFileName())))
+                .allMatch(evidence -> !evidence.getOriginalStoragePath().contains("sample.mp4"));
     }
 
     @Test

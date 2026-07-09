@@ -4,6 +4,7 @@ import com.example.demo.dto.AnalysisResponseMessage;
 import com.example.demo.dto.ClipRiskDto;
 import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.PairRiskDto;
+import com.example.demo.dto.RepresentativeFrameDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
 import com.example.demo.dto.VideoDeepfakeTimelineDto;
 import com.example.demo.dto.detail.ModuleTimelineDto;
@@ -96,6 +97,7 @@ public class AnalysisResponseResolver {
                     .temporalSuspiciousSegments(List.of())
                     .opticalSuspiciousSegments(List.of())
                     .moduleTimelines(List.of())
+                    .representativeFrames(List.of())
                     .build();
         }
         return VideoDeepfakeTimelineDto.builder()
@@ -106,6 +108,9 @@ public class AnalysisResponseResolver {
                 .temporalSuspiciousSegments(toSuspiciousSegmentDtos(videoResult.getTemporalSuspiciousSegments()))
                 .opticalSuspiciousSegments(toSuspiciousSegmentDtos(videoResult.getOpticalSuspiciousSegments()))
                 .moduleTimelines(toModuleTimelineDtos(videoResult.getModuleTimelines()))
+                .representativeFrames(toRepresentativeFrameDtos(videoResult.getRepresentativeFrames()))
+                .heatmapImageUrl(videoResult.getHeatmapImageUrl())
+                .overlayVideoUrl(videoResult.getOverlayVideoUrl())
                 .build();
     }
 
@@ -203,6 +208,24 @@ public class AnalysisResponseResolver {
                         .clipRisks(toClipRiskDtos(item.getClipRisks()))
                         .pairRisks(toPairRiskDtos(item.getPairRisks()))
                         .suspiciousSegments(toSuspiciousSegmentDtos(item.getSuspiciousSegments()))
+                        .build())
+                .toList();
+    }
+
+    public List<RepresentativeFrameDto> toRepresentativeFrameDtos(
+            List<AnalysisResponseMessage.AnalysisVideoResultItem.RepresentativeFrameItem> representativeFrames
+    ) {
+        if (representativeFrames == null || representativeFrames.isEmpty()) {
+            return List.of();
+        }
+        return representativeFrames.stream()
+                .map(item -> RepresentativeFrameDto.builder()
+                        .timeSec(item.getTimeSec())
+                        .timestamp(item.getTimestamp())
+                        .frameNumber(item.getFrameNumber())
+                        .score(item.getScore())
+                        .imageUrl(item.getImageUrl())
+                        .heatmapUrl(item.getHeatmapUrl())
                         .build())
                 .toList();
     }

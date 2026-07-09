@@ -2,12 +2,16 @@ package com.example.demo.service.manifest;
 
 import com.example.demo.config.EvidenceManifestSigningProperties;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Base64;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,15 +30,64 @@ public class Pkcs8ManifestSignatureService implements ManifestSignatureService {
 
     public Pkcs8ManifestSignatureService(
             ManifestSigningKeyLoader keyLoader,
-            EvidenceManifestSigningProperties signingProperties
+            EvidenceManifestSigningProperties signingProperties,
+            Environment environment
     ) {
-        ManifestSigningKeyMaterial material = keyLoader.load(signingProperties);
+        ManifestSigningKeyMaterial material = loadKeyMaterial(keyLoader, signingProperties, environment);
+        if (material.certificate() == null) {
+            this.privateKey = material.privateKey();
+            this.publicKey = material.publicKey();
+            this.signerCertificateSubject = "CN=ForenShield Local Ephemeral Manifest Signer";
+            this.signerCertificatePem = null;
+            log.warn("Platform manifest signing ready with ephemeral local key subject={}", signerCertificateSubject);
+            return;
+        }
+
         X509Certificate certificate = material.certificate();
         this.privateKey = material.privateKey();
         this.publicKey = certificate.getPublicKey();
         this.signerCertificateSubject = certificate.getSubjectX500Principal().getName();
         this.signerCertificatePem = toPem(certificate);
         log.info("Platform manifest signing ready subject={}", signerCertificateSubject);
+    }
+
+    private ManifestSigningKeyMaterial loadKeyMaterial(
+            ManifestSigningKeyLoader keyLoader,
+            EvidenceManifestSigningProperties signingProperties,
+            Environment environment
+    ) {
+        try {
+            return keyLoader.load(signingProperties);
+        } catch (RuntimeException ex) {
+            if (!isLocalLikeProfile(environment)) {
+                throw ex;
+            }
+            KeyPair keyPair = generateEphemeralKeyPair(ex);
+            log.warn("Manifest signing key is unavailable in local profile. Using ephemeral key. cause={}",
+                    ex.getMessage());
+            return new ManifestSigningKeyMaterial(keyPair.getPrivate(), null, keyPair.getPublic());
+        }
+    }
+
+    private static boolean isLocalLikeProfile(Environment environment) {
+        String[] activeProfiles = environment.getActiveProfiles();
+        if (activeProfiles.length == 0) {
+            return true;
+        }
+        return Arrays.stream(activeProfiles)
+                .anyMatch(profile -> profile.equals("local")
+                        || profile.equals("default")
+                        || profile.equals("test"));
+    }
+
+    private static KeyPair generateEphemeralKeyPair(RuntimeException cause) {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return generator.generateKeyPair();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to generate local manifest signing key", cause);
+        }
     }
 
     @Override

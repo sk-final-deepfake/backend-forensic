@@ -58,10 +58,11 @@ public class AdminUserService {
 
     @Transactional(readOnly = true)
     public AdminReviewerListResponse listReviewers(User admin, String department) {
-        OrgType organizationType = resolveReviewerOrganizationScope(admin);
-        String departmentFilter = department == null || department.isBlank() ? null : department.trim();
+        OrgType organizationFilter = resolveOrganizationFilter(admin);
+        String departmentFilter = normalizeOptionalFilter(department);
+
         List<AdminReviewerItemResponse> reviewers = userRepository
-                .findApprovedReviewers(organizationType, departmentFilter)
+                .findApprovedReviewers(organizationFilter, departmentFilter)
                 .stream()
                 .map(this::toReviewerItem)
                 .toList();
@@ -123,7 +124,12 @@ public class AdminUserService {
             throw new AdminException(HttpStatus.CONFLICT, "DUPLICATE_EMAIL", "이미 사용 중인 이메일입니다.");
         }
 
-        target.updateAccountInfo(request.getDisplayName(), request.getEmail(), request.getDepartment());
+        target.updateAccountInfo(
+                request.getDisplayName(),
+                request.getEmail(),
+                request.getOrganizationType(),
+                request.getDepartment()
+        );
         if (request.getRole() != null && !request.getRole().isBlank()) {
             target.updateRole(parseAssignableRole(request.getRole()));
         }
@@ -227,11 +233,11 @@ public class AdminUserService {
         return null;
     }
 
-    private OrgType resolveReviewerOrganizationScope(User admin) {
-        if (admin.getRole() == UserRole.ROLE_ORG_ADMIN) {
-            return admin.getOrganizationType();
+    private String normalizeOptionalFilter(String value) {
+        if (value == null || value.isBlank() || "ALL".equalsIgnoreCase(value.trim())) {
+            return null;
         }
-        return null;
+        return value.trim();
     }
 
     private AdminUserStatusResponse toStatusResponse(User user, Long processedByUserId) {

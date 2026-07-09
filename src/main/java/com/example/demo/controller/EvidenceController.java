@@ -58,11 +58,13 @@ public class EvidenceController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public FileUploadResponse upload(
             @Parameter(description = "업로드할 파일") @RequestParam("file") MultipartFile file,
-            @Parameter(description = "사건명") @RequestParam(value = "caseName", required = false) String caseName
+            @Parameter(description = "사건명") @RequestParam(value = "caseName", required = false) String caseName,
+            @Parameter(description = "사건번호 (선택, 미입력 시 사건명과 동일)") @RequestParam(value = "caseNumber", required = false) String caseNumber
     ) {
         return fileService.upload(
                 file,
                 caseName,
+                caseNumber,
                 authUserResolver.requireCurrentUser().getUserId()
         );
     }

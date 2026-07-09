@@ -54,6 +54,7 @@ public class AnalysisInfoAssembler {
                 .temporalSuspiciousSegments(List.of())
                 .opticalSuspiciousSegments(List.of())
                 .moduleTimelines(List.of())
+                .representativeFrames(List.of())
                 .build();
     }
 
@@ -79,7 +80,8 @@ public class AnalysisInfoAssembler {
                 .pairRisks(List.of())
                 .temporalSuspiciousSegments(List.of())
                 .opticalSuspiciousSegments(List.of())
-                .moduleTimelines(List.of());
+                .moduleTimelines(List.of())
+                .representativeFrames(List.of());
     }
 
     private AnalysisInfoDto.AnalysisInfoDtoBuilder completedBuilder(
@@ -112,7 +114,10 @@ public class AnalysisInfoAssembler {
                 .pairRisks(visualization.pairRisks())
                 .temporalSuspiciousSegments(visualization.temporalSuspiciousSegments())
                 .opticalSuspiciousSegments(visualization.opticalSuspiciousSegments())
-                .moduleTimelines(visualization.moduleTimelines());
+                .moduleTimelines(visualization.moduleTimelines())
+                .representativeFrames(visualization.representativeFrames())
+                .heatmapImageUrl(visualization.heatmapImageUrl())
+                .overlayVideoUrl(visualization.overlayVideoUrl());
     }
 
     private String pendingSummary(String status) {

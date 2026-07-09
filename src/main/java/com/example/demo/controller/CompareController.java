@@ -102,14 +102,20 @@ public class CompareController {
 
     @Operation(summary = "비교 검증 PDF 다운로드", description = "RQ-CMP-104: 비교 검증 결과 PDF 리포트")
     @GetMapping("/{compareId}/reports/pdf")
-    public ResponseEntity<byte[]> downloadCompareReport(@PathVariable Long compareId) {
+    public ResponseEntity<byte[]> downloadCompareReport(
+            @PathVariable Long compareId,
+            @RequestParam(defaultValue = "false") boolean preview
+    ) {
         ReportPdfService.ReportPdfPayload payload = reportPdfService.generateCompareReport(
                 authUserResolver.requireCurrentUser(),
-                compareId
+                compareId,
+                preview
         );
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + payload.fileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        (preview ? "inline" : "attachment") + "; filename=\"" + payload.fileName() + "\"")
                 .header("X-Report-Hash", payload.reportHash())
+                .header("X-Report-Preview", String.valueOf(preview))
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(payload.content());
     }

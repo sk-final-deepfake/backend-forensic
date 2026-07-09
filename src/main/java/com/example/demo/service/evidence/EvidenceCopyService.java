@@ -40,7 +40,7 @@ public class EvidenceCopyService {
         }
 
         String caseKey = EvidenceStoragePaths.resolveCaseKey(evidence);
-        String copyKey = EvidenceStoragePaths.copyKey(caseKey, evidence.getEvidenceId(), evidence.getFileName());
+        String copyKey = EvidenceStoragePaths.copyKey(caseKey, evidence, evidence.getFileName());
 
         try {
             s3Client.copyObject(CopyObjectRequest.builder()

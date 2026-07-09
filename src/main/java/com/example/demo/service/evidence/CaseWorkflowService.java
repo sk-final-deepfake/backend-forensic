@@ -184,7 +184,6 @@ public class CaseWorkflowService {
         if (reviewer.getStatus() != UserStatus.APPROVED) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "승인된 검토자만 배정할 수 있습니다.");
         }
-        ensureSameOrganization(actor, reviewer);
 
         Long uploaderId = resolveCaseOwnerForAssignment(
                 actor,
@@ -343,7 +342,8 @@ public class CaseWorkflowService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명이 없는 증거는 대체할 수 없습니다.");
         }
 
-        FileUploadResponse uploadResponse = fileService.upload(file, caseName, user.getUserId());
+        FileUploadResponse uploadResponse = fileService.upload(
+                file, caseName, oldEvidence.getCaseNumber(), user.getUserId());
         Evidence replacement = evidenceRepository.findById(uploadResponse.getEvidenceId())
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.INTERNAL_SERVER_ERROR, "REPLACEMENT_FAILED", "대체 증거 등록에 실패했습니다."));

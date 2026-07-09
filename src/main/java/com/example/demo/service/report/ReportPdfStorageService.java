@@ -20,10 +20,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ReportPdfStorageService {
@@ -48,7 +50,13 @@ public class ReportPdfStorageService {
             String title
     ) {
         ReportVerificationPayload verificationPayload = createVerificationPayload();
-        byte[] pdfBytes = buildPdfWithQr(title, lines, verificationPayload.verifyUrl(), verificationPayload.verificationCode());
+        byte[] pdfBytes = buildPdfWithQr(
+                title,
+                lines,
+                verificationPayload.reportNo(),
+                verificationPayload.verifyUrl(),
+                verificationPayload.verificationCode()
+        );
         Path reportPath = storePdf("evidence", evidenceId, fileName, pdfBytes);
         Report report = new Report();
         report.setAnalysisResultId(analysisResultId);
@@ -63,8 +71,7 @@ public class ReportPdfStorageService {
         report.setFileSize((long) pdfBytes.length);
         report.setCreatedAt(LocalDateTime.now());
         Report saved = reportRepository.save(report);
-        blockchainAnchorService.anchorReportHash(saved, userId);
-        reportCustodyLogService.recordReportCreated(userId, saved);
+        recordReportSideEffects(saved, userId);
         return saved;
     }
 
@@ -77,7 +84,13 @@ public class ReportPdfStorageService {
             String title
     ) {
         ReportVerificationPayload verificationPayload = createVerificationPayload();
-        byte[] pdfBytes = buildPdfWithQr(title, lines, verificationPayload.verifyUrl(), verificationPayload.verificationCode());
+        byte[] pdfBytes = buildPdfWithQr(
+                title,
+                lines,
+                verificationPayload.reportNo(),
+                verificationPayload.verifyUrl(),
+                verificationPayload.verificationCode()
+        );
         Path reportPath = storePdf("compare", compareId, fileName, pdfBytes);
         Report report = new Report();
         report.setCompareId(compareId);
@@ -92,8 +105,7 @@ public class ReportPdfStorageService {
         report.setFileSize((long) pdfBytes.length);
         report.setCreatedAt(LocalDateTime.now());
         Report saved = reportRepository.save(report);
-        blockchainAnchorService.anchorReportHash(saved, userId);
-        reportCustodyLogService.recordReportCreated(userId, saved);
+        recordReportSideEffects(saved, userId);
         return saved;
     }
 
@@ -103,6 +115,10 @@ public class ReportPdfStorageService {
         } catch (IOException ex) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "REPORT_READ_FAILED", "PDF 리포트를 읽을 수 없습니다.");
         }
+    }
+
+    public byte[] addPreviewWatermark(byte[] pdfBytes) {
+        return PdfDocumentWriter.addPreviewWatermark(pdfBytes);
     }
 
     public boolean verifyStoredFileHash(Report report) {
@@ -117,8 +133,30 @@ public class ReportPdfStorageService {
         }
     }
 
-    private byte[] buildPdfWithQr(String title, List<String> lines, String qrContent, String verificationCode) {
-        return PdfDocumentWriter.writeReport(title, lines, qrContent, verificationCode);
+    private byte[] buildPdfWithQr(
+            String title,
+            List<String> lines,
+            String reportNo,
+            String qrContent,
+            String verificationCode
+    ) {
+        return PdfDocumentWriter.writeReport(title, lines, qrContent, verificationCode, reportNo);
+    }
+
+    private void recordReportSideEffects(Report report, Long userId) {
+        try {
+            blockchainAnchorService.anchorReportHash(report, userId);
+        } catch (Exception ex) {
+            log.warn("Report hash blockchain anchor failed reportId={} evidenceId={}: {}",
+                    report.getReportId(), report.getEvidenceId(), ex.getMessage());
+        }
+
+        try {
+            reportCustodyLogService.recordReportCreated(userId, report);
+        } catch (Exception ex) {
+            log.warn("Report custody log failed reportId={} evidenceId={}: {}",
+                    report.getReportId(), report.getEvidenceId(), ex.getMessage());
+        }
     }
 
     private ReportVerificationPayload createVerificationPayload() {

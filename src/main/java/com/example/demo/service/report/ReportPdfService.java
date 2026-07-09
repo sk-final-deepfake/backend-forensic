@@ -74,6 +74,11 @@ public class ReportPdfService {
 
     @Transactional
     public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId) {
+        return generateEvidenceReport(user, evidenceId, false);
+    }
+
+    @Transactional
+    public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId, boolean preview) {
         Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         AnalysisRequest request = requireCompletedAnalysis(evidenceId);
         AnalysisResult result = requireAnalysisResult(request.getAnalysisRequestId());
@@ -91,12 +96,25 @@ public class ReportPdfService {
         );
 
         byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
+        if (preview) {
+            return new ReportPdfPayload(
+                    report.getReportFileName(),
+                    reportPdfStorageService.addPreviewWatermark(pdfBytes),
+                    report.getReportHash()
+            );
+        }
+
         reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
         return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
     }
 
     @Transactional
     public ReportPdfPayload generateCompareReport(User user, Long compareId) {
+        return generateCompareReport(user, compareId, false);
+    }
+
+    @Transactional
+    public ReportPdfPayload generateCompareReport(User user, Long compareId, boolean preview) {
         CompareVerification verification = compareVerificationService.requireOwnedVerification(user, compareId);
         List<CompareItemDto> items = compareVerificationAssembler.deserializeItems(verification.getResultJson());
         Evidence original = evidenceAccessService.requireOwned(user, verification.getOriginalEvidenceId());
@@ -118,6 +136,14 @@ public class ReportPdfService {
                 "ForenShield Compare Verification Report"
         );
         byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
+        if (preview) {
+            return new ReportPdfPayload(
+                    report.getReportFileName(),
+                    reportPdfStorageService.addPreviewWatermark(pdfBytes),
+                    report.getReportHash()
+            );
+        }
+
         reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
         return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
     }

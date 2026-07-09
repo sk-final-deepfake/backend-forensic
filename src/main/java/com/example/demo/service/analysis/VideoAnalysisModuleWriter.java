@@ -140,7 +140,10 @@ public class VideoAnalysisModuleWriter {
                 || !timeline.getPairRisks().isEmpty()
                 || !timeline.getTemporalSuspiciousSegments().isEmpty()
                 || !timeline.getOpticalSuspiciousSegments().isEmpty()
-                || !timeline.getModuleTimelines().isEmpty();
+                || !timeline.getModuleTimelines().isEmpty()
+                || (timeline.getRepresentativeFrames() != null && !timeline.getRepresentativeFrames().isEmpty())
+                || timeline.getHeatmapImageUrl() != null
+                || timeline.getOverlayVideoUrl() != null;
     }
 
     private record DetectionSpec(
