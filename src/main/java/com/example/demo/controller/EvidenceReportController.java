@@ -26,15 +26,20 @@ public class EvidenceReportController {
 
     @Operation(summary = "분석 PDF 리포트 다운로드", description = "RQ-DTL-082~086: 분석 결과 PDF 리포트")
     @GetMapping("/{evidenceId}/reports/pdf")
-    public ResponseEntity<byte[]> downloadAnalysisReport(@PathVariable Long evidenceId) {
+    public ResponseEntity<byte[]> downloadAnalysisReport(
+            @PathVariable Long evidenceId,
+            @RequestParam(defaultValue = "false") boolean preview
+    ) {
         ReportPdfService.ReportPdfPayload payload = reportPdfService.generateEvidenceReport(
                 authUserResolver.requireCurrentUser(),
-                evidenceId
+                evidenceId,
+                preview
         );
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + payload.fileName() + "\"")
+                        (preview ? "inline" : "attachment") + "; filename=\"" + payload.fileName() + "\"")
                 .header("X-Report-Hash", payload.reportHash())
+                .header("X-Report-Preview", String.valueOf(preview))
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(payload.content());
     }

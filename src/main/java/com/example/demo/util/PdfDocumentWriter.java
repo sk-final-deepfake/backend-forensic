@@ -13,10 +13,13 @@ import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.BaseFont;
 import com.lowagie.text.pdf.ColumnText;
 import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfGState;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPCellEvent;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfPageEventHelper;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
 import com.lowagie.text.pdf.PdfWriter;
 
 import java.awt.Color;
@@ -95,6 +98,42 @@ public final class PdfDocumentWriter {
             return outputStream.toByteArray();
         } catch (DocumentException ex) {
             throw new IllegalStateException("PDF 생성에 실패했습니다.", ex);
+        }
+    }
+
+    public static byte[] addPreviewWatermark(byte[] pdfBytes) {
+        if (pdfBytes == null || pdfBytes.length == 0) {
+            return pdfBytes;
+        }
+
+        try {
+            PdfReader reader = new PdfReader(pdfBytes);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            PdfStamper stamper = new PdfStamper(reader, outputStream);
+            PdfGState state = new PdfGState();
+            state.setFillOpacity(0.14f);
+
+            for (int page = 1; page <= reader.getNumberOfPages(); page++) {
+                Rectangle pageSize = reader.getPageSizeWithRotation(page);
+                PdfContentByte canvas = stamper.getOverContent(page);
+                canvas.saveState();
+                canvas.setGState(state);
+                ColumnText.showTextAligned(
+                        canvas,
+                        Element.ALIGN_CENTER,
+                        new Phrase("미리보기", font(68, Font.BOLD, MUTED)),
+                        pageSize.getWidth() / 2f,
+                        pageSize.getHeight() / 2f,
+                        35
+                );
+                canvas.restoreState();
+            }
+
+            stamper.close();
+            reader.close();
+            return outputStream.toByteArray();
+        } catch (Exception ex) {
+            throw new IllegalStateException("PDF 미리보기 워터마크 적용에 실패했습니다.", ex);
         }
     }
 

@@ -117,6 +117,10 @@ public class ReportPdfStorageService {
         }
     }
 
+    public byte[] addPreviewWatermark(byte[] pdfBytes) {
+        return PdfDocumentWriter.addPreviewWatermark(pdfBytes);
+    }
+
     public boolean verifyStoredFileHash(Report report) {
         if (report.getReportHash() == null || report.getStoragePath() == null) {
             return false;
