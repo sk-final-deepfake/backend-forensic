@@ -3,6 +3,7 @@ package com.example.demo.dto.detail;
 import com.example.demo.dto.ClipRiskDto;
 import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.PairRiskDto;
+import com.example.demo.dto.RepresentativeFrameDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
 import lombok.Builder;
 import lombok.Getter;
@@ -43,4 +44,8 @@ public class AnalysisInfoDto {
     private List<SuspiciousSegmentDto> opticalSuspiciousSegments;
     /** Unified per-module timeline (cnn / temporal / optical) */
     private List<ModuleTimelineDto> moduleTimelines;
+    /** AI visualization artifacts */
+    private List<RepresentativeFrameDto> representativeFrames;
+    private String heatmapImageUrl;
+    private String overlayVideoUrl;
 }

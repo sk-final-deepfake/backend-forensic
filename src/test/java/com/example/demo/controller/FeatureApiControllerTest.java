@@ -474,6 +474,9 @@ class FeatureApiControllerTest {
                   "pairRisks":[{"pairIndex":0,"frameIndexA":0,"frameIndexB":1,"timestampSec":0.04,"riskScore":0.44,"motionMagnitude":1.1}],
                   "temporalSuspiciousSegments":[{"startTime":0.0,"endTime":0.5,"maxRiskScore":0.55,"reason":"ts segment"}],
                   "opticalSuspiciousSegments":[{"startTime":0.0,"endTime":0.1,"maxRiskScore":0.44,"reason":"gmf segment"}],
+                  "representativeFrames":[{"timeSec":0.4,"timestamp":"00:00","frameNumber":10,"score":0.82,"imageUrl":"https://cdn.example/frame.jpg","heatmapUrl":"https://cdn.example/frame-heatmap.jpg"}],
+                  "heatmapImageUrl":"https://cdn.example/frame-heatmap.jpg",
+                  "overlayVideoUrl":"https://cdn.example/overlay.mp4",
                   "analysisReasons":["Deepfake face mismatch detected"]
                 }
                 """);
@@ -489,6 +492,10 @@ class FeatureApiControllerTest {
                 .andExpect(jsonPath("$.analysisInfo.pairRisks[0].motionMagnitude").value(1.1))
                 .andExpect(jsonPath("$.analysisInfo.temporalSuspiciousSegments[0].reason").value("ts segment"))
                 .andExpect(jsonPath("$.analysisInfo.opticalSuspiciousSegments[0].reason").value("gmf segment"))
+                .andExpect(jsonPath("$.analysisInfo.representativeFrames[0].frameNumber").value(10))
+                .andExpect(jsonPath("$.analysisInfo.representativeFrames[0].heatmapUrl").value("https://cdn.example/frame-heatmap.jpg"))
+                .andExpect(jsonPath("$.analysisInfo.heatmapImageUrl").value("https://cdn.example/frame-heatmap.jpg"))
+                .andExpect(jsonPath("$.analysisInfo.overlayVideoUrl").value("https://cdn.example/overlay.mp4"))
                 .andExpect(jsonPath("$.analysisInfo.evidenceItems[0]").value("Deepfake face mismatch detected"));
     }
 

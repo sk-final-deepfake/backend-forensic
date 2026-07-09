@@ -261,6 +261,18 @@ class AnalysisAiResultIntegrationTest {
                                         .reason("optical high risk")
                                         .build()
                         ))
+                        .representativeFrames(List.of(
+                                AnalysisResponseMessage.AnalysisVideoResultItem.RepresentativeFrameItem.builder()
+                                        .timeSec(0.4)
+                                        .timestamp("00:00")
+                                        .frameNumber(10)
+                                        .score(0.86)
+                                        .imageUrl("https://cdn.example/frame.jpg")
+                                        .heatmapUrl("https://cdn.example/frame-heatmap.jpg")
+                                        .build()
+                        ))
+                        .heatmapImageUrl("https://cdn.example/frame-heatmap.jpg")
+                        .overlayVideoUrl("https://cdn.example/overlay.mp4")
                         .build()))
                 .build();
 
@@ -277,6 +289,9 @@ class AnalysisAiResultIntegrationTest {
         assertThat(timelineModule.getDetailsJson()).contains("\"pairRisks\"");
         assertThat(timelineModule.getDetailsJson()).contains("\"temporalSuspiciousSegments\"");
         assertThat(timelineModule.getDetailsJson()).contains("\"opticalSuspiciousSegments\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"representativeFrames\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"heatmapImageUrl\":\"https://cdn.example/frame-heatmap.jpg\"");
+        assertThat(timelineModule.getDetailsJson()).contains("\"overlayVideoUrl\":\"https://cdn.example/overlay.mp4\"");
         assertThat(timelineModule.getDetailsJson()).contains("\"riskScore\":0.12");
         assertThat(timelineModule.getDetailsJson()).contains("\"motionMagnitude\":1.2");
     }

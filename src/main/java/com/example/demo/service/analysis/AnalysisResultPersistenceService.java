@@ -147,6 +147,9 @@ public class AnalysisResultPersistenceService {
                     .temporalSuspiciousSegments(timeline.getTemporalSuspiciousSegments())
                     .opticalSuspiciousSegments(timeline.getOpticalSuspiciousSegments())
                     .moduleTimelines(timeline.getModuleTimelines())
+                    .representativeFrames(timeline.getRepresentativeFrames())
+                    .heatmapImageUrl(timeline.getHeatmapImageUrl())
+                    .overlayVideoUrl(timeline.getOverlayVideoUrl())
                     .build();
         }
 

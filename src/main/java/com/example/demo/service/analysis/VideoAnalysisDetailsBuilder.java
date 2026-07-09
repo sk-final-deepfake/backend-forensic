@@ -46,6 +46,12 @@ public class VideoAnalysisDetailsBuilder {
                 timeline.getOpticalSuspiciousSegments() == null ? List.of() : timeline.getOpticalSuspiciousSegments()
         );
         details.put("moduleTimelines", timeline.getModuleTimelines() == null ? List.of() : timeline.getModuleTimelines());
+        details.put(
+                "representativeFrames",
+                timeline.getRepresentativeFrames() == null ? List.of() : timeline.getRepresentativeFrames()
+        );
+        details.put("heatmapImageUrl", timeline.getHeatmapImageUrl());
+        details.put("overlayVideoUrl", timeline.getOverlayVideoUrl());
         details.put("analysisReasons", evidenceItems == null ? List.of() : evidenceItems);
         return details;
     }

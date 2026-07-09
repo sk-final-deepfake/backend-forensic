@@ -58,8 +58,11 @@ public class AdminUserService {
 
     @Transactional(readOnly = true)
     public AdminReviewerListResponse listReviewers(User admin, String department) {
+        OrgType organizationFilter = resolveOrganizationFilter(admin);
+        String departmentFilter = normalizeOptionalFilter(department);
+
         List<AdminReviewerItemResponse> reviewers = userRepository
-                .findApprovedReviewers(null, null)
+                .findApprovedReviewers(organizationFilter, departmentFilter)
                 .stream()
                 .map(this::toReviewerItem)
                 .toList();
@@ -228,6 +231,13 @@ public class AdminUserService {
             return admin.getOrganizationType();
         }
         return null;
+    }
+
+    private String normalizeOptionalFilter(String value) {
+        if (value == null || value.isBlank() || "ALL".equalsIgnoreCase(value.trim())) {
+            return null;
+        }
+        return value.trim();
     }
 
     private AdminUserStatusResponse toStatusResponse(User user, Long processedByUserId) {
