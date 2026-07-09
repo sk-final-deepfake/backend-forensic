@@ -41,17 +41,17 @@ class AnalysisJobMessageFactoryTest {
                 .fileSize(100L)
                 .hashAlgorithm(Evidence.HASH_ALGORITHM_SHA256)
                 .originalHashValue("abc123")
-                .originalStoragePath("cases/test/1/original/sample.mp4")
+                .originalStoragePath("cases/test/1/original/test-case.mp4")
                 .uploadedAt(LocalDateTime.now())
                 .build();
-        evidence.activateCopy("cases/test/1/copy/sample.mp4", "abc123");
+        evidence.activateCopy("cases/test/1/copy/test-case.mp4", "abc123");
         ReflectionTestUtils.setField(evidence, "evidenceId", 1L);
 
         AnalysisRequest request = new AnalysisRequest();
         request.setAnalysisRequestId(10L);
         request.setRequestedAt(LocalDateTime.of(2026, 6, 17, 10, 0));
 
-        when(s3AnalysisAccessService.createGpuDownloadUrl("cases/test/1/copy/sample.mp4"))
+        when(s3AnalysisAccessService.createGpuDownloadUrl("cases/test/1/copy/test-case.mp4"))
                 .thenReturn("https://s3.example.com/presigned");
         when(s3AnalysisAccessService.getEvidenceBucket()).thenReturn("forenshield-evidence");
         when(s3AnalysisAccessService.getAwsRegion()).thenReturn("ap-northeast-2");
@@ -70,8 +70,8 @@ class AnalysisJobMessageFactoryTest {
 
         assertThat(message.getAnalysisRequestId()).isEqualTo(10L);
         assertThat(message.getEvidenceId()).isEqualTo(1L);
-        assertThat(message.getFilePath()).isEqualTo("cases/test/1/copy/sample.mp4");
-        assertThat(message.getS3ObjectKey()).isEqualTo("cases/test/1/copy/sample.mp4");
+        assertThat(message.getFilePath()).isEqualTo("cases/test/1/copy/test-case.mp4");
+        assertThat(message.getS3ObjectKey()).isEqualTo("cases/test/1/copy/test-case.mp4");
         assertThat(message.getS3Bucket()).isEqualTo("forenshield-evidence");
         assertThat(message.getS3Region()).isEqualTo("ap-northeast-2");
         assertThat(message.getPresignedDownloadUrl()).isEqualTo("https://s3.example.com/presigned");
