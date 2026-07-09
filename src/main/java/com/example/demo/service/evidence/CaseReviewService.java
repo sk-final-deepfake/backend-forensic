@@ -137,13 +137,6 @@ public class CaseReviewService {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "승인된 검토자만 배정할 수 있습니다.");
         }
-        if (admin.getRole() != UserRole.ROLE_ADMIN
-                && (admin.getOrganizationType() == null
-                || reviewer.getOrganizationType() == null
-                || admin.getOrganizationType() != reviewer.getOrganizationType())) {
-            throw new BusinessException(
-                    HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "동일 기관 검토자만 배정할 수 있습니다.");
-        }
         return reviewer;
     }
 

@@ -184,7 +184,6 @@ public class CaseWorkflowService {
         if (reviewer.getStatus() != UserStatus.APPROVED) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "승인된 검토자만 배정할 수 있습니다.");
         }
-        ensureSameOrganization(actor, reviewer);
 
         Long uploaderId = resolveCaseOwnerForAssignment(
                 actor,

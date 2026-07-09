@@ -58,10 +58,8 @@ public class AdminUserService {
 
     @Transactional(readOnly = true)
     public AdminReviewerListResponse listReviewers(User admin, String department) {
-        OrgType organizationType = resolveReviewerOrganizationScope(admin);
-        String departmentFilter = department == null || department.isBlank() ? null : department.trim();
         List<AdminReviewerItemResponse> reviewers = userRepository
-                .findApprovedReviewers(organizationType, departmentFilter)
+                .findApprovedReviewers(null, null)
                 .stream()
                 .map(this::toReviewerItem)
                 .toList();
@@ -123,7 +121,12 @@ public class AdminUserService {
             throw new AdminException(HttpStatus.CONFLICT, "DUPLICATE_EMAIL", "이미 사용 중인 이메일입니다.");
         }
 
-        target.updateAccountInfo(request.getDisplayName(), request.getEmail(), request.getDepartment());
+        target.updateAccountInfo(
+                request.getDisplayName(),
+                request.getEmail(),
+                request.getOrganizationType(),
+                request.getDepartment()
+        );
         if (request.getRole() != null && !request.getRole().isBlank()) {
             target.updateRole(parseAssignableRole(request.getRole()));
         }
@@ -221,13 +224,6 @@ public class AdminUserService {
     }
 
     private OrgType resolveOrganizationFilter(User admin) {
-        if (admin.getRole() == UserRole.ROLE_ORG_ADMIN) {
-            return admin.getOrganizationType();
-        }
-        return null;
-    }
-
-    private OrgType resolveReviewerOrganizationScope(User admin) {
         if (admin.getRole() == UserRole.ROLE_ORG_ADMIN) {
             return admin.getOrganizationType();
         }
