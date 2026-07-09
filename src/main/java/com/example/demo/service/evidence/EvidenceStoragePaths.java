@@ -31,6 +31,15 @@ public final class EvidenceStoragePaths {
         return "cases/" + caseKey + "/" + evidenceId + "/manifest/evidence-manifest.json";
     }
 
+    /** HLS 재생 전용 prefix (끝에 / 포함) */
+    public static String hlsPrefix(Long evidenceId) {
+        return "hls/" + evidenceId + "/";
+    }
+
+    public static String hlsMasterKey(Long evidenceId) {
+        return hlsPrefix(evidenceId) + "master.m3u8";
+    }
+
     private static String sanitize(String value) {
         return value.trim()
                 .replaceAll("[\\\\/]+", "-")

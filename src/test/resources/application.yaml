@@ -43,6 +43,10 @@ analysis:
     mode: local
     stale-reaper-enabled: false
 
+hls:
+  packaging:
+    enabled: false
+
 blockchain:
   anchor:
     enabled: true
