@@ -24,6 +24,7 @@ jwt:
   access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1200000}  # 액세스 JWT 20분 — JwtTokenProvider
   expiration-ms: ${JWT_EXPIRATION_MS:1200000}
   refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}    # 리프레시·Redis·쿠키 7일
+  step-up-expiration-minutes: ${JWT_STEP_UP_EXPIRATION_MINUTES:15}  # Step-up 재인증 TTL
 
 # AuthCookieSupport — 리프레시 JWT HttpOnly 쿠키 (AuthController 로그인·재발급·로그아웃)
 auth:
