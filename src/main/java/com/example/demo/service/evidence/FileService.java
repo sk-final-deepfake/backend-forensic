@@ -12,7 +12,7 @@ import com.example.demo.dto.ValidatedFile;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.repository.EvidenceRepository;
-import com.example.demo.util.JsonPayloadWriter;
+import com.example.demo.util.CaseNumberSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -94,7 +94,7 @@ public class FileService {
         }
 
         String trimmedCaseName = caseName.trim();
-        String trimmedCaseNumber = resolveCaseNumber(caseNumber, trimmedCaseName);
+        String trimmedCaseNumber = CaseNumberSupport.resolve(caseNumber, trimmedCaseName);
         ValidatedFile validated = fileValidationService.validate(file);
         String originalFilename = validated.fileName();
 
@@ -260,13 +260,6 @@ public class FileService {
         payload.put("caseName", evidence.getCaseName());
         payload.put("caseNumber", evidence.getCaseNumber());
         return payload;
-    }
-
-    private static String resolveCaseNumber(String caseNumber, String caseName) {
-        if (caseNumber != null && !caseNumber.isBlank()) {
-            return caseNumber.trim();
-        }
-        return caseName;
     }
 
     private Map<String, Object> hashPayload(Evidence evidence) {

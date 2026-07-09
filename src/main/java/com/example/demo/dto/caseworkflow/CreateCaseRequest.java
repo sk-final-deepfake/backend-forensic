@@ -12,4 +12,7 @@ public class CreateCaseRequest {
     @NotBlank
     @Size(max = 255)
     private String caseName;
+
+    @Size(max = 255)
+    private String caseNumber;
 }

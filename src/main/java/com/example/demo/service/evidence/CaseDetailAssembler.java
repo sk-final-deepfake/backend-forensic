@@ -8,7 +8,7 @@ import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CaseReviewStatus;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.dto.detail.CaseEvidenceSummaryDto;
-import com.example.demo.util.AnalysisStatusMapper;
+import com.example.demo.util.CaseNumberSupport;
 import com.example.demo.util.ApiDateTimeFormatter;
 import com.example.demo.util.OrganizationIdResolver;
 import java.time.LocalDateTime;
@@ -30,6 +30,7 @@ public class CaseDetailAssembler {
         CaseDetailResponse.CaseDetailResponseBuilder builder = CaseDetailResponse.builder()
                 .caseId(caseId)
                 .caseName(caseId)
+                .caseNumber(resolveCaseNumber(profile, List.of(), caseId))
                 .status("PENDING")
                 .createdAt(ApiDateTimeFormatter.formatUtc(profile.getUpdatedAt()))
                 .representativeEvidenceId(profile.getRepresentativeEvidenceId())
@@ -72,6 +73,7 @@ public class CaseDetailAssembler {
         CaseDetailResponse.CaseDetailResponseBuilder builder = CaseDetailResponse.builder()
                 .caseId(caseId)
                 .caseName(caseName)
+                .caseNumber(resolveCaseNumber(profile, evidences, caseName))
                 .status(aggregateStatus(evidences, latestByEvidence))
                 .createdAt(ApiDateTimeFormatter.formatUtc(createdAt))
                 .representativeEvidenceId(representativeEvidenceId)
@@ -108,6 +110,18 @@ public class CaseDetailAssembler {
 
     public String resolveAggregateStatus(List<Evidence> evidences, List<AnalysisRequest> analysisRequests) {
         return aggregateStatus(evidences, indexLatestRequests(analysisRequests));
+    }
+
+    private String resolveCaseNumber(CaseProfile profile, List<Evidence> evidences, String caseName) {
+        if (profile != null && profile.getCaseNumber() != null && !profile.getCaseNumber().isBlank()) {
+            return profile.getCaseNumber();
+        }
+        String fromEvidence = evidences.stream()
+                .map(Evidence::getCaseNumber)
+                .filter(number -> number != null && !number.isBlank())
+                .findFirst()
+                .orElse(null);
+        return CaseNumberSupport.resolve(fromEvidence, caseName);
     }
 
     private Map<Long, AnalysisRequest> indexLatestRequests(List<AnalysisRequest> requests) {

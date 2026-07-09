@@ -119,6 +119,24 @@ class EmptyCaseRegistrationControllerTest {
     }
 
     @Test
+    void shouldCreateEmptyCaseWithCaseNumber() throws Exception {
+        mockMvc.perform(post("/api/v1/cases")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"caseName":"딥페이크 테스트","caseNumber":"2026-서울-0123"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseName").value("딥페이크 테스트"))
+                .andExpect(jsonPath("$.caseNumber").value("2026-서울-0123"));
+
+        mockMvc.perform(get("/api/v1/cases?caseKey=딥페이크 테스트")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseNumber").value("2026-서울-0123"));
+    }
+
+    @Test
     void shouldRejectDuplicateCaseName() throws Exception {
         mockMvc.perform(post("/api/v1/cases")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
