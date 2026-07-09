@@ -17,6 +17,7 @@ import com.example.demo.service.evidence.FileService;
 import com.example.demo.service.integrity.EvidenceIntegrityResult;
 import com.example.demo.service.integrity.IntegrityVerificationService;
 import com.example.demo.service.readiness.EvidenceReadinessService;
+import com.example.demo.service.auth.StepUpAuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -50,6 +52,7 @@ public class EvidenceController {
     private final IntegrityVerificationService integrityVerificationService;
     private final AuthUserResolver authUserResolver;
     private final EvidenceReadinessService evidenceReadinessService;
+    private final StepUpAuthService stepUpAuthService;
 
     @Operation(summary = "파일 업로드", description = "파일을 서버에 업로드하고 SHA-256 해시를 생성합니다.")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -103,10 +106,22 @@ public class EvidenceController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "증거 상세", description = "증거 ID로 상세 분석·메타데이터·무결성 정보를 조회합니다. RQ-SEC-153: 조회 시 무결성 실패면 보안 알림 자동 발송.")
+// 클라이언트 요청
+// → ① JWT로 로그인 사용자 확인
+//   → ② X-Step-Up-Token 검증 (없으면 403)
+//   → ③ 무결성 검증
+//   → ④ 상세 데이터 반환
+    @Operation(
+            summary = "증거 상세",
+            description = "증거 ID로 상세 분석·메타데이터·무결성 정보를 조회합니다. X-Step-Up-Token 헤더 필수. RQ-SEC-153: 조회 시 무결성 실패면 보안 알림 자동 발송."
+    )
     @GetMapping("/{evidenceId}/detail")
-    public EvidenceDetailResponse getEvidenceDetail(@PathVariable Long evidenceId) {
+    public EvidenceDetailResponse getEvidenceDetail(
+            @PathVariable Long evidenceId,
+            @RequestHeader(value = "X-Step-Up-Token", required = false) String stepUpToken
+    ) {
         var user = authUserResolver.requireCurrentUser();
+        stepUpAuthService.requireValidStepUp(user, stepUpToken);
         EvidenceIntegrityResult integrity = integrityVerificationService.verifyAndNotifySecurityIssues(user, evidenceId);
         return evidenceDetailService.getEvidenceDetail(integrity.evidence(), integrity.verification());
     }

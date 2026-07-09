@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -26,7 +28,8 @@ public class SignupRateLimitInterceptor implements HandlerInterceptor {
         RateLimitDecision decision = rateLimitService.check(
                 request.getMethod(),
                 request.getRequestURI(),
-                resolveClientIp(request)
+                resolveClientIp(request),
+                resolveAuthenticatedLoginId()
         );
 
         if (decision.allowed()) {
@@ -51,5 +54,17 @@ public class SignupRateLimitInterceptor implements HandlerInterceptor {
             return forwardedFor.split(",")[0].trim();
         }
         return request.getRemoteAddr();
+    }
+
+    private String resolveAuthenticatedLoginId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        Object principal = authentication.getPrincipal();
+        if (principal == null || "anonymousUser".equals(principal)) {
+            return null;
+        }
+        return principal.toString();
     }
 }

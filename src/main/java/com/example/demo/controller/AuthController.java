@@ -1,15 +1,21 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.OpenApiConfig;
 import com.example.demo.dto.AuthenticatedTokens;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.LoginResponse;
+import com.example.demo.dto.auth.StepUpVerifyRequest;
+import com.example.demo.dto.auth.StepUpVerifyResponse;
 import com.example.demo.dto.signup.SignupRequest;
 import com.example.demo.dto.signup.SignupResponse;
 import com.example.demo.dto.signup.UsernameCheckResponse;
 import com.example.demo.security.AuthCookieSupport;
+import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.auth.AuthService;
 import com.example.demo.service.auth.SignupService;
+import com.example.demo.service.auth.StepUpAuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -39,6 +45,8 @@ public class AuthController {
     private final AuthService authService;
     private final SignupService signupService;
     private final AuthCookieSupport authCookieSupport;
+    private final StepUpAuthService stepUpAuthService;
+    private final AuthUserResolver authUserResolver;
 
     // 액세스 JWT는 JSON, 리프레시 JWT는 Set-Cookie
     @Operation(summary = "로그인", description = "accessToken 을 응답으로 받습니다. Swagger Authorize 에 토큰만 붙여넣으세요.")
@@ -76,6 +84,21 @@ public class AuthController {
         authService.logout(authorization, refreshToken);
         authCookieSupport.clearRefreshTokenCookie(response);
         return ResponseEntity.noContent().build();
+    }
+
+    // Step-up 재인증 기능 추가
+    @Operation(
+            summary = "Step-up 재인증",
+            description = "민감 정보(증거 상세) 조회 전 비밀번호 재확인. 성공 시 stepUpToken을 X-Step-Up-Token 헤더로 사용합니다."
+    )
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @PostMapping("/api/v1/auth/step-up/verify")
+    public ResponseEntity<StepUpVerifyResponse> verifyStepUp(@Valid @RequestBody StepUpVerifyRequest request) {
+        StepUpVerifyResponse response = stepUpAuthService.verifyAndIssueToken(
+                authUserResolver.requireCurrentUser(),
+                request.getPassword()
+        );
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "회원가입")
