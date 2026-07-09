@@ -109,7 +109,7 @@ class FileValidationIntegrationTest {
     @Test
     @DisplayName("지원하지 않는 파일 형식 업로드 시 UNSUPPORTED_FILE_TYPE 오류 반환")
     void upload_UnsupportedFileType_ReturnsError() throws Exception {
-        when(fileService.upload(any(), any(), any())).thenThrow(new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 영상(MP4, MOV) 파일만 업로드할 수 있습니다."));
+        when(fileService.upload(any(), any(), any(), any())).thenThrow(new UnsupportedFileTypeException("지원하지 않는 파일 형식입니다. 영상(MP4, MOV) 파일만 업로드할 수 있습니다."));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "test.txt", "text/plain", "unsupported content".getBytes());
@@ -125,7 +125,7 @@ class FileValidationIntegrationTest {
     @Test
     @DisplayName("파일 용량 초과 시 FILE_SIZE_EXCEEDED 오류 반환")
     void upload_FileSizeExceeded_ReturnsError() throws Exception {
-        when(fileService.upload(any(), any(), any())).thenThrow(new FileSizeExceededException("VIDEO 파일의 최대 허용 용량은 500MB입니다."));
+        when(fileService.upload(any(), any(), any(), any())).thenThrow(new FileSizeExceededException("VIDEO 파일의 최대 허용 용량은 500MB입니다."));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "large.mp4", "video/mp4", new byte[1024]);
