@@ -53,6 +53,11 @@ public class EvidenceHlsPackagingService {
         if (!properties.isEnabled()) {
             return;
         }
+        HlsStatus statusBeforeAttempt = evidenceHlsRepository.findByEvidenceId(evidenceId)
+                .map(EvidenceHls::getHlsStatus)
+                .orElse(HlsStatus.PENDING);
+        boolean shouldRecordFailureAudit = statusBeforeAttempt != HlsStatus.FAILED;
+
         if (!tryMarkPackaging(evidenceId)) {
             log.debug("Skip HLS packaging evidenceId={} (already running or ready)", evidenceId);
             return;
@@ -63,7 +68,10 @@ public class EvidenceHlsPackagingService {
             Evidence evidence = evidenceRepository.findByEvidenceId(evidenceId)
                     .orElseThrow(() -> new IllegalStateException("Evidence not found: " + evidenceId));
             if (evidence.getFileType() != FileType.VIDEO) {
-                markFailed(evidenceId, "HLS packaging is only supported for VIDEO evidence");
+                markFailed(evidenceId, "HLS packaging is only supported for VIDEO evidence", true);
+                if (shouldRecordFailureAudit) {
+                    recordPackaged(evidence, false, "HLS packaging is only supported for VIDEO evidence");
+                }
                 return;
             }
 
@@ -93,6 +101,7 @@ public class EvidenceHlsPackagingService {
 
             String s3Prefix = EvidenceStoragePaths.hlsPrefix(evidenceId);
             workFileService.uploadPackagedFiles(workDir, s3Prefix);
+            workFileService.purgeStrayUploadsUnderPrefix(s3Prefix);
 
             byte[] encryptedKey = contentKeyProtector.encrypt(contentKey);
             markReady(evidenceId, s3Prefix, encryptedKey);
@@ -100,9 +109,12 @@ public class EvidenceHlsPackagingService {
             log.info("HLS packaging completed evidenceId={} prefix={}", evidenceId, s3Prefix);
         } catch (Exception ex) {
             log.error("HLS packaging failed evidenceId={}", evidenceId, ex);
-            markFailed(evidenceId, truncate(ex.getMessage()));
-            evidenceRepository.findByEvidenceId(evidenceId).ifPresent(evidence ->
-                    recordPackaged(evidence, false, ex.getMessage()));
+            boolean permanent = HlsPackagingFailureClassifier.isPermanent(ex);
+            markFailed(evidenceId, truncate(ex.getMessage()), permanent);
+            if (shouldRecordFailureAudit) {
+                evidenceRepository.findByEvidenceId(evidenceId).ifPresent(evidence ->
+                        recordPackaged(evidence, false, ex.getMessage()));
+            }
         } finally {
             if (workDir != null) {
                 workFileService.deleteDirectoryQuietly(workDir);
@@ -133,9 +145,14 @@ public class EvidenceHlsPackagingService {
 
     @Transactional
     public void markFailed(Long evidenceId, String errorMessage) {
+        markFailed(evidenceId, errorMessage, false);
+    }
+
+    @Transactional
+    public void markFailed(Long evidenceId, String errorMessage, boolean permanent) {
         EvidenceHls hls = evidenceHlsRepository.findByEvidenceId(evidenceId)
                 .orElseGet(() -> EvidenceHls.createPending(evidenceId, LocalDateTime.now()));
-        hls.markFailed(errorMessage, LocalDateTime.now());
+        hls.markFailed(HlsPackagingFailureClassifier.toStoredError(errorMessage, permanent), LocalDateTime.now());
         evidenceHlsRepository.save(hls);
     }
 
@@ -229,7 +246,7 @@ public class EvidenceHlsPackagingService {
                 "EVIDENCE_HLS_PACKAGED",
                 evidence.getOriginalHashValue(),
                 evidence.getOriginalStoragePath(),
-                success ? "HLS 패키징 완료" : "HLS 패키징 실패",
+                success ? "HLS 패키징 완료 · EVD-" + evidence.getEvidenceId() : "HLS 패키징 실패 · EVD-" + evidence.getEvidenceId(),
                 jsonPayloadWriter.toJson(payload),
                 null
         );

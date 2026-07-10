@@ -14,9 +14,13 @@ import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @Slf4j
 @Service
@@ -61,7 +65,7 @@ public class EvidenceHlsWorkFileService {
 
     private void uploadSingle(Path file, Path workDir, String s3Prefix) {
         String relative = workDir.relativize(file).toString().replace('\\', '/');
-        if (relative.equals("enc.key") || relative.endsWith("/enc.key") || relative.equals("keyinfo.txt")) {
+        if (!shouldUploadToHlsPrefix(relative)) {
             return;
         }
         String key = s3Prefix + relative;
@@ -72,6 +76,65 @@ public class EvidenceHlsWorkFileService {
                         .build(),
                 RequestBody.fromFile(file));
         log.debug("Uploaded HLS object s3://{}/{}", evidenceBucket, key);
+    }
+
+    public int purgeStrayUploadsUnderPrefix(String s3Prefix) {
+        if (s3Prefix == null || s3Prefix.isBlank()) {
+            return 0;
+        }
+        int deleted = 0;
+        String continuationToken = null;
+        do {
+            ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+                    .bucket(evidenceBucket)
+                    .prefix(s3Prefix)
+                    .maxKeys(200);
+            if (continuationToken != null) {
+                requestBuilder.continuationToken(continuationToken);
+            }
+            ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+            for (S3Object object : response.contents()) {
+                if (!isStrayHlsArtifact(object.key())) {
+                    continue;
+                }
+                s3Client.deleteObject(DeleteObjectRequest.builder()
+                        .bucket(evidenceBucket)
+                        .key(object.key())
+                        .build());
+                deleted++;
+                log.info("Removed stray HLS artifact s3://{}/{}", evidenceBucket, object.key());
+            }
+            continuationToken = response.isTruncated() ? response.nextContinuationToken() : null;
+        } while (continuationToken != null);
+        return deleted;
+    }
+
+    private boolean shouldUploadToHlsPrefix(String relative) {
+        if (relative.equals("enc.key")
+                || relative.endsWith("/enc.key")
+                || relative.equals("keyinfo.txt")
+                || relative.endsWith("/keyinfo.txt")) {
+            return false;
+        }
+        String lower = relative.toLowerCase();
+        return lower.endsWith(".m3u8") || lower.endsWith(".ts");
+    }
+
+    private boolean isStrayHlsArtifact(String key) {
+        if (key == null || key.isBlank()) {
+            return false;
+        }
+        String lower = key.toLowerCase();
+        return lower.endsWith(".mp4")
+                || lower.endsWith(".mov")
+                || lower.endsWith(".mkv")
+                || lower.endsWith(".webm")
+                || lower.endsWith(".avi")
+                || lower.endsWith(".m4v")
+                || lower.endsWith(".keyinfo.txt")
+                || lower.endsWith("/keyinfo.txt")
+                || lower.endsWith(".key")
+                || lower.endsWith("/enc.key");
     }
 
     public void deleteDirectoryQuietly(Path workDir) {
