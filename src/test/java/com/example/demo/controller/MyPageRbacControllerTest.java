@@ -240,7 +240,7 @@ class MyPageRbacControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("ROLE_REVIEWER"));
+                .andExpect(jsonPath("$.role").value("REVIEWER"));
     }
 
     private Evidence saveEvidence(User uploader, String caseName, String fileName) {

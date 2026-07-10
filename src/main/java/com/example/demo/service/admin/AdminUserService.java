@@ -224,7 +224,7 @@ public class AdminUserService {
                 .department(user.getDepartment())
                 .joinedAt(user.getCreatedAt().toLocalDate().toString())
                 .status(user.getStatus().name())
-                .role(UserRoleSupport.toApiRole(user.getRole()).name())
+                .role(UserRoleSupport.toClientRole(user.getRole()))
                 .organizationType(user.getOrganizationType() == null ? null : user.getOrganizationType().name())
                 .organizationId(OrganizationIdResolver.resolve(user.getOrganizationType()))
                 .organizationName(OrganizationIdResolver.displayName(user.getOrganizationType()))

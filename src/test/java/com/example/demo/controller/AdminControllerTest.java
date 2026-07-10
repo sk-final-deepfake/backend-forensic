@@ -129,7 +129,10 @@ class AdminControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.content[0].username").exists());
+                .andExpect(jsonPath("$.content[0].username").exists())
+                .andExpect(jsonPath("$.content[*].role").value(
+                        org.hamcrest.Matchers.containsInAnyOrder("ORG_ADMIN", "INVESTIGATOR", "INVESTIGATOR")
+                ));
     }
 
     @Test
