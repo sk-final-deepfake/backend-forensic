@@ -66,6 +66,18 @@ class EvidenceHlsControllerTest extends AbstractEvidenceIntegrationTest {
                 .andExpect(jsonPath("$.errorCode").value("STEP_UP_REQUIRED"));
     }
 
+    @Test
+    @DisplayName("streamToken 없이 HLS manifest 요청 시 403")
+    void manifest_withoutStreamToken_returnsForbidden() throws Exception {
+        long evidenceId = uploadVideoEvidence("hls-manifest-guard.mp4");
+        markHlsReady(evidenceId);
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/hls/master.m3u8", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("STREAM_TOKEN_REQUIRED"));
+    }
+
     private long uploadVideoEvidence(String fileName) throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
