@@ -83,7 +83,7 @@ public class CaseWorkflowService {
         }
 
         for (Evidence evidence : caseEvidences) {
-            evidence.updateCaseInfo(trimmedName);
+            evidence.renameCase(oldKey, trimmedName);
             evidenceRepository.save(evidence);
         }
 

@@ -23,6 +23,7 @@ import com.example.demo.repository.UserRepository;
 import com.example.demo.service.analysis.AnalysisWorkerService;
 import com.example.demo.support.JwtTestSupport;
 import com.example.demo.support.StepUpTestSupport;
+import com.example.demo.security.SignupRateLimitService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -80,6 +81,9 @@ class Sprint45E2EIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private SignupRateLimitService signupRateLimitService;
+
     private String userToken;
     private String stepUpToken;
     private User testUser;
@@ -87,6 +91,7 @@ class Sprint45E2EIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        signupRateLimitService.reset();
         analysisModuleResultRepository.deleteAll();
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();

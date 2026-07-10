@@ -171,6 +171,30 @@ class AdminControllerTest {
     }
 
     @Test
+    void reactivateSuspendedUser_restoresApprovedStatusAndLogin() throws Exception {
+        User approvedUser = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+
+        mockMvc.perform(post("/api/v1/admin/users/{userId}/suspend", approvedUser.getUserId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/admin/users/{userId}/reactivate", approvedUser.getUserId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        assertThat(custodyLogRepository.findAll())
+                .extracting(log -> log.getActionType())
+                .contains("USER_REACTIVATED");
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"loginId":"1111","password":"2222"}
+                                """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void rejectPendingUser_recordsRejectedStatus() throws Exception {
         mockMvc.perform(post("/api/v1/admin/users/{userId}/reject", pendingUserId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))

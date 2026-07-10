@@ -12,5 +12,4 @@ public class RepresentativeFrameDto {
     private Integer frameNumber;
     private Double score;
     private String imageUrl;
-    private String heatmapUrl;
 }

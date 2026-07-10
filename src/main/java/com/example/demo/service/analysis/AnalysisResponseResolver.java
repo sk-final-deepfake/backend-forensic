@@ -109,7 +109,6 @@ public class AnalysisResponseResolver {
                 .opticalSuspiciousSegments(toSuspiciousSegmentDtos(videoResult.getOpticalSuspiciousSegments()))
                 .moduleTimelines(toModuleTimelineDtos(videoResult.getModuleTimelines()))
                 .representativeFrames(toRepresentativeFrameDtos(videoResult.getRepresentativeFrames()))
-                .heatmapImageUrl(videoResult.getHeatmapImageUrl())
                 .overlayVideoUrl(videoResult.getOverlayVideoUrl())
                 .build();
     }
@@ -225,7 +224,6 @@ public class AnalysisResponseResolver {
                         .frameNumber(item.getFrameNumber())
                         .score(item.getScore())
                         .imageUrl(item.getImageUrl())
-                        .heatmapUrl(item.getHeatmapUrl())
                         .build())
                 .toList();
     }

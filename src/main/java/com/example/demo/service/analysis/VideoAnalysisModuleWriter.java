@@ -142,7 +142,6 @@ public class VideoAnalysisModuleWriter {
                 || !timeline.getOpticalSuspiciousSegments().isEmpty()
                 || !timeline.getModuleTimelines().isEmpty()
                 || (timeline.getRepresentativeFrames() != null && !timeline.getRepresentativeFrames().isEmpty())
-                || timeline.getHeatmapImageUrl() != null
                 || timeline.getOverlayVideoUrl() != null;
     }
 

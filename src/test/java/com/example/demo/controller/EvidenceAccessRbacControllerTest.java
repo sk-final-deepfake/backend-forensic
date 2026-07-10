@@ -12,6 +12,7 @@ import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.support.JwtTestSupport;
 import com.example.demo.support.StepUpTestSupport;
+import com.example.demo.security.SignupRateLimitService;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +52,9 @@ class EvidenceAccessRbacControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private SignupRateLimitService signupRateLimitService;
+
     private User investigator;
     private User reviewer;
     private User orgAdmin;
@@ -66,6 +70,7 @@ class EvidenceAccessRbacControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        signupRateLimitService.reset();
         caseProfileRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();

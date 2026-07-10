@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 
@@ -58,9 +59,7 @@ class StepUpAuthServiceExtendTest {
                 .status(UserStatus.APPROVED)
                 .darkMode(false)
                 .build();
-        Field userIdField = User.class.getDeclaredField("userId");
-        userIdField.setAccessible(true);
-        userIdField.set(user, 10L);
+        ReflectionTestUtils.setField(user, "userId", 10L);
     }
 
     @Test

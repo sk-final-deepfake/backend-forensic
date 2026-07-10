@@ -47,20 +47,16 @@ class VisualizationArtifactUrlRefresherTest {
     }
 
     @Test
-    void refreshFrames_refreshesImageAndHeatmapUrls() {
+    void refreshFrames_refreshesImageUrls() {
         when(s3AnalysisAccessService.createPresignedOriginalUrl(eq("deepfake/artifacts/analysis/158/161/frame.jpg")))
                 .thenReturn("https://fresh.example/frame.jpg");
-        when(s3AnalysisAccessService.createPresignedOriginalUrl(eq("deepfake/artifacts/analysis/158/161/frame_heatmap.jpg")))
-                .thenReturn("https://fresh.example/frame_heatmap.jpg");
 
         List<RepresentativeFrameDto> refreshed = refresher.refreshFrames(List.of(
                 RepresentativeFrameDto.builder()
                         .imageUrl("https://forenshield-evidence-877044078824.s3.amazonaws.com/deepfake/artifacts/analysis/158/161/frame.jpg?old=1")
-                        .heatmapUrl("https://forenshield-evidence-877044078824.s3.amazonaws.com/deepfake/artifacts/analysis/158/161/frame_heatmap.jpg?old=1")
                         .build()
         ));
 
         assertThat(refreshed.get(0).getImageUrl()).isEqualTo("https://fresh.example/frame.jpg");
-        assertThat(refreshed.get(0).getHeatmapUrl()).isEqualTo("https://fresh.example/frame_heatmap.jpg");
     }
 }

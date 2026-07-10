@@ -117,6 +117,22 @@ public class AdminUserService {
     }
 
     @Transactional
+    public AdminUserStatusResponse reactivate(User admin, Long userId) {
+        User target = findActiveUser(userId);
+        if (target.getStatus() != UserStatus.SUSPENDED && target.getStatus() != UserStatus.REJECTED) {
+            throw new AdminException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_USER_STATUS",
+                    "SUSPENDED 또는 REJECTED 상태의 계정만 재활성할 수 있습니다."
+            );
+        }
+
+        target.updateStatus(UserStatus.APPROVED);
+        custodyLogService.recordUserAction(admin, target, "USER_REACTIVATED", target.getLoginId());
+        return toStatusResponse(target, admin.getUserId());
+    }
+
+    @Transactional
     public AdminUserItemResponse updateUser(Long userId, UpdateAdminUserRequest request) {
         User target = findActiveUser(userId);
 

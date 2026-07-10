@@ -16,6 +16,7 @@ public final class LogCategoryMapper {
             "USER_APPROVED",
             "USER_REJECTED",
             "USER_SUSPENDED",
+            "USER_REACTIVATED",
             "USER_DELETED",
             "USER_PASSWORD_RESET"
     );
@@ -86,6 +87,7 @@ public final class LogCategoryMapper {
             case "USER_APPROVED" -> "가입 승인";
             case "USER_REJECTED" -> "가입 반려";
             case "USER_SUSPENDED" -> "계정 정지";
+            case "USER_REACTIVATED" -> "계정 재활성";
             case "USER_DELETED" -> "계정 삭제";
             case "USER_PASSWORD_RESET" -> "비밀번호 재설정";
             case "EVIDENCE_UPLOADED" -> "증거 업로드";
