@@ -40,6 +40,10 @@ analysis:
     mode: local
     step-delay-ms: 600
 
+hls:
+  packaging:
+    enabled: false
+
 blockchain:
   anchor:
     enabled: true
