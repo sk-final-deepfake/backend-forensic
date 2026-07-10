@@ -34,7 +34,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/login",
-                                "/api/auth/refresh",  // 쿠키 기반 재발급 — JWT 없이 허용
+                                "/api/auth/refresh",  // 비활성화 시 401 — 쿠키 기반 자동 재발급 차단
                                 "/api/auth/logout",   // 쿠키·선택적 Bearer로 리프레시 무효화
                                 "/api/v1/auth/signup",
                                 "/api/v1/auth/username/check",

@@ -1,5 +1,6 @@
 package com.example.demo.service.auth;
 
+import com.example.demo.config.AuthRefreshProperties;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.dto.AuthenticatedTokens;
@@ -24,6 +25,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRedisService refreshTokenRedisService;
+    private final AuthRefreshProperties authRefreshProperties;
 
     // ID·비밀번호 검증 → 승인 계정만 → JWT 쌍 발급 → Redis에 리프레시 저장
     @Transactional(readOnly = true)
@@ -46,13 +48,23 @@ public class AuthService {
         validateApprovedStatus(user);
 
         TokenResponse tokens = jwtTokenProvider.createTokenResponse(user);
-        refreshTokenRedisService.saveRefreshToken(user.getUserId(), tokens.getRefreshToken());
+        if (authRefreshProperties.isEnabled()) {
+            refreshTokenRedisService.saveRefreshToken(user.getUserId(), tokens.getRefreshToken());
+        }
         return new AuthenticatedTokens(user, tokens);
     }
 
     // 쿠키의 리프레시 JWT 검증 → Redis 일치 확인 → 새 JWT 쌍 발급(rotation)
     @Transactional(readOnly = true)
     public AuthenticatedTokens reissue(String refreshToken) {
+        if (!authRefreshProperties.isEnabled()) {
+            throw new AuthException(
+                    HttpStatus.UNAUTHORIZED,
+                    "REFRESH_DISABLED",
+                    "자동 로그인이 비활성화되어 있습니다. 다시 로그인해 주세요."
+            );
+        }
+
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new AuthException(
                     HttpStatus.UNAUTHORIZED,

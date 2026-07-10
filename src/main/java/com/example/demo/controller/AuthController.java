@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.AuthRefreshProperties;
 import com.example.demo.config.OpenApiConfig;
 import com.example.demo.dto.AuthenticatedTokens;
 import com.example.demo.dto.LoginRequest;
@@ -45,6 +46,7 @@ public class AuthController {
     private final AuthService authService;
     private final SignupService signupService;
     private final AuthCookieSupport authCookieSupport;
+    private final AuthRefreshProperties authRefreshProperties;
     private final StepUpAuthService stepUpAuthService;
     private final AuthUserResolver authUserResolver;
 
@@ -57,7 +59,7 @@ public class AuthController {
             HttpServletResponse response
     ) {
         AuthenticatedTokens result = authService.login(request);
-        authCookieSupport.addRefreshTokenCookie(response, result.tokens().getRefreshToken());
+        applyRefreshCookiePolicy(response, result.tokens().getRefreshToken());
         return ResponseEntity.ok(LoginResponse.from(result.user(), result.tokens()));
     }
 
@@ -69,8 +71,12 @@ public class AuthController {
             @CookieValue(name = "refreshToken", required = false) String refreshToken,
             HttpServletResponse response
     ) {
+        if (!authRefreshProperties.isEnabled()) {
+            authCookieSupport.clearRefreshTokenCookie(response);
+        }
+
         AuthenticatedTokens result = authService.reissue(refreshToken);
-        authCookieSupport.addRefreshTokenCookie(response, result.tokens().getRefreshToken());
+        applyRefreshCookiePolicy(response, result.tokens().getRefreshToken());
         return ResponseEntity.ok(LoginResponse.from(result.user(), result.tokens()));
     }
 
@@ -115,5 +121,13 @@ public class AuthController {
         return UsernameCheckResponse.builder()
                 .available(signupService.isLoginIdAvailable(loginId))
                 .build();
+    }
+
+    private void applyRefreshCookiePolicy(HttpServletResponse response, String refreshToken) {
+        if (authRefreshProperties.isEnabled()) {
+            authCookieSupport.addRefreshTokenCookie(response, refreshToken);
+            return;
+        }
+        authCookieSupport.clearRefreshTokenCookie(response);
     }
 }
