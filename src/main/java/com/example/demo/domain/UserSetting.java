@@ -2,6 +2,7 @@ package com.example.demo.domain;
 
 import com.example.demo.domain.enums.DateDisplayFormat;
 import com.example.demo.domain.enums.ListViewMode;
+import com.example.demo.domain.enums.ListSortMode;
 import com.example.demo.domain.enums.ThemeMode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,6 +43,15 @@ public class UserSetting {
     @Enumerated(EnumType.STRING)
     @Column(name = "list_view_mode", nullable = false, length = 10)
     private ListViewMode listViewMode = ListViewMode.TABLE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "list_sort_mode",
+            nullable = false,
+            length = 20,
+            columnDefinition = "varchar(20) default 'NEWEST'"
+    )
+    private ListSortMode listSortMode = ListSortMode.NEWEST;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "theme_mode", nullable = false, length = 10)

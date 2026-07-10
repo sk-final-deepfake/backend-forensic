@@ -4,6 +4,7 @@ import com.example.demo.dto.compare.CompareFileInfoDto;
 import com.example.demo.dto.compare.CompareOriginalPageResponse;
 import com.example.demo.dto.compare.CompareResultResponse;
 import com.example.demo.dto.compare.CompareVerifyResponse;
+import com.example.demo.dto.compare.RegisteredCompareRequest;
 import com.example.demo.security.AuthUserResolver;
 import com.example.demo.service.compare.CompareVerificationService;
 import com.example.demo.service.report.ReportPdfService;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -70,6 +73,18 @@ public class CompareController {
                 evidenceId,
                 file,
                 requestId
+        );
+    }
+
+    @Operation(summary = "등록 증거 간 비교 검증", description = "사건에 등록된 두 증거의 해시·메타데이터를 비교합니다.")
+    @PostMapping(value = "/verify-registered", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public CompareVerifyResponse verifyRegistered(
+            @Valid @RequestBody RegisteredCompareRequest request
+    ) {
+        return compareVerificationService.verifyRegistered(
+                authUserResolver.requireCurrentUser(),
+                request.getOriginalEvidenceId(),
+                request.getCandidateEvidenceId()
         );
     }
 

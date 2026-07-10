@@ -93,6 +93,65 @@ public class CompareVerificationService {
         }
     }
 
+    @Transactional
+    public CompareVerifyResponse verifyRegistered(
+            User user,
+            Long originalEvidenceId,
+            Long candidateEvidenceId
+    ) {
+        if (originalEvidenceId.equals(candidateEvidenceId)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "SAME_EVIDENCE",
+                    "서로 다른 두 증거를 선택해 주세요."
+            );
+        }
+
+        Evidence original = evidenceAccessService.requireOwned(user, originalEvidenceId);
+        Evidence candidate = evidenceAccessService.requireOwned(user, candidateEvidenceId);
+        EvidenceMetadata originalMetadata = evidenceMetadataRepository
+                .findByEvidenceId(originalEvidenceId)
+                .orElse(null);
+        String candidateHash = candidate.getOriginalHashValue();
+        long candidateSize = candidate.getFileSize();
+        var originalProbe = originalProbeExtractor.extract(original);
+        var candidateProbe = originalProbeExtractor.extract(candidate);
+
+        List<CompareItemDto> items = compareItemEvaluator.buildComparisonItems(
+                original,
+                originalMetadata,
+                candidateHash,
+                candidateSize,
+                originalProbe,
+                candidateProbe
+        );
+        CompareSummaryDto summary = compareItemEvaluator.summarize(items);
+        CompareVerdict verdict = compareItemEvaluator.determineVerdict(
+                items,
+                candidateHash,
+                original.getOriginalHashValue()
+        );
+        CompareVerification saved = persistVerification(
+                user.getUserId(),
+                originalEvidenceId,
+                candidate.getFileName(),
+                candidateHash,
+                candidateSize,
+                verdict,
+                summary,
+                items
+        );
+
+        return compareVerificationAssembler.toVerifyResponse(
+                saved,
+                original,
+                items,
+                summary,
+                compareTrustMetadataAssembler.buildSignatureInfo(original),
+                compareTrustMetadataAssembler.buildBlockchainInfo(original)
+        );
+    }
+
     @Transactional(readOnly = true)
     public CompareResultResponse getResult(User user, Long compareId) {
         CompareVerification verification = requireOwnedVerification(user, compareId);

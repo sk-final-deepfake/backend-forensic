@@ -3,6 +3,7 @@ package com.example.demo.service.user;
 import com.example.demo.domain.UserSetting;
 import com.example.demo.domain.enums.DateDisplayFormat;
 import com.example.demo.domain.enums.ListViewMode;
+import com.example.demo.domain.enums.ListSortMode;
 import com.example.demo.domain.enums.ThemeMode;
 import com.example.demo.dto.user.UpdateUserSettingsRequest;
 import com.example.demo.dto.user.UserSettingsResponse;
@@ -41,6 +42,9 @@ public class UserSettingsService {
         if (request.getListViewMode() != null) {
             setting.setListViewMode(request.getListViewMode());
         }
+        if (request.getListSortMode() != null) {
+            setting.setListSortMode(request.getListSortMode());
+        }
         if (request.getThemeMode() != null) {
             setting.setThemeMode(request.getThemeMode());
             syncUserDarkMode(userId, request.getThemeMode());
@@ -76,6 +80,7 @@ public class UserSettingsService {
         setting.setDateDisplayFormat(DateDisplayFormat.ISO);
         setting.setAnalysisCompleteNotificationEnabled(true);
         setting.setListViewMode(ListViewMode.TABLE);
+        setting.setListSortMode(ListSortMode.NEWEST);
         setting.setThemeMode(resolveInitialTheme(userId));
         setting.setUpdatedAt(LocalDateTime.now());
         return setting;
@@ -102,6 +107,9 @@ public class UserSettingsService {
                 .dateDisplayFormat(setting.getDateDisplayFormat())
                 .analysisCompleteNotificationEnabled(setting.isAnalysisCompleteNotificationEnabled())
                 .listViewMode(setting.getListViewMode())
+                .listSortMode(setting.getListSortMode() == null
+                        ? ListSortMode.NEWEST
+                        : setting.getListSortMode())
                 .themeMode(setting.getThemeMode())
                 .updatedAt(ApiDateTimeFormatter.formatUtc(setting.getUpdatedAt()))
                 .build();
