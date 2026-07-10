@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 public class AnalysisInfoAssembler {
 
     private final VideoModuleDetailsReader videoModuleDetailsReader;
+    private final VisualizationArtifactUrlRefresher visualizationArtifactUrlRefresher;
 
     public AnalysisInfoDto assemble(
             AnalysisRequest request,
@@ -115,9 +116,8 @@ public class AnalysisInfoAssembler {
                 .temporalSuspiciousSegments(visualization.temporalSuspiciousSegments())
                 .opticalSuspiciousSegments(visualization.opticalSuspiciousSegments())
                 .moduleTimelines(visualization.moduleTimelines())
-                .representativeFrames(visualization.representativeFrames())
-                .heatmapImageUrl(visualization.heatmapImageUrl())
-                .overlayVideoUrl(visualization.overlayVideoUrl());
+                .representativeFrames(visualizationArtifactUrlRefresher.refreshFrames(visualization.representativeFrames()))
+                .overlayVideoUrl(visualizationArtifactUrlRefresher.refresh(visualization.overlayVideoUrl()));
     }
 
     private String pendingSummary(String status) {
