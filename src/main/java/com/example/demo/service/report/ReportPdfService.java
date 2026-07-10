@@ -69,6 +69,7 @@ public class ReportPdfService {
     private final ReportContentBuilder reportContentBuilder;
     private final ReportPdfStorageService reportPdfStorageService;
     private final ReportCustodyLogService reportCustodyLogService;
+    private final ReportPdfPersistenceService reportPdfPersistenceService;
     private final EvidenceManifestService evidenceManifestService;
     private final BlockchainAnchorRepository blockchainAnchorRepository;
 
@@ -78,12 +79,10 @@ public class ReportPdfService {
     @Value("${report.public-access-ttl-days:7}")
     private long publicAccessTtlDays;
 
-    @Transactional
     public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId) {
         return generateEvidenceReport(user, evidenceId, false);
     }
 
-    @Transactional
     public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId, boolean preview) {
         Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         AnalysisRequest request = requireCompletedAnalysis(evidenceId);
@@ -91,65 +90,22 @@ public class ReportPdfService {
         List<AnalysisModuleResult> modules = analysisModuleResultRepository
                 .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
 
-        List<String> lines = reportContentBuilder.buildEvidenceLines(evidence, request, result, modules);
-        boolean approvedForReport = isApprovedForReport(evidence, request);
-        if (!preview && !approvedForReport) {
-            throw new BusinessException(
-                    HttpStatus.CONFLICT,
-                    "REPORT_NOT_APPROVED",
-                    "검토 승인 완료 후 최종 PDF를 다운로드할 수 있습니다."
-            );
-        }
-
-        Report report = reportRepository
-                .findTopByAnalysisResultIdOrderByCreatedAtDesc(result.getAnalysisResultId())
-                .orElseGet(() -> reportPdfStorageService.persistAnalysisReport(
-                        result.getAnalysisResultId(),
-                        evidenceId,
-                        evidence.getUploaderId(),
-                        "analysis-report-" + evidenceId + ".pdf",
-                        lines,
-                        "ForenShield Analysis Report"
-                ));
-
-        if (approvedForReport && !report.isIssued()) {
-            report = reportPdfStorageService.issueReport(
-                    report,
-                    user.getUserId(),
-                    lines,
-                    "ForenShield Analysis Report"
-            );
-        }
-
-        if (!preview && !report.isIssued()) {
-            throw new BusinessException(
-                    HttpStatus.CONFLICT,
-                    "REPORT_NOT_APPROVED",
-                    "검토 승인 완료 후 최종 PDF를 다운로드할 수 있습니다."
-            );
-        }
-
-        byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
-        if (preview) {
-            return new ReportPdfPayload(
-                    report.getReportFileName(),
-                    reportPdfStorageService.addPreviewWatermark(pdfBytes),
-                    report.getReportHash(),
-                    report.getPublicationStatus().name(),
-                    report.getReportVersion()
-            );
-        }
-
-        reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
-        return toPayload(report, pdfBytes);
+        return reportPdfPersistenceService.persistEvidenceReport(
+                user,
+                evidenceId,
+                preview,
+                evidence,
+                request,
+                result,
+                modules,
+                isApprovedForReport(evidence, request)
+        );
     }
 
-    @Transactional
     public ReportPdfPayload generateCompareReport(User user, Long compareId) {
         return generateCompareReport(user, compareId, false);
     }
 
-    @Transactional
     public ReportPdfPayload generateCompareReport(User user, Long compareId, boolean preview) {
         CompareVerification verification = compareVerificationService.requireOwnedVerification(user, compareId);
         List<CompareItemDto> items = compareVerificationAssembler.deserializeItems(verification.getResultJson());
@@ -160,61 +116,21 @@ public class ReportPdfService {
         );
         CompareFileInfoDto candidateInfo = compareVerificationService.getCandidateFileInfo(user, compareId);
 
-        List<String> lines = reportContentBuilder.buildCompareLines(
-                verification, originalInfo, candidateInfo, items);
-
         AnalysisRequest originalAnalysis = analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(original.getEvidenceId())
                 .orElse(null);
-        boolean approvedForReport = isApprovedForReport(original, originalAnalysis);
-        if (!preview && !approvedForReport) {
-            throw new BusinessException(
-                    HttpStatus.CONFLICT,
-                    "REPORT_NOT_APPROVED",
-                    "검토 승인 완료 후 비교검증 PDF를 다운로드할 수 있습니다."
-            );
-        }
 
-        Report report = reportRepository.findTopByCompareIdOrderByCreatedAtDesc(compareId)
-                .orElseGet(() -> reportPdfStorageService.persistCompareReport(
-                        compareId,
-                        original.getEvidenceId(),
-                        user.getUserId(),
-                        "compare-report-" + compareId + ".pdf",
-                        lines,
-                        "ForenShield Compare Verification Report"
-                ));
-
-        if (approvedForReport && !report.isIssued()) {
-            report = reportPdfStorageService.issueReport(
-                    report,
-                    user.getUserId(),
-                    lines,
-                    "ForenShield Compare Verification Report"
-            );
-        }
-
-        if (!preview && !report.isIssued()) {
-            throw new BusinessException(
-                    HttpStatus.CONFLICT,
-                    "REPORT_NOT_APPROVED",
-                    "검토 승인 완료 후 비교검증 PDF를 다운로드할 수 있습니다."
-            );
-        }
-
-        byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
-        if (preview) {
-            return new ReportPdfPayload(
-                    report.getReportFileName(),
-                    reportPdfStorageService.addPreviewWatermark(pdfBytes),
-                    report.getReportHash(),
-                    report.getPublicationStatus().name(),
-                    report.getReportVersion()
-            );
-        }
-
-        reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
-        return toPayload(report, pdfBytes);
+        return reportPdfPersistenceService.persistCompareReport(
+                user,
+                compareId,
+                preview,
+                verification,
+                original,
+                originalInfo,
+                candidateInfo,
+                items,
+                isApprovedForReport(original, originalAnalysis)
+        );
     }
 
     @Transactional
