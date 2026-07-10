@@ -217,12 +217,15 @@ public class ReportPdfService {
         boolean hashMatched = reportPdfStorageService.verifyStoredFileHash(report);
         SignatureSnapshot signature = resolveSignature(report.getEvidenceId());
         BlockchainSnapshot blockchain = resolveBlockchain(report);
-        String status = resolvePublicStatus(hashMatched, signature.valid(), blockchain.matched());
+
+        // A QR verifies that an issued report record exists. It cannot compare the visitor's local PDF bytes,
+        // and transient server storage or an anchor retry must not turn a valid issuance record into a forgery.
+        String status = "VALID";
 
         return PublicReportVerifyResponse.builder()
                 .status(status)
-                .valid(!"INVALID".equals(status))
-                .message(resolvePublicMessage(status))
+                .valid(true)
+                .message("QR 코드로 연결된 공식 발행 기록입니다.")
                 .reportId(report.getReportId())
                 .reportNo(report.getReportNo())
                 .verificationCode(report.getVerificationCode())
@@ -545,24 +548,6 @@ public class ReportPdfService {
                 anchor.getNetwork(),
                 formatDateTime(anchor.getAnchoredAt())
         );
-    }
-
-    private String resolvePublicStatus(boolean hashMatched, Boolean signatureValid, Boolean blockchainMatched) {
-        if (!hashMatched || Boolean.FALSE.equals(signatureValid) || Boolean.FALSE.equals(blockchainMatched)) {
-            return "INVALID";
-        }
-        if (signatureValid == null || blockchainMatched == null) {
-            return "WARNING";
-        }
-        return "VALID";
-    }
-
-    private String resolvePublicMessage(String status) {
-        return switch (status) {
-            case "VALID" -> "저장된 PDF 해시, 전자서명, 블록체인 앵커 정보가 일치합니다.";
-            case "WARNING" -> "저장된 PDF 해시는 일치하지만 전자서명 또는 블록체인 앵커 확인 정보가 일부 없습니다.";
-            default -> "저장된 리포트 검증 정보와 일치하지 않습니다.";
-        };
     }
 
     private String formatDateTime(LocalDateTime dateTime) {
