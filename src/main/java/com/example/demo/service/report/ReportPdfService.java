@@ -19,6 +19,7 @@ import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.dto.PublicReportAccessIssueResponse;
+import com.example.demo.dto.PublicReportFileHashVerifyResponse;
 import com.example.demo.dto.PublicReportVerifyResponse;
 import com.example.demo.dto.PublicReportViewResponse;
 import com.example.demo.dto.ReportVerifyResponse;
@@ -222,6 +223,48 @@ public class ReportPdfService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public PublicReportFileHashVerifyResponse verifyPublicReportFileHash(
+            String token,
+            String code,
+            String fileHash
+    ) {
+        Report report = resolvePublicReport(token, code)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND,
+                        "REPORT_VERIFICATION_NOT_FOUND",
+                        "등록되지 않은 검증 정보입니다."
+                ));
+
+        String normalizedHash = normalizeSha256(fileHash);
+        boolean storedFileIntact = reportPdfStorageService.verifyStoredFileHash(report);
+        boolean matched = report.getReportHash() != null
+                && report.getReportHash().equalsIgnoreCase(normalizedHash);
+
+        String status;
+        String message;
+        if (!matched) {
+            status = "MISMATCH";
+            message = "선택한 PDF가 발급 시 등록된 최종 파일과 일치하지 않습니다.";
+        } else if (!storedFileIntact) {
+            status = "WARNING";
+            message = "선택한 PDF 해시는 등록값과 일치하지만 서버 보관 원본 상태를 확인할 수 없습니다.";
+        } else {
+            status = "MATCH";
+            message = "선택한 PDF가 발급 시 등록된 최종 파일과 일치합니다.";
+        }
+
+        return PublicReportFileHashVerifyResponse.builder()
+                .status(status)
+                .matched(matched)
+                .storedFileIntact(storedFileIntact)
+                .message(message)
+                .reportNo(report.getReportNo())
+                .submittedHash(normalizedHash)
+                .registeredHash(report.getReportHash())
+                .build();
+    }
+
     @Transactional
     public PublicReportAccessIssueResponse issuePublicReportAccess(User user, Long reportId) {
         Report report = reportRepository.findById(reportId)
@@ -277,6 +320,21 @@ public class ReportPdfService {
         }
         if (compact.length() == 8) {
             return "VF-" + compact.substring(0, 4) + "-" + compact.substring(4);
+        }
+        return normalized;
+    }
+
+    private String normalizeSha256(String fileHash) {
+        if (fileHash == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_FILE_HASH", "PDF SHA-256 해시는 필수입니다.");
+        }
+        String normalized = fileHash.trim().toLowerCase(Locale.ROOT);
+        if (!normalized.matches("[0-9a-f]{64}")) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_FILE_HASH",
+                    "PDF SHA-256 해시 형식이 올바르지 않습니다."
+            );
         }
         return normalized;
     }
