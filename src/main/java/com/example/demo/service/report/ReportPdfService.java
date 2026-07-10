@@ -211,6 +211,7 @@ public class ReportPdfService {
                 .reportFileName(report.getReportFileName())
                 .createdAt(formatDateTime(report.getCreatedAt()))
                 .hashMatched(hashMatched)
+                .storedFileIntact(hashMatched)
                 .signatureValid(signature.valid())
                 .signatureStatus(signature.status())
                 .signatureAlgorithm(signature.algorithm())
