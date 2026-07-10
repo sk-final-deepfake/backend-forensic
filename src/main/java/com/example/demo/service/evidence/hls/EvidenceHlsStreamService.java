@@ -27,7 +27,6 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class EvidenceHlsStreamService {
 
     private static final Pattern SEGMENT_FILE_PATTERN = Pattern.compile("seg_\\d{3}\\.ts");
@@ -43,6 +42,7 @@ public class EvidenceHlsStreamService {
     @Value("${aws.s3.evidence-bucket}")
     private String evidenceBucket;
 
+    @Transactional(readOnly = true)
     public String loadMasterManifest(User user, Long evidenceId, String streamToken) {
         validateStreamToken(user, evidenceId, streamToken);
         EvidenceHls hls = requireReadyHls(evidenceId);
