@@ -57,9 +57,24 @@ public class AdminUserService {
     }
 
     @Transactional(readOnly = true)
-    public AdminReviewerListResponse listReviewers(User admin, String department) {
+    public AdminReviewerListResponse listReviewers(User admin, String department, String uploaderIdValue) {
         OrgType organizationFilter = resolveOrganizationFilter(admin);
         String departmentFilter = normalizeOptionalFilter(department);
+
+        if (uploaderIdValue != null && !uploaderIdValue.isBlank()) {
+            User uploader = findReviewerScopeUploader(uploaderIdValue);
+            if (organizationFilter != null && organizationFilter != uploader.getOrganizationType()) {
+                throw new AdminException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "같은 기관 사건의 검토자만 조회할 수 있습니다.");
+            }
+
+            organizationFilter = uploader.getOrganizationType();
+            departmentFilter = normalizeOptionalFilter(uploader.getDepartment());
+            if (organizationFilter == null || departmentFilter == null) {
+                return AdminReviewerListResponse.builder()
+                        .reviewers(List.of())
+                        .build();
+            }
+        }
 
         List<AdminReviewerItemResponse> reviewers = userRepository
                 .findApprovedReviewers(organizationFilter, departmentFilter)
@@ -254,6 +269,22 @@ public class AdminUserService {
             return null;
         }
         return value.trim();
+    }
+
+    private User findReviewerScopeUploader(String uploaderIdValue) {
+        Long uploaderId;
+        try {
+            uploaderId = Long.parseLong(uploaderIdValue.trim());
+        } catch (NumberFormatException ex) {
+            throw new AdminException(HttpStatus.BAD_REQUEST, "INVALID_UPLOADER", "uploaderId 형식이 올바르지 않습니다.");
+        }
+
+        return userRepository.findByUserIdAndDeletedAtIsNull(uploaderId)
+                .orElseThrow(() -> new AdminException(
+                        HttpStatus.NOT_FOUND,
+                        "UPLOADER_NOT_FOUND",
+                        "사건 담당 분석관을 찾을 수 없습니다."
+                ));
     }
 
     private AdminUserStatusResponse toStatusResponse(User user, Long processedByUserId) {

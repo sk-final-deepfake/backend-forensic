@@ -17,6 +17,7 @@ import com.example.demo.repository.UserRepository;
 import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.util.CaseKeyNormalizer;
 import com.example.demo.util.EvidenceCaseIdResolver;
+import com.example.demo.util.UserScopeSupport;
 import com.example.demo.util.UserRoleSupport;
 import java.util.HashSet;
 import java.util.List;
@@ -194,6 +195,7 @@ public class CaseWorkflowService {
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다."));
         ensureSameOrganization(actor, uploader);
+        ensureReviewerInSameDepartment(uploader, reviewer);
 
         CaseProfile profile = caseProfileRepository.findByUploaderIdAndCaseKey(uploaderId, normalizedCaseKey)
                 .orElseGet(() -> createProfileFromExistingEvidences(uploaderId, normalizedCaseKey));
@@ -279,6 +281,16 @@ public class CaseWorkflowService {
         }
         if (!Objects.equals(actor.getOrganizationType(), target.getOrganizationType())) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "같은 기관 사용자만 배정할 수 있습니다.");
+        }
+    }
+
+    private void ensureReviewerInSameDepartment(User uploader, User reviewer) {
+        if (!UserScopeSupport.isSameOrganizationAndDepartment(uploader, reviewer)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REVIEWER_SCOPE",
+                    "사건 담당 분석관과 같은 기관/부서의 검토자만 배정할 수 있습니다."
+            );
         }
     }
 

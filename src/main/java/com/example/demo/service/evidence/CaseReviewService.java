@@ -12,6 +12,7 @@ import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.evidence.hls.EvidenceHlsLookupService;
 import com.example.demo.service.report.ReportPdfService;
+import com.example.demo.util.UserScopeSupport;
 import com.example.demo.util.UserRoleSupport;
 import java.util.EnumSet;
 import java.util.List;
@@ -71,6 +72,7 @@ public class CaseReviewService {
             throw new BusinessException(
                     HttpStatus.CONFLICT, "REVIEW_NOT_REQUESTED", "검토 요청된 사건만 검토자를 배정할 수 있습니다.");
         }
+        ensureReviewerInSameDepartment(context.uploaderId(), reviewer);
 
         profile.assignReviewer(reviewer.getUserId());
         caseProfileRepository.save(profile);
@@ -145,6 +147,19 @@ public class CaseReviewService {
                     HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "승인된 검토자만 배정할 수 있습니다.");
         }
         return reviewer;
+    }
+
+    private void ensureReviewerInSameDepartment(Long uploaderId, User reviewer) {
+        User uploader = userRepository.findByUserIdAndDeletedAtIsNull(uploaderId)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건 담당 분석관을 찾을 수 없습니다."));
+        if (!UserScopeSupport.isSameOrganizationAndDepartment(uploader, reviewer)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REVIEWER_SCOPE",
+                    "사건 담당 분석관과 같은 기관/부서의 검토자만 배정할 수 있습니다."
+            );
+        }
     }
 
     private boolean canRecordDecision(User user, CaseProfile profile) {

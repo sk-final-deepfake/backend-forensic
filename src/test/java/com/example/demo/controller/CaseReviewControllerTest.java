@@ -78,6 +78,7 @@ class CaseReviewControllerTest {
 
     private User investigator;
     private User reviewer;
+    private User otherDepartmentReviewer;
     private User orgAdmin;
     private String investigatorToken;
     private String reviewerToken;
@@ -114,6 +115,18 @@ class CaseReviewControllerTest {
                 .name("검토자")
                 .organizationType(OrgType.POLICE)
                 .department("사이버수사팀")
+                .role(UserRole.ROLE_REVIEWER)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+
+        otherDepartmentReviewer = userRepository.save(User.builder()
+                .loginId("rev-other-dept")
+                .email("rev-other-dept@local.dev")
+                .password(passwordEncoder.encode("pass2222"))
+                .name("다른부서검토자")
+                .organizationType(OrgType.POLICE)
+                .department("디지털포렌식팀")
                 .role(UserRole.ROLE_REVIEWER)
                 .status(UserStatus.APPROVED)
                 .darkMode(false)
@@ -219,6 +232,26 @@ class CaseReviewControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewStatus").value("REVIEW_SUPPLEMENT_REQUESTED"));
+    }
+
+    @Test
+    void assignReviewerByCaseKey_rejectsReviewerFromDifferentDepartment() throws Exception {
+        CaseProfile profile = caseProfileRepository.save(new CaseProfile(
+                investigator.getUserId(),
+                "review-case",
+                completedEvidence.getEvidenceId()
+        ));
+        profile.requestReview("memo");
+        caseProfileRepository.save(profile);
+
+        mockMvc.perform(patch("/api/v1/cases/reviewer?caseKey=review-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reviewerId": "%s"}
+                                """.formatted(otherDepartmentReviewer.getUserId())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REVIEWER_SCOPE"));
     }
 
     @Test
