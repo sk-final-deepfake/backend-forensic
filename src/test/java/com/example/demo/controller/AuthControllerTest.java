@@ -5,6 +5,7 @@ import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.security.LoginRateLimitService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,8 +38,12 @@ class AuthControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private LoginRateLimitService loginRateLimitService;
+
     @BeforeEach
     void setUp() {
+        loginRateLimitService.clearClientState("127.0.0.1");
         userRepository.deleteAll();
         userRepository.save(createUser("1111", "2222", UserRole.ROLE_USER, UserStatus.APPROVED));
         userRepository.save(createUser("3333", "4444", UserRole.ROLE_ADMIN, UserStatus.APPROVED));
@@ -101,6 +106,27 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("ACCOUNT_PENDING"))
                 .andExpect(jsonPath("$.message").value("관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다."));
+    }
+
+    @Test
+    @DisplayName("로그인 5회 실패 시 429 + LOGIN_TEMPORARILY_BLOCKED")
+    void loginTemporarilyBlockedAfterFiveFailures() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"loginId":"1111","password":"wrong"}
+                                    """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"loginId":"1111","password":"wrong"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.errorCode").value("LOGIN_TEMPORARILY_BLOCKED"));
     }
 
     @Nested

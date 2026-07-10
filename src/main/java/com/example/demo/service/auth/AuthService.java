@@ -9,6 +9,7 @@ import com.example.demo.dto.TokenResponse;
 import com.example.demo.exception.AuthException;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.security.JwtTokenProvider;
+import com.example.demo.security.LoginRateLimitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,23 +27,22 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRedisService refreshTokenRedisService;
     private final AuthRefreshProperties authRefreshProperties;
+    private final LoginRateLimitService loginRateLimitService;
 
     // ID·비밀번호 검증 → 승인 계정만 → JWT 쌍 발급 → Redis에 리프레시 저장
     @Transactional(readOnly = true)
-    public AuthenticatedTokens login(LoginRequest request) {
+    public AuthenticatedTokens login(LoginRequest request, String clientIp) {
+        loginRateLimitService.assertAllowed(clientIp);
+
         User user = userRepository.findByLoginIdAndDeletedAtIsNull(request.getLoginId())
-                .orElseThrow(() -> new AuthException(
-                        HttpStatus.UNAUTHORIZED,
-                        "INVALID_CREDENTIALS",
-                        "사번 또는 비밀번호가 올바르지 않습니다."
-                ));
+                .orElseThrow(() -> {
+                    loginRateLimitService.recordFailedAttempt(clientIp);
+                    return invalidCredentials();
+                });
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new AuthException(
-                    HttpStatus.UNAUTHORIZED,
-                    "INVALID_CREDENTIALS",
-                    "사번 또는 비밀번호가 올바르지 않습니다."
-            );
+            loginRateLimitService.recordFailedAttempt(clientIp);
+            throw invalidCredentials();
         }
 
         validateApprovedStatus(user);
@@ -51,6 +51,7 @@ public class AuthService {
         if (authRefreshProperties.isEnabled()) {
             refreshTokenRedisService.saveRefreshToken(user.getUserId(), tokens.getRefreshToken());
         }
+        loginRateLimitService.recordSuccessfulLogin(clientIp);
         return new AuthenticatedTokens(user, tokens);
     }
 
@@ -162,5 +163,13 @@ public class AuthService {
         };
 
         throw new AuthException(HttpStatus.UNAUTHORIZED, errorCode, message);
+    }
+
+    private AuthException invalidCredentials() {
+        return new AuthException(
+                HttpStatus.UNAUTHORIZED,
+                "INVALID_CREDENTIALS",
+                "사번 또는 비밀번호가 올바르지 않습니다."
+        );
     }
 }

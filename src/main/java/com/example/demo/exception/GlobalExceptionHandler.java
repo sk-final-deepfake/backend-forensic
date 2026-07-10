@@ -5,6 +5,7 @@ import com.example.demo.security.SecurityErrorResponses;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -26,6 +27,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<StandardErrorResponse> handleBusinessException(BusinessException ex) {
         return ResponseEntity.status(ex.getStatus()).body(toErrorResponse(ex));
+    }
+
+    @ExceptionHandler(LoginRateLimitException.class)
+    public ResponseEntity<StandardErrorResponse> handleLoginRateLimit(LoginRateLimitException ex) {
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(ex.getStatus());
+        if (ex.getRetryAfterSeconds() > 0) {
+            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()));
+        }
+        return builder.body(toErrorResponse(ex));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
