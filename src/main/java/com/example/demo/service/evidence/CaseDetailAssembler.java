@@ -3,11 +3,13 @@ package com.example.demo.service.evidence;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.EvidenceHls;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.CaseReviewStatus;
 import com.example.demo.dto.detail.CaseDetailResponse;
 import com.example.demo.dto.detail.CaseEvidenceSummaryDto;
+import com.example.demo.service.evidence.hls.EvidenceHlsLookupService;
 import com.example.demo.util.AnalysisStatusMapper;
 import com.example.demo.util.ApiDateTimeFormatter;
 import com.example.demo.util.OrganizationIdResolver;
@@ -23,7 +25,7 @@ import org.springframework.stereotype.Component;
 public class CaseDetailAssembler {
 
     private final CaseEvidencePresentationService caseEvidencePresentationService;
-    private final EvidenceMediaUrlService evidenceMediaUrlService;
+    private final EvidenceHlsLookupService evidenceHlsLookupService;
 
     public CaseDetailResponse assembleEmptyCase(String caseId, CaseProfile profile, User uploader) {
         Long ownerId = profile.getUploaderId();
@@ -44,7 +46,8 @@ public class CaseDetailAssembler {
             List<Evidence> evidences,
             List<AnalysisRequest> analysisRequests,
             CaseProfile profile,
-            User uploader
+            User uploader,
+            Map<Long, EvidenceHls> hlsByEvidenceId
     ) {
         Map<Long, AnalysisRequest> latestByEvidence = indexLatestRequests(analysisRequests);
         String caseName = evidences.stream()
@@ -65,7 +68,8 @@ public class CaseDetailAssembler {
                 .map(evidence -> toCaseEvidenceSummary(
                         evidence,
                         orderedEvidences,
-                        latestByEvidence.get(evidence.getEvidenceId())
+                        latestByEvidence.get(evidence.getEvidenceId()),
+                        hlsByEvidenceId
                 ))
                 .toList();
 
@@ -103,7 +107,8 @@ public class CaseDetailAssembler {
                         : CaseReviewStatus.NONE.name())
                 .reviewRequestedAt(profile != null && profile.getReviewRequestedAt() != null
                         ? ApiDateTimeFormatter.formatUtc(profile.getReviewRequestedAt())
-                        : null);
+                        : null)
+                .reviewerComment(profile == null ? null : profile.getReviewerComment());
     }
 
     public String resolveAggregateStatus(List<Evidence> evidences, List<AnalysisRequest> analysisRequests) {
@@ -121,9 +126,10 @@ public class CaseDetailAssembler {
     private CaseEvidenceSummaryDto toCaseEvidenceSummary(
             Evidence evidence,
             List<Evidence> caseEvidences,
-            AnalysisRequest request
+            AnalysisRequest request,
+            Map<Long, EvidenceHls> hlsByEvidenceId
     ) {
-        EvidenceMediaUrlService.MediaUrls mediaUrls = evidenceMediaUrlService.resolve(evidence);
+        String hlsStatus = resolveHlsStatusName(evidence, hlsByEvidenceId);
         return CaseEvidenceSummaryDto.builder()
                 .evidenceId(evidence.getEvidenceId())
                 .fileName(evidence.getFileName())
@@ -136,11 +142,17 @@ public class CaseDetailAssembler {
                 .role(caseEvidencePresentationService.roleName(evidence))
                 .replacementEvidenceId(evidence.getReplacementEvidenceId())
                 .excludedReason(evidence.getExcludedReason())
-                .thumbnailUrl(mediaUrls.previewUrl())
-                .previewUrl(mediaUrls.previewUrl())
-                .videoUrl(mediaUrls.videoUrl())
-                .fileUrl(mediaUrls.fileUrl())
+                .hlsStatus(hlsStatus)
                 .build();
+    }
+
+    private String resolveHlsStatusName(Evidence evidence, Map<Long, EvidenceHls> hlsByEvidenceId) {
+        var status = evidenceHlsLookupService.resolveStatus(
+                evidence.getFileType(),
+                evidence.getEvidenceId(),
+                hlsByEvidenceId
+        );
+        return status != null ? status.name() : null;
     }
 
     private String aggregateStatus(List<Evidence> evidences, Map<Long, AnalysisRequest> latestByEvidence) {

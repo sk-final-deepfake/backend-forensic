@@ -40,8 +40,11 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
         }
 
         migrateReportsTableForComparePdf();
+        migrateReportsPublicVerification();
+        migrateReportPublicationLifecycle();
         migrateEvidencesV2Workflow();
         migrateEvidenceMetadataReadiness();
+        migrateBlockchainAnchorAnalysisSnapshot();
     }
 
     void migrateEvidencesV2Workflow() {
@@ -61,6 +64,11 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
 
     void migrateEvidenceMetadataReadiness() {
         addColumnIfMissing("evidence_metadata", "readiness_json", "JSON");
+    }
+
+    void migrateBlockchainAnchorAnalysisSnapshot() {
+        addColumnIfMissing("blockchain_anchors", "analysis_model_json", "CLOB");
+        addColumnIfMissing("blockchain_anchors", "analysis_modules_json", "CLOB");
     }
 
     private void addColumnIfMissing(String table, String column, String type) {
@@ -91,6 +99,45 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
             jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_reports_compare_id ON reports (compare_id)");
         } catch (Exception e) {
             log.warn("Could not create idx_reports_compare_id: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * PDF 진위 확인/외부 열람 기능에서 사용하는 reports 확장 컬럼.
+     * PostgreSQL은 006_report_public_verification.sql로 반영하고, H2 로컬 DB는 여기서 보정합니다.
+     */
+    void migrateReportsPublicVerification() {
+        addColumnIfMissing("reports", "report_no", "VARCHAR(40)");
+        addColumnIfMissing("reports", "verification_token", "VARCHAR(100)");
+        addColumnIfMissing("reports", "verification_code", "VARCHAR(30)");
+        addColumnIfMissing("reports", "public_access_code", "VARCHAR(30)");
+        addColumnIfMissing("reports", "public_access_enabled", "BOOLEAN DEFAULT FALSE NOT NULL");
+        addColumnIfMissing("reports", "public_access_issued_at", "TIMESTAMP");
+        addColumnIfMissing("reports", "public_access_expires_at", "TIMESTAMP");
+
+        createIndexIfMissing("ux_reports_report_no", "reports", "report_no", true);
+        createIndexIfMissing("ux_reports_verification_token", "reports", "verification_token", true);
+        createIndexIfMissing("ux_reports_verification_code", "reports", "verification_code", true);
+        createIndexIfMissing("ux_reports_public_access_code", "reports", "public_access_code", true);
+    }
+
+    void migrateReportPublicationLifecycle() {
+        addColumnIfMissing("reports", "publication_status", "VARCHAR(20) DEFAULT 'ISSUED' NOT NULL");
+        addColumnIfMissing("reports", "report_version", "INTEGER DEFAULT 1 NOT NULL");
+        addColumnIfMissing("reports", "issued_by", "BIGINT");
+        addColumnIfMissing("reports", "issued_at", "TIMESTAMP");
+        addColumnIfMissing("reports", "superseded_at", "TIMESTAMP");
+        addColumnIfMissing("case_profiles", "review_approved_at", "TIMESTAMP");
+        createIndexIfMissing("idx_reports_publication_status", "reports", "publication_status", false);
+    }
+
+    private void createIndexIfMissing(String index, String table, String column, boolean unique) {
+        try {
+            jdbcTemplate.execute(
+                    "CREATE %s INDEX IF NOT EXISTS %s ON %s (%s)"
+                            .formatted(unique ? "UNIQUE" : "", index, table, column));
+        } catch (Exception e) {
+            log.warn("{}.{} index migration skipped: {}", table, column, e.getMessage());
         }
     }
 

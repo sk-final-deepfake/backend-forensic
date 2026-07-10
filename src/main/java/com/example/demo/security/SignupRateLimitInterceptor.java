@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 public class SignupRateLimitInterceptor implements HandlerInterceptor {
 
     private final SignupRateLimitService rateLimitService;
+    private final ClientIpResolver clientIpResolver;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -26,7 +29,8 @@ public class SignupRateLimitInterceptor implements HandlerInterceptor {
         RateLimitDecision decision = rateLimitService.check(
                 request.getMethod(),
                 request.getRequestURI(),
-                resolveClientIp(request)
+                clientIpResolver.resolve(request),
+                resolveAuthenticatedLoginId()
         );
 
         if (decision.allowed()) {
@@ -45,11 +49,15 @@ public class SignupRateLimitInterceptor implements HandlerInterceptor {
         return false;
     }
 
-    private String resolveClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
+    private String resolveAuthenticatedLoginId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
         }
-        return request.getRemoteAddr();
+        Object principal = authentication.getPrincipal();
+        if (principal == null || "anonymousUser".equals(principal)) {
+            return null;
+        }
+        return principal.toString();
     }
 }

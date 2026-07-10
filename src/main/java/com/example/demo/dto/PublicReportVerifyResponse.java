@@ -20,6 +20,7 @@ public class PublicReportVerifyResponse {
     private final String createdAt;
 
     private final Boolean hashMatched;
+    private final Boolean storedFileIntact;
     private final Boolean signatureValid;
     private final String signatureStatus;
     private final String signatureAlgorithm;

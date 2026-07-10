@@ -77,6 +77,8 @@ public class AnalysisResponseMessage {
         private String modelVersion;
         private List<ModelScoreItem> modelScores;
         private List<String> evidence;
+        private List<RepresentativeFrameItem> representativeFrames;
+        private String overlayVideoUrl;
 
         @Getter
         @Setter
@@ -150,6 +152,20 @@ public class AnalysisResponseMessage {
             private List<ClipRiskItem> clipRisks;
             private List<PairRiskItem> pairRisks;
             private List<SuspiciousSegmentItem> suspiciousSegments;
+        }
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class RepresentativeFrameItem {
+            private Double timeSec;
+            private String timestamp;
+            private Integer frameNumber;
+            private Double score;
+            private String imageUrl;
         }
     }
 }

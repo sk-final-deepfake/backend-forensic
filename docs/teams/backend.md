@@ -13,7 +13,8 @@
 3. [../api/specification.md](../api/specification.md)
 4. [../guides/implementation-standards.md](../guides/implementation-standards.md)
 5. [../guides/development.md](../guides/development.md)
-6. [../requirements/traceability.md](../requirements/traceability.md)
+6. [../guides/backend-file-map.md](../guides/backend-file-map.md) — 소스 파일별 역할 맵
+7. [../requirements/traceability.md](../requirements/traceability.md)
 
 ---
 

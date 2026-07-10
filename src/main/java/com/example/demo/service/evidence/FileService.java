@@ -3,15 +3,19 @@ package com.example.demo.service.evidence;
 import com.example.demo.service.blockchain.BlockchainAnchorService;
 import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.service.readiness.EvidenceReadinessService;
+import com.example.demo.service.evidence.hls.EvidenceHlsSeedService;
 import com.example.demo.domain.Evidence;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.ExtractionStatus;
+import com.example.demo.domain.enums.FileType;
 import com.example.demo.dto.FileUploadResponse;
 import com.example.demo.dto.MediaMetadata;
 import com.example.demo.dto.ValidatedFile;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.util.EvidenceCaseIdResolver;
 import com.example.demo.util.JsonPayloadWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,6 +47,7 @@ public class FileService {
     private final MediaService mediaService;
     private final HashService hashService;
     private final EvidenceRepository evidenceRepository;
+    private final CaseProfileRepository caseProfileRepository;
     private final FileValidationService fileValidationService;
     private final CustodyLogService custodyLogService;
     private final EvidenceMetadataService evidenceMetadataService;
@@ -50,6 +55,7 @@ public class FileService {
     private final JsonPayloadWriter jsonPayloadWriter;
     private final BlockchainAnchorService blockchainAnchorService;
     private final EvidenceReadinessService evidenceReadinessService;
+    private final EvidenceHlsSeedService evidenceHlsSeedService;
 
     public FileService(
             @Value("${file.upload-dir:uploads}") String uploadDir,
@@ -58,13 +64,15 @@ public class FileService {
             MediaService mediaService,
             HashService hashService,
             EvidenceRepository evidenceRepository,
+            CaseProfileRepository caseProfileRepository,
             FileValidationService fileValidationService,
             CustodyLogService custodyLogService,
             EvidenceMetadataService evidenceMetadataService,
             CaseEvidencePresentationService caseEvidencePresentationService,
             JsonPayloadWriter jsonPayloadWriter,
             BlockchainAnchorService blockchainAnchorService,
-            EvidenceReadinessService evidenceReadinessService
+            EvidenceReadinessService evidenceReadinessService,
+            EvidenceHlsSeedService evidenceHlsSeedService
     ) {
         this.s3Client = s3Client;
         this.evidenceBucket = evidenceBucket;
@@ -72,6 +80,7 @@ public class FileService {
         this.mediaService = mediaService;
         this.hashService = hashService;
         this.evidenceRepository = evidenceRepository;
+        this.caseProfileRepository = caseProfileRepository;
         this.fileValidationService = fileValidationService;
         this.custodyLogService = custodyLogService;
         this.evidenceMetadataService = evidenceMetadataService;
@@ -79,6 +88,7 @@ public class FileService {
         this.jsonPayloadWriter = jsonPayloadWriter;
         this.blockchainAnchorService = blockchainAnchorService;
         this.evidenceReadinessService = evidenceReadinessService;
+        this.evidenceHlsSeedService = evidenceHlsSeedService;
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
@@ -87,13 +97,14 @@ public class FileService {
     }
 
     @Transactional
-    public FileUploadResponse upload(MultipartFile file, String caseName, Long uploaderId) {
+    public FileUploadResponse upload(MultipartFile file, String caseName, String caseNumber, Long uploaderId) {
         if (caseName == null || caseName.isBlank()) {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명을 입력해 주세요.");
         }
 
         String trimmedCaseName = caseName.trim();
+        String trimmedCaseNumber = resolveCaseNumber(caseNumber, trimmedCaseName);
         ValidatedFile validated = fileValidationService.validate(file);
         String originalFilename = validated.fileName();
 
@@ -122,7 +133,7 @@ public class FileService {
             Evidence evidence = Evidence.builder()
                     .uploaderId(uploaderId)
                     .caseName(trimmedCaseName)
-                    .caseNumber(trimmedCaseName)
+                    .caseNumber(trimmedCaseNumber)
                     .fileName(originalFilename)
                     .fileType(validated.fileType())
                     .mimeType(validated.mimeType())
@@ -136,7 +147,7 @@ public class FileService {
             Evidence savedEvidence = evidenceRepository.save(evidence);
 
             String caseKey = EvidenceStoragePaths.resolveCaseKey(savedEvidence);
-            String s3Key = EvidenceStoragePaths.originalKey(caseKey, savedEvidence.getEvidenceId(), originalFilename);
+            String s3Key = EvidenceStoragePaths.originalKey(caseKey, savedEvidence, originalFilename);
             s3Client.putObject(
                     PutObjectRequest.builder()
                             .bucket(evidenceBucket)
@@ -153,6 +164,13 @@ public class FileService {
             // 업로드 시 즉시 readiness seed + 응답에 포함
             var readinessSnapshot = evidenceReadinessService.seedFfprobeReadiness(savedEvidence.getEvidenceId());
 
+            if (validated.fileType() == FileType.VIDEO) {
+                evidenceHlsSeedService.seedPendingAndEnqueue(
+                        savedEvidence.getEvidenceId(),
+                        validated.fileType()
+                );
+            }
+
             recordUploadCustodyLogs(savedEvidence, uploaderId, extractionStatus.name());
             blockchainAnchorService.anchorEvidenceHash(savedEvidence, uploaderId);
 
@@ -167,6 +185,8 @@ public class FileService {
                 evidenceRepository.save(savedEvidence);
             }
 
+            reopenAssignedReview(savedEvidence);
+
             String originalSha256 = savedEvidence.getOriginalHashValue();
             return FileUploadResponse.builder()
                     .success(true)
@@ -174,6 +194,7 @@ public class FileService {
                     .evidenceId(savedEvidence.getEvidenceId())
                     .fileName(originalFilename)
                     .caseName(savedEvidence.getCaseName())
+                    .caseNumber(savedEvidence.getCaseNumber())
                     .displayLabel(displayLabel)
                     .fileSize(validated.fileSize())
                     .hashAlgorithm(savedEvidence.getHashAlgorithm())
@@ -209,6 +230,15 @@ public class FileService {
             response.put("hasAudioTrack", extracted.getHasAudioTrack());
         }
         return response;
+    }
+
+    private void reopenAssignedReview(Evidence evidence) {
+        String caseKey = EvidenceCaseIdResolver.resolve(evidence);
+        caseProfileRepository.findByUploaderIdAndCaseKey(evidence.getUploaderId(), caseKey)
+                .ifPresent(profile -> {
+                    profile.reopenReviewForNewEvidence();
+                    caseProfileRepository.save(profile);
+                });
     }
 
     private void recordUploadCustodyLogs(Evidence savedEvidence, Long uploaderId, String extractionStatus) {
@@ -256,7 +286,15 @@ public class FileService {
         payload.put("mimeType", evidence.getMimeType());
         payload.put("fileSize", evidence.getFileSize());
         payload.put("caseName", evidence.getCaseName());
+        payload.put("caseNumber", evidence.getCaseNumber());
         return payload;
+    }
+
+    private static String resolveCaseNumber(String caseNumber, String caseName) {
+        if (caseNumber != null && !caseNumber.isBlank()) {
+            return caseNumber.trim();
+        }
+        return caseName;
     }
 
     private Map<String, Object> hashPayload(Evidence evidence) {

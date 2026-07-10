@@ -7,6 +7,7 @@ import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.dto.IntegrityCheckItem;
 import com.example.demo.dto.IntegrityVerifyResponse;
+import com.example.demo.dto.detail.HlsPlaybackDto;
 import com.example.demo.dto.detail.RecoveryScoreDto;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
@@ -48,8 +49,6 @@ class EvidenceDetailAssemblerTest {
     private AnalysisInfoAssembler analysisInfoAssembler;
     @Mock
     private CaseEvidencePresentationService caseEvidencePresentationService;
-    @Mock
-    private EvidenceMediaUrlService evidenceMediaUrlService;
 
     private EvidenceDetailAssembler assembler;
 
@@ -63,8 +62,7 @@ class EvidenceDetailAssemblerTest {
                 evidenceManifestService,
                 evidenceManifestProperties,
                 analysisInfoAssembler,
-                caseEvidencePresentationService,
-                evidenceMediaUrlService
+                caseEvidencePresentationService
         );
     }
 
@@ -94,13 +92,17 @@ class EvidenceDetailAssemblerTest {
                 .dataLossPercent(0)
                 .grade("A")
                 .build();
+        HlsPlaybackDto hlsPlayback = HlsPlaybackDto.builder()
+                .manifestPath("/api/v1/evidences/7/hls/master.m3u8")
+                .hlsStatus("PENDING")
+                .streamToken("stream-token")
+                .expiresIn(900)
+                .build();
 
         when(evidenceRepository.findByUploaderIdAndCaseKey(1L, "case-a")).thenReturn(List.of(evidence));
         when(caseEvidencePresentationService.resolveDisplayLabel(any(), any())).thenReturn("증거 1");
         when(caseEvidencePresentationService.lifecycleStatusName(evidence)).thenReturn("ACTIVE");
         when(caseEvidencePresentationService.roleName(evidence)).thenReturn("PRIMARY");
-        when(evidenceMediaUrlService.resolve(evidence))
-                .thenReturn(new EvidenceMediaUrlService.MediaUrls(null, null, null));
         when(blockchainAnchorService.getEvidenceBlockchainInfo(evidence)).thenReturn(null);
         when(analysisInfoAssembler.assemble(null, null, List.of())).thenReturn(null);
 
@@ -113,12 +115,14 @@ class EvidenceDetailAssemblerTest {
                 List.of(),
                 List.of(),
                 manifest,
-                recovery
+                recovery,
+                hlsPlayback
         );
 
         assertThat(response.getIntegrityInfo().isChainValid()).isFalse();
         assertThat(response.getIntegrityInfo().getVerificationStatus()).isEqualTo("CORRUPTED");
         assertThat(response.getSignatureInfo().getSignatureValid()).isTrue();
+        assertThat(response.getHlsPlayback().getStreamToken()).isEqualTo("stream-token");
         verify(custodyChainVerifier, never()).isEvidenceChainValid(7L);
         verify(evidenceManifestService, never()).isSignatureValid(manifest);
     }

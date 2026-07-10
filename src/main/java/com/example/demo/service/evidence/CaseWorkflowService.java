@@ -17,6 +17,7 @@ import com.example.demo.repository.UserRepository;
 import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.util.CaseKeyNormalizer;
 import com.example.demo.util.EvidenceCaseIdResolver;
+import com.example.demo.util.UserScopeSupport;
 import com.example.demo.util.UserRoleSupport;
 import java.util.HashSet;
 import java.util.List;
@@ -83,7 +84,7 @@ public class CaseWorkflowService {
         }
 
         for (Evidence evidence : caseEvidences) {
-            evidence.updateCaseInfo(trimmedName);
+            evidence.renameCase(oldKey, trimmedName);
             evidenceRepository.save(evidence);
         }
 
@@ -184,7 +185,6 @@ public class CaseWorkflowService {
         if (reviewer.getStatus() != UserStatus.APPROVED) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REVIEWER", "승인된 검토자만 배정할 수 있습니다.");
         }
-        ensureSameOrganization(actor, reviewer);
 
         Long uploaderId = resolveCaseOwnerForAssignment(
                 actor,
@@ -195,6 +195,7 @@ public class CaseWorkflowService {
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다."));
         ensureSameOrganization(actor, uploader);
+        ensureReviewerInSameDepartment(uploader, reviewer);
 
         CaseProfile profile = caseProfileRepository.findByUploaderIdAndCaseKey(uploaderId, normalizedCaseKey)
                 .orElseGet(() -> createProfileFromExistingEvidences(uploaderId, normalizedCaseKey));
@@ -283,6 +284,16 @@ public class CaseWorkflowService {
         }
     }
 
+    private void ensureReviewerInSameDepartment(User uploader, User reviewer) {
+        if (!UserScopeSupport.isSameOrganizationAndDepartment(uploader, reviewer)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REVIEWER_SCOPE",
+                    "사건 담당 분석관과 같은 기관/부서의 검토자만 배정할 수 있습니다."
+            );
+        }
+    }
+
     private Long parseOptionalUserId(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -343,7 +354,8 @@ public class CaseWorkflowService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "사건명이 없는 증거는 대체할 수 없습니다.");
         }
 
-        FileUploadResponse uploadResponse = fileService.upload(file, caseName, user.getUserId());
+        FileUploadResponse uploadResponse = fileService.upload(
+                file, caseName, oldEvidence.getCaseNumber(), user.getUserId());
         Evidence replacement = evidenceRepository.findById(uploadResponse.getEvidenceId())
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.INTERNAL_SERVER_ERROR, "REPLACEMENT_FAILED", "대체 증거 등록에 실패했습니다."));

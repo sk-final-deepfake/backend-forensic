@@ -4,6 +4,7 @@ import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.dto.ClipRiskDto;
 import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.PairRiskDto;
+import com.example.demo.dto.RepresentativeFrameDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
 import com.example.demo.dto.detail.ModuleTimelineDto;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -27,6 +28,8 @@ public class VideoModuleDetailsReader {
         List<SuspiciousSegmentDto> temporalSuspiciousSegments = List.of();
         List<SuspiciousSegmentDto> opticalSuspiciousSegments = List.of();
         List<ModuleTimelineDto> moduleTimelines = List.of();
+        List<RepresentativeFrameDto> representativeFrames = List.of();
+        String overlayVideoUrl = null;
         List<String> evidenceItems = List.of();
 
         for (AnalysisModuleResult module : moduleResults) {
@@ -52,6 +55,12 @@ public class VideoModuleDetailsReader {
             if (moduleTimelines.isEmpty()) {
                 moduleTimelines = readModuleTimelines(details);
             }
+            if (representativeFrames.isEmpty()) {
+                representativeFrames = readRepresentativeFrames(details);
+            }
+            if (overlayVideoUrl == null) {
+                overlayVideoUrl = asString(details.get("overlayVideoUrl"));
+            }
             if (evidenceItems.isEmpty()) {
                 evidenceItems = readEvidenceItems(details);
             }
@@ -73,6 +82,8 @@ public class VideoModuleDetailsReader {
                 temporalSuspiciousSegments,
                 opticalSuspiciousSegments,
                 moduleTimelines,
+                representativeFrames,
+                overlayVideoUrl,
                 evidenceItems
         );
     }
@@ -85,6 +96,8 @@ public class VideoModuleDetailsReader {
             List<SuspiciousSegmentDto> temporalSuspiciousSegments,
             List<SuspiciousSegmentDto> opticalSuspiciousSegments,
             List<ModuleTimelineDto> moduleTimelines,
+            List<RepresentativeFrameDto> representativeFrames,
+            String overlayVideoUrl,
             List<String> evidenceItems
     ) {
     }
@@ -170,6 +183,27 @@ public class VideoModuleDetailsReader {
                             .clipRisks(readClipRisksFromRaw(map.get("clipRisks")))
                             .pairRisks(readPairRisksFromRaw(map.get("pairRisks")))
                             .suspiciousSegments(readSuspiciousSegments(map.get("suspiciousSegments")))
+                            .build();
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<RepresentativeFrameDto> readRepresentativeFrames(Map<String, Object> details) {
+        Object raw = details.get("representativeFrames");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return RepresentativeFrameDto.builder()
+                            .timeSec(asNullableDouble(map.get("timeSec")))
+                            .timestamp(asString(map.get("timestamp")))
+                            .frameNumber(asNullableInt(map.get("frameNumber")))
+                            .score(asNullableDouble(map.get("score")))
+                            .imageUrl(asString(map.get("imageUrl")))
                             .build();
                 })
                 .toList();
@@ -276,6 +310,13 @@ public class VideoModuleDetailsReader {
             return number.intValue();
         }
         return 0;
+    }
+
+    private Integer asNullableInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return null;
     }
 
     private double asDouble(Object value) {

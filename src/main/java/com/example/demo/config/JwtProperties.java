@@ -24,6 +24,9 @@ public class JwtProperties {
     // 리프레시 JWT·Redis·쿠키 만료(일), 기본 7일
     private long refreshExpirationDays;
 
+    // Step-up 재인증 토큰 TTL(분), 기본 15분
+    private long stepUpExpirationMinutes;
+
     // 액세스 토큰 만료(ms) — 우선순위: access-expiration-ms → expiration-ms → 20분
     public long resolveAccessExpirationMs() {
         if (accessExpirationMs > 0) {
@@ -39,5 +42,13 @@ public class JwtProperties {
     public long resolveRefreshExpirationMs() {
         long days = refreshExpirationDays > 0 ? refreshExpirationDays : 7;
         return days * 24 * 60 * 60 * 1000L;
+    }
+
+    public long resolveStepUpExpirationMinutes() {
+        return stepUpExpirationMinutes > 0 ? stepUpExpirationMinutes : 15;
+    }
+
+    public long resolveStepUpExpirationMs() {
+        return resolveStepUpExpirationMinutes() * 60 * 1000L;
     }
 }

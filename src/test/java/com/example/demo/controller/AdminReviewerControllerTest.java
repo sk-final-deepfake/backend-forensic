@@ -37,7 +37,9 @@ class AdminReviewerControllerTest {
 
     private String orgAdminToken;
     private User policeReviewer;
+    private User otherDepartmentReviewer;
     private User etcReviewer;
+    private User investigator;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -67,6 +69,18 @@ class AdminReviewerControllerTest {
                 .darkMode(false)
                 .build());
 
+        otherDepartmentReviewer = userRepository.save(User.builder()
+                .loginId("rev-other-dept")
+                .email("rev-other-dept@local.dev")
+                .password(passwordEncoder.encode("pass2222"))
+                .name("디지털포렌식검토자")
+                .organizationType(OrgType.POLICE)
+                .department("디지털포렌식팀")
+                .role(UserRole.ROLE_REVIEWER)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+
         etcReviewer = userRepository.save(User.builder()
                 .loginId("rev04")
                 .email("rev04@local.dev")
@@ -75,6 +89,18 @@ class AdminReviewerControllerTest {
                 .organizationType(OrgType.ETC)
                 .department("기타팀")
                 .role(UserRole.ROLE_REVIEWER)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+
+        investigator = userRepository.save(User.builder()
+                .loginId("investigator03")
+                .email("investigator03@local.dev")
+                .password(passwordEncoder.encode("pass1111"))
+                .name("사이버수사분석관")
+                .organizationType(OrgType.POLICE)
+                .department("사이버수사팀")
+                .role(UserRole.ROLE_INVESTIGATOR)
                 .status(UserStatus.APPROVED)
                 .darkMode(false)
                 .build());
@@ -104,11 +130,11 @@ class AdminReviewerControllerTest {
         mockMvc.perform(get("/api/v1/admin/reviewers")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + orgAdminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewers.length()").value(1))
-                .andExpect(jsonPath("$.reviewers[0].id").value(String.valueOf(policeReviewer.getUserId())))
-                .andExpect(jsonPath("$.reviewers[0].name").value("경찰검토자"))
-                .andExpect(jsonPath("$.reviewers[0].organizationId").value("org-police"))
-                .andExpect(jsonPath("$.reviewers[0].organizationName").value("경찰기관"));
+                .andExpect(jsonPath("$.reviewers.length()").value(2))
+                .andExpect(jsonPath("$.reviewers[*].id").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        String.valueOf(policeReviewer.getUserId()),
+                        String.valueOf(otherDepartmentReviewer.getUserId())
+                )));
     }
 
     @Test
@@ -118,13 +144,26 @@ class AdminReviewerControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + orgAdminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewers.length()").value(1))
-                .andExpect(jsonPath("$.reviewers[0].id").value(String.valueOf(policeReviewer.getUserId())));
+                .andExpect(jsonPath("$.reviewers[0].id").value(String.valueOf(policeReviewer.getUserId())))
+                .andExpect(jsonPath("$.reviewers[0].organizationId").value("org-police"))
+                .andExpect(jsonPath("$.reviewers[0].organizationName").value("경찰기관"));
 
         mockMvc.perform(get("/api/v1/admin/reviewers")
                         .param("department", "기타팀")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + orgAdminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewers.length()").value(0));
+    }
+
+    @Test
+    void listReviewers_uploaderScopeUsesInvestigatorsOrganizationAndDepartment() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/reviewers")
+                        .param("uploaderId", String.valueOf(investigator.getUserId()))
+                        .param("department", "디지털포렌식팀")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + orgAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewers.length()").value(1))
+                .andExpect(jsonPath("$.reviewers[0].id").value(String.valueOf(policeReviewer.getUserId())));
     }
 
     @Test

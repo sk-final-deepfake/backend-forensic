@@ -54,6 +54,12 @@ public class CaseProfile {
     @Column(name = "review_request_memo", length = 500)
     private String reviewRequestMemo;
 
+    @Column(name = "reviewer_comment", length = 500)
+    private String reviewerComment;
+
+    @Column(name = "review_approved_at")
+    private LocalDateTime reviewApprovedAt;
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
@@ -89,16 +95,36 @@ public class CaseProfile {
         this.reviewStatus = CaseReviewStatus.REVIEW_REQUESTED;
         this.reviewRequestedAt = LocalDateTime.now();
         this.reviewRequestMemo = memo;
+        this.reviewerComment = null;
+        this.reviewApprovedAt = null;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateReviewerComment(String reviewerComment) {
+        this.reviewerComment = reviewerComment;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void reopenReviewForNewEvidence() {
+        if (this.reviewerId == null) {
+            return;
+        }
+        this.reviewStatus = CaseReviewStatus.REVIEW_ASSIGNED;
+        this.reviewRequestedAt = LocalDateTime.now();
+        this.reviewerComment = null;
+        this.reviewApprovedAt = null;
+        this.updatedAt = this.reviewRequestedAt;
     }
 
     public void approveReview() {
         this.reviewStatus = CaseReviewStatus.REPORT_APPROVED;
-        this.updatedAt = LocalDateTime.now();
+        this.reviewApprovedAt = LocalDateTime.now();
+        this.updatedAt = this.reviewApprovedAt;
     }
 
     public void requestRevision() {
         this.reviewStatus = CaseReviewStatus.REVIEW_SUPPLEMENT_REQUESTED;
+        this.reviewApprovedAt = null;
         this.updatedAt = LocalDateTime.now();
     }
 }

@@ -22,6 +22,8 @@ import com.example.demo.domain.enums.SecurityAlertCode;
 import com.example.demo.support.AbstractEvidenceIntegrationTest;
 import com.example.demo.support.EvidenceApiTestSupport;
 import com.example.demo.support.EvidenceTestFixtures;
+import com.example.demo.support.StepUpTestSupport;
+import com.example.demo.service.evidence.EvidenceStoragePaths;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -130,6 +132,31 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
 
         assertThat(evidenceRepository.findAll())
                 .anyMatch(evidence -> caseName.equals(evidence.getCaseName()));
+    }
+
+    @Test
+    @DisplayName("업로드하면 S3 파일명에 사건명-증거번호(evidenceId)가 반영된다")
+    void shouldUploadFileWithEvidenceIdInStoragePath() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "secret-name.mp4",
+                "video/mp4",
+                "Evidence Id Test Data".getBytes()
+        );
+        String caseName = "딥페이크 테스트";
+
+        mockMvc.perform(multipart("/api/v1/evidences/upload")
+                        .file(file)
+                        .param("caseName", caseName)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseName").value(caseName));
+
+        assertThat(evidenceRepository.findAll())
+                .anyMatch(evidence ->
+                        caseName.equals(evidence.getCaseName())
+                                && evidence.getOriginalStoragePath().endsWith(
+                                        EvidenceStoragePaths.storedObjectFileName(evidence, evidence.getFileName())));
     }
 
     @Test
@@ -786,7 +813,10 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
         assertThat(evidenceRepository.count()).isEqualTo(beforeCount + 1);
         assertThat(evidenceRepository.findAll())
                 .allMatch(evidence -> evidence.getHashAlgorithm().equals("SHA-256"))
-                .allMatch(evidence -> evidence.getHashValue().length() == 64);
+                .allMatch(evidence -> evidence.getHashValue().length() == 64)
+                .allMatch(evidence -> evidence.getOriginalStoragePath().endsWith(
+                        "/original/" + EvidenceStoragePaths.storedObjectFileName(evidence, evidence.getFileName())))
+                .allMatch(evidence -> !evidence.getOriginalStoragePath().contains("sample.mp4"));
     }
 
     @Test
@@ -799,6 +829,9 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                 "coc test image bytes".getBytes(StandardCharsets.UTF_8)
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
+        String previousLogHash = custodyLogRepository.findTopByOrderByLogIdDesc()
+                .map(CustodyLog::getCurrentLogHash)
+                .orElse(null);
 
         String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
@@ -833,7 +866,7 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                     assertThat(log.getCurrentLogHash()).matches("[0-9a-f]{64}");
                 });
 
-        assertThat(logs.get(0).getPreviousLogHash()).isNull();
+        assertThat(logs.get(0).getPreviousLogHash()).isEqualTo(previousLogHash);
         assertThat(logs.get(1).getPreviousLogHash()).isEqualTo(logs.get(0).getCurrentLogHash());
         assertThat(logs.get(2).getPreviousLogHash()).isEqualTo(logs.get(1).getCurrentLogHash());
 
@@ -854,6 +887,41 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
         assertThat(custodyLogRepository.findAll())
                 .extracting(CustodyLog::getActionType)
                 .doesNotContain("FILE_UPLOADED", "ORIGINAL_HASH_CREATED");
+    }
+
+    @Test
+    @DisplayName("증거 상세 API는 Step-up 토큰 없이 403 STEP_UP_REQUIRED를 반환한다")
+    void getEvidenceDetail_withoutStepUpToken_returnsForbidden() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("step-up-guard.mp4", "Step-up 가드 사건");
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("STEP_UP_REQUIRED"));
+    }
+
+    @Test
+    @DisplayName("증거 상세 API는 유효한 Step-up 토큰으로 200을 반환한다")
+    void getEvidenceDetail_withValidStepUpToken_returnsOk() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("step-up-ok.mp4", "Step-up 성공 사건");
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(evidenceId));
+    }
+
+    @Test
+    @DisplayName("증거 상세 API는 잘못된 Step-up 토큰으로 403 STEP_UP_REQUIRED를 반환한다")
+    void getEvidenceDetail_withInvalidStepUpToken_returnsForbidden() throws Exception {
+        long evidenceId = uploadAndStartAnalysis("step-up-invalid.mp4", "Step-up 실패 사건");
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, "invalid-step-up-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("STEP_UP_REQUIRED"));
     }
 
     @Test
@@ -879,7 +947,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
         long evidenceId = objectMapper.readTree(uploadResponseBody).get("evidenceId").asLong();
 
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(evidenceId))
                 .andExpect(jsonPath("$.evidenceInfo.fileName").value("detail-page.mp4"))
@@ -944,7 +1013,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.manifestInfo.evidenceId").value(evidenceId))
                 .andExpect(jsonPath("$.manifestInfo.fileId").value(evidenceId))
@@ -1190,7 +1260,8 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
         evidenceManifestRepository.save(manifest);
 
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", evidenceId)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
                 .andExpect(status().isOk());
 
         assertThat(notificationRepository.findAll())

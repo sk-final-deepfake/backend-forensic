@@ -29,6 +29,9 @@ jwt:
   refresh-expiration-days: 7
 
 auth:
+  refresh:
+    enabled: true
+    idle-timeout-minutes: 20
   cookie:
     secure: false  # MockMvc http 테스트용
 
@@ -42,6 +45,10 @@ analysis:
     step-delay-ms: 0
     mode: local
     stale-reaper-enabled: false
+
+hls:
+  packaging:
+    enabled: false
 
 blockchain:
   anchor:

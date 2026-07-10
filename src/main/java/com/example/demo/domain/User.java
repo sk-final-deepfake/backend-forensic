@@ -123,6 +123,15 @@ public class User {
         this.department = department;
     }
 
+    public void updateAccountInfo(String name, String email, OrgType organizationType, String department) {
+        this.name = name;
+        this.email = email;
+        if (organizationType != null) {
+            this.organizationType = organizationType;
+        }
+        this.department = department;
+    }
+
     public void updateAdminProfile(String loginId, String name, String email, String department, String phone) {
         this.loginId = loginId;
         this.name = name;

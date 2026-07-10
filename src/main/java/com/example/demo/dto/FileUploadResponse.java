@@ -12,6 +12,7 @@ public class FileUploadResponse {
     private Long evidenceId;
     private String fileName;
     private String caseName;
+    private String caseNumber;
     private Long fileSize;
     private String hashAlgorithm;
     /** @deprecated 하위 호환용. 신규 연동은 {@link #originalSha256} 사용 */

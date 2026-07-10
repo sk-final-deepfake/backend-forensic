@@ -15,6 +15,7 @@ import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.NotificationRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.analysis.AnalysisJobEnqueuer;
+import com.example.demo.security.SignupRateLimitService;
 import com.example.demo.service.readiness.EvidenceReadinessService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -77,6 +78,9 @@ public abstract class AbstractEvidenceIntegrationTest {
     @Autowired
     protected PasswordEncoder passwordEncoder;
 
+    @Autowired
+    protected SignupRateLimitService signupRateLimitService;
+
     @MockBean
     protected AnalysisJobEnqueuer analysisJobEnqueuer;
 
@@ -90,9 +94,11 @@ public abstract class AbstractEvidenceIntegrationTest {
     protected String uploadDir;
 
     protected String accessToken;
+    protected String stepUpToken;
 
     @BeforeEach
     void setUpEvidenceIntegrationTest() throws Exception {
+        signupRateLimitService.reset();
         notificationRepository.deleteAll();
         evidenceManifestRepository.deleteAll();
         custodyLogRepository.deleteAll();
@@ -103,6 +109,11 @@ public abstract class AbstractEvidenceIntegrationTest {
         accessToken = JwtTestSupport.loginAndGetToken(
                 mockMvc,
                 EvidenceTestFixtures.DEFAULT_LOGIN_ID,
+                EvidenceTestFixtures.DEFAULT_PASSWORD
+        );
+        stepUpToken = StepUpTestSupport.issueStepUpToken(
+                mockMvc,
+                accessToken,
                 EvidenceTestFixtures.DEFAULT_PASSWORD
         );
     }

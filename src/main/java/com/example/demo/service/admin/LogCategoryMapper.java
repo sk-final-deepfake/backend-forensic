@@ -5,11 +5,18 @@ import java.util.Set;
 
 public final class LogCategoryMapper {
 
-    private static final Set<String> AUTH_ACTIONS = Set.of("LOGIN", "LOGOUT", "SIGNUP_REQUEST");
+    private static final Set<String> AUTH_ACTIONS = Set.of(
+            "LOGIN",
+            "LOGOUT",
+            "SIGNUP_REQUEST",
+            "STEP_UP_VERIFIED",
+            "STEP_UP_EXTENDED"
+    );
     private static final Set<String> ADMIN_ACTIONS = Set.of(
             "USER_APPROVED",
             "USER_REJECTED",
             "USER_SUSPENDED",
+            "USER_REACTIVATED",
             "USER_DELETED",
             "USER_PASSWORD_RESET"
     );
@@ -31,7 +38,9 @@ public final class LogCategoryMapper {
             "ANALYSIS_COPY_DELETED",
             "REPORT_CREATED",
             "REPORT_DOWNLOADED",
-            "QUALITY_WARNING_ACKNOWLEDGED"
+            "QUALITY_WARNING_ACKNOWLEDGED",
+            "EVIDENCE_HLS_PACKAGED",
+            "EVIDENCE_STREAM_ACCESS"
     );
 
     private LogCategoryMapper() {
@@ -78,6 +87,7 @@ public final class LogCategoryMapper {
             case "USER_APPROVED" -> "가입 승인";
             case "USER_REJECTED" -> "가입 반려";
             case "USER_SUSPENDED" -> "계정 정지";
+            case "USER_REACTIVATED" -> "계정 재활성";
             case "USER_DELETED" -> "계정 삭제";
             case "USER_PASSWORD_RESET" -> "비밀번호 재설정";
             case "EVIDENCE_UPLOADED" -> "증거 업로드";
@@ -96,6 +106,8 @@ public final class LogCategoryMapper {
             case "REPORT_CREATED" -> "보고서 생성";
             case "REPORT_DOWNLOADED" -> "보고서 다운로드";
             case "QUALITY_WARNING_ACKNOWLEDGED" -> "화질 안내 확인";
+            case "EVIDENCE_HLS_PACKAGED" -> "HLS 패키징";
+            case "EVIDENCE_STREAM_ACCESS" -> "HLS 스트림 접근";
             default -> actionType;
         };
     }

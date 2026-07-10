@@ -40,6 +40,7 @@ public class CompareVerificationService {
     private final FileValidationService fileValidationService;
     private final HashService hashService;
     private final CompareCandidateFileHandler candidateFileHandler;
+    private final CompareOriginalProbeExtractor originalProbeExtractor;
     private final CompareItemEvaluator compareItemEvaluator;
     private final CompareVerificationAssembler compareVerificationAssembler;
     private final CompareTrustMetadataAssembler compareTrustMetadataAssembler;
@@ -59,10 +60,11 @@ public class CompareVerificationService {
         try {
             String candidateHash = hashService.generateSha256(tempFile);
             long candidateSize = candidateFile.getSize();
+            var originalProbe = originalProbeExtractor.extract(original);
             var candidateProbe = candidateFileHandler.extractProbe(tempFile);
 
             List<CompareItemDto> items = compareItemEvaluator.buildComparisonItems(
-                    original, originalMetadata, candidateHash, candidateSize, candidateProbe);
+                    original, originalMetadata, candidateHash, candidateSize, originalProbe, candidateProbe);
             CompareSummaryDto summary = compareItemEvaluator.summarize(items);
             CompareVerdict verdict = compareItemEvaluator.determineVerdict(
                     items, candidateHash, original.getOriginalHashValue());
@@ -89,6 +91,65 @@ public class CompareVerificationService {
         } finally {
             candidateFileHandler.deleteQuietly(tempFile);
         }
+    }
+
+    @Transactional
+    public CompareVerifyResponse verifyRegistered(
+            User user,
+            Long originalEvidenceId,
+            Long candidateEvidenceId
+    ) {
+        if (originalEvidenceId.equals(candidateEvidenceId)) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "SAME_EVIDENCE",
+                    "서로 다른 두 증거를 선택해 주세요."
+            );
+        }
+
+        Evidence original = evidenceAccessService.requireOwned(user, originalEvidenceId);
+        Evidence candidate = evidenceAccessService.requireOwned(user, candidateEvidenceId);
+        EvidenceMetadata originalMetadata = evidenceMetadataRepository
+                .findByEvidenceId(originalEvidenceId)
+                .orElse(null);
+        String candidateHash = candidate.getOriginalHashValue();
+        long candidateSize = candidate.getFileSize();
+        var originalProbe = originalProbeExtractor.extract(original);
+        var candidateProbe = originalProbeExtractor.extract(candidate);
+
+        List<CompareItemDto> items = compareItemEvaluator.buildComparisonItems(
+                original,
+                originalMetadata,
+                candidateHash,
+                candidateSize,
+                originalProbe,
+                candidateProbe
+        );
+        CompareSummaryDto summary = compareItemEvaluator.summarize(items);
+        CompareVerdict verdict = compareItemEvaluator.determineVerdict(
+                items,
+                candidateHash,
+                original.getOriginalHashValue()
+        );
+        CompareVerification saved = persistVerification(
+                user.getUserId(),
+                originalEvidenceId,
+                candidate.getFileName(),
+                candidateHash,
+                candidateSize,
+                verdict,
+                summary,
+                items
+        );
+
+        return compareVerificationAssembler.toVerifyResponse(
+                saved,
+                original,
+                items,
+                summary,
+                compareTrustMetadataAssembler.buildSignatureInfo(original),
+                compareTrustMetadataAssembler.buildBlockchainInfo(original)
+        );
     }
 
     @Transactional(readOnly = true)

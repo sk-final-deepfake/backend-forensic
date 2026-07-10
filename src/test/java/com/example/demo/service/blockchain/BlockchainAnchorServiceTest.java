@@ -5,11 +5,13 @@ import com.example.demo.domain.BlockchainAnchor;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceManifest;
+import com.example.demo.domain.Report;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.dto.detail.BlockchainInfoDto;
+import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.BlockchainAnchorRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
@@ -59,6 +61,9 @@ class BlockchainAnchorServiceTest {
 
     @Mock
     private EvidenceRepository evidenceRepository;
+
+    @Mock
+    private AnalysisModuleResultRepository analysisModuleResultRepository;
 
     @Mock
     private EvidenceAccessService evidenceAccessService;
@@ -221,6 +226,56 @@ class BlockchainAnchorServiceTest {
                 .isEqualTo("rds:custody_logs?batchDate=2026-06-16");
         assertThat(requestCaptor.getValue().signature()).isNull();
         assertThat(requestCaptor.getValue().certVerified()).isNull();
+    }
+
+    @Test
+    void anchorReportHash_includesAnalysisModelMetadata() {
+        when(properties.isEnabled()).thenReturn(true);
+        when(properties.getNetwork()).thenReturn("local-simulated");
+        when(properties.getClientId()).thenReturn("forenshield-be");
+        when(anchorRepository.findTopByReportIdAndAnchorTypeOrderByCreatedAtDesc(any(), eq(BlockchainAnchorType.REPORT_HASH)))
+                .thenReturn(Optional.empty());
+        when(anchorClient.anchor(any(BlockchainAnchorRequest.class)))
+                .thenReturn(new BlockchainAnchorResult("0xreport", 3L, true, null));
+        when(anchorRepository.save(any(BlockchainAnchor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Report report = new Report();
+        report.setReportId(22L);
+        report.setEvidenceId(7L);
+        report.setAnalysisResultId(55L);
+        report.setReportHash("report-hash");
+        report.setStoragePath("reports/22.pdf");
+
+        Evidence evidence = Evidence.builder()
+                .originalStoragePath("evidence/original.mp4")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(evidence));
+        when(offchainLogHashService.hashReportBundle(report)).thenReturn("report-offchain");
+
+        com.example.demo.domain.AnalysisModuleResult fusion = new com.example.demo.domain.AnalysisModuleResult();
+        fusion.setModuleName("deepfake");
+        fusion.setModelName("Late Fusion");
+        fusion.setModelVersion("late-fusion-v4-ts-gated");
+
+        com.example.demo.domain.AnalysisModuleResult cnn = new com.example.demo.domain.AnalysisModuleResult();
+        cnn.setModuleName("deepfake_cnn");
+        cnn.setModelName("Xception");
+        cnn.setModelVersion("xception/v1.1.0-celeb1k");
+
+        when(analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(55L))
+                .thenReturn(List.of(fusion, cnn));
+
+        BlockchainAnchor result = blockchainAnchorService.anchorReportHash(report, 5L);
+
+        assertThat(result.getStatus()).isEqualTo(BlockchainAnchorStatus.ANCHORED);
+        assertThat(result.getAnalysisModelJson()).contains("late-fusion-v4-ts-gated");
+        assertThat(result.getAnalysisModulesJson()).contains("xception/v1.1.0-celeb1k");
+
+        ArgumentCaptor<BlockchainAnchorRequest> requestCaptor = ArgumentCaptor.forClass(BlockchainAnchorRequest.class);
+        verify(anchorClient).anchor(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().analysisModel()).isNotNull();
+        assertThat(requestCaptor.getValue().analysisModel().version()).isEqualTo("late-fusion-v4-ts-gated");
+        assertThat(requestCaptor.getValue().analysisModules()).hasSize(2);
     }
 
     @Test

@@ -91,4 +91,10 @@ public class BlockchainAnchor {
 
     @Column(name = "offchain_ref_json", columnDefinition = "text")
     private String offchainRefJson;
+
+    @Column(name = "analysis_model_json", columnDefinition = "text")
+    private String analysisModelJson;
+
+    @Column(name = "analysis_modules_json", columnDefinition = "text")
+    private String analysisModulesJson;
 }

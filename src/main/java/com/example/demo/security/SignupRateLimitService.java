@@ -14,22 +14,33 @@ import java.util.concurrent.atomic.AtomicReference;
 public class SignupRateLimitService {
 
     private static final Map<String, RateLimitRule> RULES = Map.of(
-            "POST /api/v1/auth/signup", new RateLimitRule(5, Duration.ofMinutes(1)),
-            "GET /api/v1/auth/username/check", new RateLimitRule(20, Duration.ofMinutes(1)),
-            "POST /api/v1/invite-codes/validate", new RateLimitRule(10, Duration.ofMinutes(1))
+            "POST /api/v1/auth/signup", new RateLimitRule(5, Duration.ofMinutes(1), RateLimitScope.IP),
+            "GET /api/v1/auth/username/check", new RateLimitRule(20, Duration.ofMinutes(1), RateLimitScope.IP),
+            "POST /api/v1/invite-codes/validate", new RateLimitRule(10, Duration.ofMinutes(1), RateLimitScope.IP),
+            "POST /api/v1/auth/step-up/verify", new RateLimitRule(5, Duration.ofMinutes(1), RateLimitScope.USER),
+            "POST /api/v1/auth/step-up/extend", new RateLimitRule(10, Duration.ofMinutes(1), RateLimitScope.USER)
     );
 
     private final ConcurrentHashMap<String, RequestBucket> buckets = new ConcurrentHashMap<>();
     private final AtomicLong requestCount = new AtomicLong();
 
     public RateLimitDecision check(String method, String path, String clientIp) {
+        return check(method, path, clientIp, null);
+    }
+
+    public RateLimitDecision check(String method, String path, String clientIp, String userLoginId) {
         RateLimitRule rule = RULES.get(method + " " + path);
         if (rule == null) {
             return RateLimitDecision.allow();
         }
 
+        String subjectKey = resolveSubjectKey(rule.scope(), clientIp, userLoginId);
+        if (subjectKey == null) {
+            return RateLimitDecision.allow();
+        }
+
         Instant now = Instant.now();
-        String key = method + " " + path + " " + clientIp;
+        String key = method + " " + path + " " + subjectKey;
         AtomicReference<RequestBucket> updatedBucket = new AtomicReference<>();
 
         buckets.compute(key, (ignored, existing) -> {
@@ -62,6 +73,13 @@ public class SignupRateLimitService {
         requestCount.set(0);
     }
 
+    private String resolveSubjectKey(RateLimitScope scope, String clientIp, String userLoginId) {
+        return switch (scope) {
+            case IP -> "ip:" + clientIp;
+            case USER -> userLoginId == null || userLoginId.isBlank() ? null : "user:" + userLoginId;
+        };
+    }
+
     private void cleanupExpiredBuckets(Instant now) {
         buckets.entrySet().removeIf(entry -> {
             RateLimitRule rule = findRuleByKey(entry.getKey());
@@ -78,7 +96,12 @@ public class SignupRateLimitService {
                 .orElse(null);
     }
 
-    private record RateLimitRule(int maxRequests, Duration window) {
+    private enum RateLimitScope {
+        IP,
+        USER
+    }
+
+    private record RateLimitRule(int maxRequests, Duration window, RateLimitScope scope) {
     }
 
     private record RequestBucket(Instant windowStart, int count) {

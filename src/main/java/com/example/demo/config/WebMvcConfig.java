@@ -23,7 +23,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns(
                         "/api/v1/auth/signup",
                         "/api/v1/auth/username/check",
-                        "/api/v1/invite-codes/validate"
+                        "/api/v1/invite-codes/validate",
+                        "/api/v1/auth/step-up/verify",
+                        "/api/v1/auth/step-up/extend"
                 );
     }
 

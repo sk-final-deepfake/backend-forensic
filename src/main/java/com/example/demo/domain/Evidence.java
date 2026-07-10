@@ -149,7 +149,13 @@ public class Evidence {
 
     public void updateCaseInfo(String caseName) {
         this.caseName = caseName;
-        this.caseNumber = caseName;
+    }
+
+    public void renameCase(String oldCaseKey, String newCaseName) {
+        this.caseName = newCaseName;
+        if (this.caseNumber != null && this.caseNumber.equalsIgnoreCase(oldCaseKey)) {
+            this.caseNumber = newCaseName;
+        }
     }
 
     public void updateOriginalStoragePath(String path) {

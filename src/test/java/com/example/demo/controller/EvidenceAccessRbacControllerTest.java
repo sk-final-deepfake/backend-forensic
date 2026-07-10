@@ -11,6 +11,8 @@ import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.support.JwtTestSupport;
+import com.example.demo.support.StepUpTestSupport;
+import com.example.demo.security.SignupRateLimitService;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +52,9 @@ class EvidenceAccessRbacControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private SignupRateLimitService signupRateLimitService;
+
     private User investigator;
     private User reviewer;
     private User orgAdmin;
@@ -57,11 +62,15 @@ class EvidenceAccessRbacControllerTest {
     private String investigatorToken;
     private String reviewerToken;
     private String orgAdminToken;
+    private String investigatorStepUpToken;
+    private String reviewerStepUpToken;
+    private String orgAdminStepUpToken;
     private Evidence assignedEvidence;
     private Evidence hiddenEvidence;
 
     @BeforeEach
     void setUp() throws Exception {
+        signupRateLimitService.reset();
         caseProfileRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
@@ -117,6 +126,9 @@ class EvidenceAccessRbacControllerTest {
         investigatorToken = JwtTestSupport.loginAndGetToken(mockMvc, "inv10", "pass1111");
         reviewerToken = JwtTestSupport.loginAndGetToken(mockMvc, "rev10", "pass2222");
         orgAdminToken = JwtTestSupport.loginAndGetToken(mockMvc, "adm10", "pass3333");
+        investigatorStepUpToken = StepUpTestSupport.issueStepUpToken(mockMvc, investigatorToken, "pass1111");
+        reviewerStepUpToken = StepUpTestSupport.issueStepUpToken(mockMvc, reviewerToken, "pass2222");
+        orgAdminStepUpToken = StepUpTestSupport.issueStepUpToken(mockMvc, orgAdminToken, "pass3333");
 
         assignedEvidence = saveEvidence(investigator, "assigned-access-case", "assigned.mp4");
         hiddenEvidence = saveEvidence(otherInvestigator, "hidden-access-case", "hidden.mp4");
@@ -140,7 +152,8 @@ class EvidenceAccessRbacControllerTest {
     @Test
     void reviewerCanReadAssignedEvidenceDetail() throws Exception {
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", assignedEvidence.getEvidenceId())
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken)
+                        .header(StepUpTestSupport.STEP_UP_HEADER, reviewerStepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(assignedEvidence.getEvidenceId()));
     }
@@ -148,14 +161,16 @@ class EvidenceAccessRbacControllerTest {
     @Test
     void reviewerCannotReadUnassignedEvidenceDetail() throws Exception {
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", hiddenEvidence.getEvidenceId())
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken)
+                        .header(StepUpTestSupport.STEP_UP_HEADER, reviewerStepUpToken))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void orgAdminCanReadOrganizationEvidenceDetail() throws Exception {
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", assignedEvidence.getEvidenceId())
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + orgAdminToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + orgAdminToken)
+                        .header(StepUpTestSupport.STEP_UP_HEADER, orgAdminStepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(assignedEvidence.getEvidenceId()));
     }
@@ -186,7 +201,8 @@ class EvidenceAccessRbacControllerTest {
     @Test
     void investigatorStillReadsOwnEvidenceDetail() throws Exception {
         mockMvc.perform(get("/api/v1/evidences/{evidenceId}/detail", assignedEvidence.getEvidenceId())
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + investigatorToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + investigatorToken)
+                        .header(StepUpTestSupport.STEP_UP_HEADER, investigatorStepUpToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.evidenceInfo.evidenceId").value(assignedEvidence.getEvidenceId()));
     }
