@@ -5,8 +5,11 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.FileType;
+import com.example.demo.domain.enums.HlsStatus;
+import com.example.demo.service.evidence.hls.EvidenceHlsLookupService;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +29,7 @@ class CaseDetailAssemblerTest {
     private CaseEvidencePresentationService caseEvidencePresentationService;
 
     @Mock
-    private EvidenceMediaUrlService evidenceMediaUrlService;
+    private EvidenceHlsLookupService evidenceHlsLookupService;
 
     private CaseDetailAssembler assembler;
 
@@ -34,7 +37,7 @@ class CaseDetailAssemblerTest {
     void setUp() {
         assembler = new CaseDetailAssembler(
                 caseEvidencePresentationService,
-                evidenceMediaUrlService
+                evidenceHlsLookupService
         );
     }
 
@@ -61,13 +64,22 @@ class CaseDetailAssemblerTest {
         when(caseEvidencePresentationService.resolveDisplayLabel(eq(evidence), any())).thenReturn("증거 1");
         when(caseEvidencePresentationService.lifecycleStatusName(evidence)).thenReturn("ACTIVE");
         when(caseEvidencePresentationService.roleName(evidence)).thenReturn("PRIMARY");
-        when(evidenceMediaUrlService.resolve(evidence))
-                .thenReturn(new EvidenceMediaUrlService.MediaUrls("preview", "video", "file"));
+        when(evidenceHlsLookupService.resolveStatus(FileType.VIDEO, 10L, Map.of()))
+                .thenReturn(HlsStatus.PENDING);
 
-        var response = assembler.assemble(user, "case-a", List.of(evidence), List.of(request), null, user);
+        var response = assembler.assemble(
+                user,
+                "case-a",
+                List.of(evidence),
+                List.of(request),
+                null,
+                user,
+                Map.of()
+        );
 
         assertThat(response.getStatus()).isEqualTo("PROCESSING");
         assertThat(response.getEvidences()).hasSize(1);
         assertThat(response.getEvidences().get(0).getAnalysisProgress()).isEqualTo(40);
+        assertThat(response.getEvidences().get(0).getHlsStatus()).isEqualTo("PENDING");
     }
 }

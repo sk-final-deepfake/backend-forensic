@@ -18,8 +18,5 @@ public class CaseEvidenceSummaryDto {
     private String role;
     private Long replacementEvidenceId;
     private String excludedReason;
-    private String thumbnailUrl;
-    private String previewUrl;
-    private String videoUrl;
-    private String fileUrl;
+    private String hlsStatus;
 }

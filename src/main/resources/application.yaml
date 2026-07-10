@@ -23,11 +23,16 @@ jwt:
   # 로컬: application-local.yaml 기본값 또는 JWT_SECRET_KEY 직접 설정
   access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1200000}  # 액세스 JWT 20분 — JwtTokenProvider
   expiration-ms: ${JWT_EXPIRATION_MS:1200000}
-  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}    # 리프레시 JWT·Redis TTL (브라우저 세션 동안)
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}    # 리프레시 JWT claim 만료(상한). Redis idle TTL과 별개
   step-up-expiration-minutes: ${JWT_STEP_UP_EXPIRATION_MINUTES:15}  # Step-up 재인증 TTL
 
 # AuthCookieSupport — 리프레시 JWT HttpOnly 쿠키 (AuthController 로그인·재발급·로그아웃)
 auth:
+  refresh:
+    # true(기본): HttpOnly refresh 쿠키 + /api/auth/refresh — XSS 대비 액세스 JWT 재발급
+    enabled: ${AUTH_REFRESH_ENABLED:true}
+    # Redis idle TTL(분). 재발급 시 갱신. 20분 비활성 시 재로그인 필요
+    idle-timeout-minutes: ${AUTH_REFRESH_IDLE_TIMEOUT_MINUTES:20}
   cookie:
     name: refreshToken
     path: /

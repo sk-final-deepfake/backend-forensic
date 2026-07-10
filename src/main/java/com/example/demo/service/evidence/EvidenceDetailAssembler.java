@@ -16,6 +16,7 @@ import com.example.demo.dto.IntegrityVerifyResponse;
 import com.example.demo.dto.detail.CocLogDto;
 import com.example.demo.dto.detail.EvidenceDetailResponse;
 import com.example.demo.dto.detail.EvidenceInfoDto;
+import com.example.demo.dto.detail.HlsPlaybackDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
 import com.example.demo.dto.detail.ManifestInfoDto;
 import com.example.demo.dto.detail.RecoveryScoreDto;
@@ -46,7 +47,6 @@ public class EvidenceDetailAssembler {
     private final EvidenceManifestProperties evidenceManifestProperties;
     private final AnalysisInfoAssembler analysisInfoAssembler;
     private final CaseEvidencePresentationService caseEvidencePresentationService;
-    private final EvidenceMediaUrlService evidenceMediaUrlService;
 
     public EvidenceDetailResponse assemble(
             Evidence evidence,
@@ -57,7 +57,8 @@ public class EvidenceDetailAssembler {
             List<AnalysisModuleResult> moduleResults,
             List<CustodyLog> custodyLogs,
             EvidenceManifest manifest,
-            RecoveryScoreDto recovery
+            RecoveryScoreDto recovery,
+            HlsPlaybackDto hlsPlayback
     ) {
         boolean isChainValid = resolveChainValid(verification, evidence.getEvidenceId());
 
@@ -69,6 +70,7 @@ public class EvidenceDetailAssembler {
                 .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidence))
                 .analysisInfo(analysisInfoAssembler.assemble(request, result, moduleResults))
                 .cocLogs(toCocLogs(custodyLogs))
+                .hlsPlayback(hlsPlayback)
                 .build();
     }
 
@@ -95,7 +97,6 @@ public class EvidenceDetailAssembler {
                 evidence.getUploaderId(),
                 EvidenceCaseIdResolver.resolve(evidence)
         );
-        EvidenceMediaUrlService.MediaUrls mediaUrls = evidenceMediaUrlService.resolve(evidence);
         return EvidenceInfoDto.builder()
                 .evidenceId(evidence.getEvidenceId())
                 .fileName(evidence.getFileName())
@@ -111,9 +112,6 @@ public class EvidenceDetailAssembler {
                 .role(caseEvidencePresentationService.roleName(evidence))
                 .replacementEvidenceId(evidence.getReplacementEvidenceId())
                 .excludedReason(evidence.getExcludedReason())
-                .previewUrl(mediaUrls.previewUrl())
-                .videoUrl(mediaUrls.videoUrl())
-                .fileUrl(mediaUrls.fileUrl())
                 .technicalMetadata(mapToTypeSpecificMetadata(metadata))
                 .build();
     }

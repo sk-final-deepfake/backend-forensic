@@ -32,7 +32,8 @@ public final class LogCategoryMapper {
             "REPORT_CREATED",
             "REPORT_DOWNLOADED",
             "QUALITY_WARNING_ACKNOWLEDGED",
-            "EVIDENCE_HLS_PACKAGED"
+            "EVIDENCE_HLS_PACKAGED",
+            "EVIDENCE_STREAM_ACCESS"
     );
 
     private LogCategoryMapper() {
@@ -98,6 +99,7 @@ public final class LogCategoryMapper {
             case "REPORT_DOWNLOADED" -> "보고서 다운로드";
             case "QUALITY_WARNING_ACKNOWLEDGED" -> "화질 안내 확인";
             case "EVIDENCE_HLS_PACKAGED" -> "HLS 패키징";
+            case "EVIDENCE_STREAM_ACCESS" -> "HLS 스트림 접근";
             default -> actionType;
         };
     }

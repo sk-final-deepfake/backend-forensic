@@ -10,6 +10,7 @@ import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.service.evidence.hls.EvidenceHlsLookupService;
 import com.example.demo.util.UserRoleSupport;
 import java.util.EnumSet;
 import java.util.List;
@@ -34,6 +35,7 @@ public class CaseReviewService {
     private final AnalysisRequestRepository analysisRequestRepository;
     private final CaseDetailAssembler caseDetailAssembler;
     private final CaseEvidencePresentationService caseEvidencePresentationService;
+    private final EvidenceHlsLookupService evidenceHlsLookupService;
 
     @Transactional
     public CaseDetailResponse requestReview(User user, String caseKey, String memo) {
@@ -156,13 +158,15 @@ public class CaseReviewService {
     ) {
         List<Long> evidenceIds = context.evidences().stream().map(evidence -> evidence.getEvidenceId()).toList();
         User uploader = userRepository.findByUserIdAndDeletedAtIsNull(context.uploaderId()).orElse(user);
+        var hlsByEvidenceId = evidenceHlsLookupService.findByEvidenceIds(evidenceIds);
         return caseDetailAssembler.assemble(
                 uploader,
                 context.caseKey(),
                 context.evidences(),
                 analysisRequestRepository.findByEvidenceIdInOrderByRequestedAtDesc(evidenceIds),
                 profile,
-                uploader
+                uploader,
+                hlsByEvidenceId
         );
     }
 

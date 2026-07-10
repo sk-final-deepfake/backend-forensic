@@ -10,9 +10,6 @@ public final class EvidenceStoragePaths {
     }
 
     public static String resolveCaseKey(Evidence evidence) {
-        if (evidence.getCaseNumber() != null && !evidence.getCaseNumber().isBlank()) {
-            return sanitize(evidence.getCaseNumber());
-        }
         if (evidence.getCaseName() != null && !evidence.getCaseName().isBlank()) {
             return sanitize(evidence.getCaseName());
         }
@@ -20,7 +17,7 @@ public final class EvidenceStoragePaths {
     }
 
     /**
-     * S3 object file segment derived from case name/number — not the user's original filename.
+     * S3 object file segment: {@code {caseName}-{evidenceId}.{ext}} — not the user's original filename.
      * DB {@code file_name} keeps the original upload name for display and reports.
      */
     public static String storedObjectFileName(Evidence evidence, String originalFileName) {
@@ -31,18 +28,14 @@ public final class EvidenceStoragePaths {
         if (evidence == null) {
             throw new IllegalArgumentException("evidence is required");
         }
+        if (evidence.getEvidenceId() == null) {
+            throw new IllegalArgumentException("evidenceId is required");
+        }
         String caseName = sanitizePart(evidence.getCaseName());
-        String caseNumber = sanitizePart(evidence.getCaseNumber());
-        if (caseName.isEmpty() && caseNumber.isEmpty()) {
+        if (caseName.isEmpty()) {
             return "evidence-" + evidence.getEvidenceId();
         }
-        if (caseName.isEmpty()) {
-            return caseNumber;
-        }
-        if (caseNumber.isEmpty() || caseName.equals(caseNumber)) {
-            return caseName;
-        }
-        return caseName + "-" + caseNumber;
+        return caseName + "-" + evidence.getEvidenceId();
     }
 
     public static String originalKey(String caseKey, Evidence evidence, String originalFileName) {
