@@ -408,6 +408,17 @@ class FeatureApiControllerTest {
 
         Report previewReport = reportRepository.findTopByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())
                 .orElseThrow();
+        java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(previewReport.getStoragePath()));
+
+        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf")
+                        .param("preview", "true")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
+                .andExpect(header().string("X-Report-Preview", "true"));
+
+        previewReport = reportRepository.findTopByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())
+                .orElseThrow();
         assertThat(previewReport.getPublicationStatus()).isEqualTo(ReportPublicationStatus.DRAFT);
         assertThat(previewReport.getVerificationToken()).isNull();
 
