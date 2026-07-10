@@ -59,12 +59,8 @@ public class CompareItemEvaluator {
                 candidateProbe.map(p -> p.getDurationSec() == null ? null : String.valueOf(p.getDurationSec())).orElse(null)
         ));
 
-        String originalCodec = originalMetadata != null && originalMetadata.getCodec() != null
-                ? originalMetadata.getCodec()
-                : originalProbe.map(p -> FfprobeCompareHelper.formatCodec(p.getVideoCodec(), p.getAudioCodec())).orElse(null);
-        String candidateCodec = candidateProbe
-                .map(p -> FfprobeCompareHelper.formatCodec(p.getVideoCodec(), p.getAudioCodec()))
-                .orElse(null);
+        String originalCodec = codecLabel(originalProbe);
+        String candidateCodec = codecLabel(candidateProbe);
         items.add(compareOptional("CODEC", "코덱 정보", originalCodec, candidateCodec));
 
         String originalTimestamp = originalMetadata != null && originalMetadata.getCapturedAt() != null
@@ -124,6 +120,12 @@ public class CompareItemEvaluator {
             return CompareVerdict.TAMPERED;
         }
         return CompareVerdict.INCONCLUSIVE;
+    }
+
+    private static String codecLabel(Optional<FfprobeCompareHelper.ProbeSnapshot> probe) {
+        return probe
+                .map(p -> FfprobeCompareHelper.formatCodec(p.getVideoCodec(), p.getAudioCodec()))
+                .orElse(null);
     }
 
     private CompareItemDto compareValues(String key, String label, String originalValue, String candidateValue) {
