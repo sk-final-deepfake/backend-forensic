@@ -5,6 +5,7 @@ import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.service.readiness.EvidenceReadinessService;
 import com.example.demo.service.evidence.hls.EvidenceHlsSeedService;
 import com.example.demo.domain.Evidence;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.ExtractionStatus;
 import com.example.demo.domain.enums.FileType;
@@ -14,6 +15,7 @@ import com.example.demo.dto.ValidatedFile;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.HashGenerationException;
 import com.example.demo.repository.EvidenceRepository;
+import com.example.demo.util.EvidenceCaseIdResolver;
 import com.example.demo.util.JsonPayloadWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,6 +47,7 @@ public class FileService {
     private final MediaService mediaService;
     private final HashService hashService;
     private final EvidenceRepository evidenceRepository;
+    private final CaseProfileRepository caseProfileRepository;
     private final FileValidationService fileValidationService;
     private final CustodyLogService custodyLogService;
     private final EvidenceMetadataService evidenceMetadataService;
@@ -61,6 +64,7 @@ public class FileService {
             MediaService mediaService,
             HashService hashService,
             EvidenceRepository evidenceRepository,
+            CaseProfileRepository caseProfileRepository,
             FileValidationService fileValidationService,
             CustodyLogService custodyLogService,
             EvidenceMetadataService evidenceMetadataService,
@@ -76,6 +80,7 @@ public class FileService {
         this.mediaService = mediaService;
         this.hashService = hashService;
         this.evidenceRepository = evidenceRepository;
+        this.caseProfileRepository = caseProfileRepository;
         this.fileValidationService = fileValidationService;
         this.custodyLogService = custodyLogService;
         this.evidenceMetadataService = evidenceMetadataService;
@@ -180,6 +185,8 @@ public class FileService {
                 evidenceRepository.save(savedEvidence);
             }
 
+            reopenAssignedReview(savedEvidence);
+
             String originalSha256 = savedEvidence.getOriginalHashValue();
             return FileUploadResponse.builder()
                     .success(true)
@@ -223,6 +230,15 @@ public class FileService {
             response.put("hasAudioTrack", extracted.getHasAudioTrack());
         }
         return response;
+    }
+
+    private void reopenAssignedReview(Evidence evidence) {
+        String caseKey = EvidenceCaseIdResolver.resolve(evidence);
+        caseProfileRepository.findByUploaderIdAndCaseKey(evidence.getUploaderId(), caseKey)
+                .ifPresent(profile -> {
+                    profile.reopenReviewForNewEvidence();
+                    caseProfileRepository.save(profile);
+                });
     }
 
     private void recordUploadCustodyLogs(Evidence savedEvidence, Long uploaderId, String extractionStatus) {

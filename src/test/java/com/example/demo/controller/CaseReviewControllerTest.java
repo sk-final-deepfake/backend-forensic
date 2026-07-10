@@ -236,6 +236,52 @@ class CaseReviewControllerTest {
     }
 
     @Test
+    void reviewWorkflow_assignedReviewerCanApproveAgainAfterNewEvidenceIsAdded() throws Exception {
+        CaseProfile profile = caseProfileRepository.save(new CaseProfile(
+                investigator.getUserId(),
+                "review-case",
+                completedEvidence.getEvidenceId()
+        ));
+        profile.assignReviewer(reviewer.getUserId());
+        profile.approveReview();
+        caseProfileRepository.save(profile);
+
+        profile.reopenReviewForNewEvidence();
+        caseProfileRepository.save(profile);
+
+        mockMvc.perform(post("/api/v1/cases/review-decision?caseKey=review-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decision":"APPROVED"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("REPORT_APPROVED"))
+                .andExpect(jsonPath("$.reviewerId").value(String.valueOf(reviewer.getUserId())));
+    }
+
+    @Test
+    void reviewWorkflow_assignedReviewerCanApproveAnAlreadyApprovedCase() throws Exception {
+        CaseProfile profile = caseProfileRepository.save(new CaseProfile(
+                investigator.getUserId(),
+                "review-case",
+                completedEvidence.getEvidenceId()
+        ));
+        profile.assignReviewer(reviewer.getUserId());
+        profile.approveReview();
+        caseProfileRepository.save(profile);
+
+        mockMvc.perform(post("/api/v1/cases/review-decision?caseKey=review-case")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decision":"APPROVED"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("REPORT_APPROVED"));
+    }
+
+    @Test
     void assignReviewerByCaseKey_rejectsReviewerFromDifferentDepartment() throws Exception {
         CaseProfile profile = caseProfileRepository.save(new CaseProfile(
                 investigator.getUserId(),

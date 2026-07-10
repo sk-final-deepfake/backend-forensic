@@ -83,7 +83,7 @@ public class CaseReviewService {
     public CaseDetailResponse recordDecision(User user, String caseKey, String decision, String memo) {
         CaseAccessService.CaseAccessContext context = caseAccessService.requireAccessibleCase(user, caseKey);
         CaseProfile profile = resolveProfile(context);
-        if (profile.getReviewStatus() != CaseReviewStatus.REVIEW_ASSIGNED) {
+        if (profile.getReviewerId() == null) {
             throw new BusinessException(
                     HttpStatus.CONFLICT, "REVIEW_NOT_ASSIGNED", "검토자가 배정된 사건만 결정할 수 있습니다.");
         }

@@ -105,6 +105,17 @@ public class CaseProfile {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void reopenReviewForNewEvidence() {
+        if (this.reviewerId == null) {
+            return;
+        }
+        this.reviewStatus = CaseReviewStatus.REVIEW_ASSIGNED;
+        this.reviewRequestedAt = LocalDateTime.now();
+        this.reviewerComment = null;
+        this.reviewApprovedAt = null;
+        this.updatedAt = this.reviewRequestedAt;
+    }
+
     public void approveReview() {
         this.reviewStatus = CaseReviewStatus.REPORT_APPROVED;
         this.reviewApprovedAt = LocalDateTime.now();
