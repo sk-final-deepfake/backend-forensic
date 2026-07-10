@@ -90,11 +90,22 @@ class EvidenceHlsPackagingServiceTest {
         LocalDateTime now = LocalDateTime.now();
         evidenceHlsRepository.save(EvidenceHls.createPending(evidenceId, now));
 
-        packagingService.markFailed(evidenceId, "ffmpeg failed");
+        packagingService.markFailed(evidenceId, "ffmpeg failed", false);
 
         EvidenceHls row = evidenceHlsRepository.findByEvidenceId(evidenceId).orElseThrow();
         assertThat(row.getHlsStatus()).isEqualTo(HlsStatus.FAILED);
         assertThat(row.getHlsError()).isEqualTo("ffmpeg failed");
+    }
+
+    @Test
+    void markFailed_permanentFailurePrefixesError() {
+        LocalDateTime now = LocalDateTime.now();
+        evidenceHlsRepository.save(EvidenceHls.createPending(evidenceId, now));
+
+        packagingService.markFailed(evidenceId, "missing original", true);
+
+        EvidenceHls row = evidenceHlsRepository.findByEvidenceId(evidenceId).orElseThrow();
+        assertThat(row.getHlsError()).startsWith(HlsPackagingFailureClassifier.PERMANENT_PREFIX);
     }
 
     @Test

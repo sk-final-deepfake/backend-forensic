@@ -32,6 +32,9 @@ public class HlsPackagingProperties {
 
     private long staleReaperIntervalMs = 300_000;
 
+    /** READY hls/ prefix당 S3 stray 정리 배치 (1회 스케줄 틱) */
+    private int artifactCleanupBatchSize = 20;
+
     /** content_key_enc 암호화용 마스터 시크릿 (운영 env 필수) */
     private String contentKeyEncryptionSecret = "forenshield-hls-dev-key-change-in-prod-32b";
 }

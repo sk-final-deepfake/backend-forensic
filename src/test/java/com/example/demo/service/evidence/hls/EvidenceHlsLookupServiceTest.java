@@ -109,11 +109,65 @@ class EvidenceHlsLookupServiceTest {
         );
 
         List<Long> ids = evidenceHlsRepository.findEvidenceIdsNeedingHlsPackaging(
-                List.of(HlsStatus.PENDING, HlsStatus.FAILED),
                 PageRequest.of(0, 100)
         );
 
         assertThat(ids).contains(evidenceId1, third.getEvidenceId());
         assertThat(ids).doesNotContain(evidenceId2);
+    }
+
+    @Test
+    void findEvidenceIdsNeedingHlsPackaging_excludesLegacyPermanentFailureMessages() {
+        LocalDateTime now = LocalDateTime.now();
+        EvidenceHls legacyFailed = EvidenceHls.createPending(evidenceId1, now);
+        legacyFailed.markFailed("NoSuchKeyException: The specified key does not exist.", now);
+        evidenceHlsRepository.save(legacyFailed);
+
+        List<Long> ids = evidenceHlsRepository.findEvidenceIdsNeedingHlsPackaging(
+                PageRequest.of(0, 100)
+        );
+
+        assertThat(ids).doesNotContain(evidenceId1);
+    }
+
+    @Test
+    void findEvidenceIdsNeedingHlsPackaging_excludesPermanentFailures() {
+        LocalDateTime now = LocalDateTime.now();
+        EvidenceHls permanentFailed = EvidenceHls.createPending(evidenceId1, now);
+        permanentFailed.markFailed(
+                HlsPackagingFailureClassifier.PERMANENT_PREFIX + " missing original",
+                now
+        );
+        evidenceHlsRepository.save(permanentFailed);
+
+        List<Long> ids = evidenceHlsRepository.findEvidenceIdsNeedingHlsPackaging(
+                PageRequest.of(0, 100)
+        );
+
+        assertThat(ids).doesNotContain(evidenceId1);
+    }
+
+    @Test
+    void findEvidenceIdsNeedingHlsPackaging_prioritizesPendingOverRetryableFailed() {
+        LocalDateTime now = LocalDateTime.now();
+        User user = userRepository.findAll().get(0);
+
+        Evidence pendingEvidence = evidenceRepository.save(
+                EvidenceTestFixtures.videoEvidence(user.getUserId(), "pending.mp4", 'p')
+        );
+        Evidence failedEvidence = evidenceRepository.save(
+                EvidenceTestFixtures.videoEvidence(user.getUserId(), "failed.mp4", 'f')
+        );
+
+        evidenceHlsRepository.save(EvidenceHls.createPending(pendingEvidence.getEvidenceId(), now));
+        EvidenceHls retryableFailed = EvidenceHls.createPending(failedEvidence.getEvidenceId(), now);
+        retryableFailed.markFailed("ffmpeg timed out", now);
+        evidenceHlsRepository.save(retryableFailed);
+
+        List<Long> ids = evidenceHlsRepository.findEvidenceIdsNeedingHlsPackaging(
+                PageRequest.of(0, 1)
+        );
+
+        assertThat(ids).containsExactly(pendingEvidence.getEvidenceId());
     }
 }

@@ -57,6 +57,7 @@ hls:
     stale-packaging-minutes: ${HLS_STALE_PACKAGING_MINUTES:45}
     backfill-interval-ms: ${HLS_BACKFILL_INTERVAL_MS:60000}
     stale-reaper-interval-ms: ${HLS_STALE_REAPER_INTERVAL_MS:300000}
+    artifact-cleanup-batch-size: ${HLS_ARTIFACT_CLEANUP_BATCH_SIZE:20}
     content-key-encryption-secret: ${HLS_CONTENT_KEY_ENCRYPTION_SECRET:forenshield-hls-dev-key-change-in-prod-32b}
 
 # 인프라팀 env 변수와 1:1 매핑
