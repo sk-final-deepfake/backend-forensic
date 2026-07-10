@@ -1,14 +1,11 @@
 package com.example.demo.service.evidence.hls;
 
-import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceHls;
 import com.example.demo.domain.User;
-import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.HlsStatus;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.EvidenceHlsRepository;
 import com.example.demo.service.auth.StepUpAuthService;
-import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.service.evidence.EvidenceAccessService;
 import com.example.demo.service.evidence.EvidenceStoragePaths;
 import java.io.IOException;
@@ -36,7 +33,6 @@ public class EvidenceHlsStreamService {
     private final EvidenceHlsContentKeyProtector contentKeyProtector;
     private final EvidenceStreamTokenRedisService streamTokenRedisService;
     private final StepUpAuthService stepUpAuthService;
-    private final CustodyLogService custodyLogService;
     private final S3Client s3Client;
 
     @Value("${aws.s3.evidence-bucket}")
@@ -58,7 +54,6 @@ public class EvidenceHlsStreamService {
         if (hls.getContentKeyEnc() == null || hls.getContentKeyEnc().length == 0) {
             throw hlsNotReady();
         }
-        recordStreamAccess(user, evidenceId, streamToken, "HLS AES-128 content key 전달");
         return contentKeyProtector.decrypt(hls.getContentKeyEnc());
     }
 
@@ -67,7 +62,6 @@ public class EvidenceHlsStreamService {
         validateSegmentFileName(fileName);
         EvidenceHls hls = requireReadyHls(evidenceId);
         String s3Key = resolveStorageKey(hls, hls.getHlsStoragePrefix() + fileName);
-        recordStreamAccess(user, evidenceId, streamToken, "HLS 세그먼트 스트림: " + fileName);
         return readBinaryObject(s3Key);
     }
 
@@ -127,24 +121,6 @@ public class EvidenceHlsStreamService {
         } catch (IOException ex) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "HLS_READ_FAILED", "HLS 객체 읽기에 실패했습니다.");
         }
-    }
-
-    private void recordStreamAccess(User user, Long evidenceId, String streamToken, String reason) {
-        if (!streamTokenRedisService.tryMarkStreamAccessLogged(streamToken)) {
-            return;
-        }
-        Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
-        custodyLogService.record(
-                user.getUserId(),
-                CustodyTargetType.EVIDENCE,
-                evidenceId,
-                "EVIDENCE_STREAM_ACCESS",
-                evidence.getOriginalHashValue(),
-                evidence.getOriginalStoragePath(),
-                reason,
-                null,
-                null
-        );
     }
 
     private static BusinessException streamTokenRequired() {

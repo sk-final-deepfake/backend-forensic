@@ -33,11 +33,4 @@ class EvidenceStreamTokenRedisServiceTest {
         assertThat(service.resolve("missing-token")).isEmpty();
     }
 
-    @Test
-    void tryMarkStreamAccessLogged_isIdempotent() {
-        String token = service.issueToken(1L, 2L);
-
-        assertThat(service.tryMarkStreamAccessLogged(token)).isTrue();
-        assertThat(service.tryMarkStreamAccessLogged(token)).isFalse();
-    }
 }

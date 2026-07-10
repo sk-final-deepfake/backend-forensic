@@ -19,12 +19,10 @@ import org.springframework.stereotype.Service;
 public class EvidenceStreamTokenRedisService {
 
     private static final String KEY_PREFIX = "STREAM:";
-    private static final String ACCESS_LOGGED_PREFIX = "STREAM_AUDIT:";
 
     private final StringRedisTemplate redisTemplate;
     private final JwtProperties jwtProperties;
     private final Map<String, String> memoryStore = new ConcurrentHashMap<>();
-    private final Map<String, Boolean> memoryAccessLogged = new ConcurrentHashMap<>();
 
     @Autowired
     public EvidenceStreamTokenRedisService(
@@ -86,28 +84,6 @@ public class EvidenceStreamTokenRedisService {
         } catch (NumberFormatException ex) {
             return Optional.empty();
         }
-    }
-
-    /**
-     * CoC EVIDENCE_STREAM_ACCESS — stream token당 1회만 true.
-     */
-    public boolean tryMarkStreamAccessLogged(String token) {
-        if (token == null || token.isBlank()) {
-            return false;
-        }
-        String auditKey = ACCESS_LOGGED_PREFIX + token;
-        long ttlMinutes = jwtProperties.resolveStepUpExpirationMinutes();
-
-        if (useRedis()) {
-            try {
-                Boolean created = redisTemplate.opsForValue().setIfAbsent(auditKey, "1", ttlMinutes, TimeUnit.MINUTES);
-                return Boolean.TRUE.equals(created);
-            } catch (RuntimeException ignored) {
-                // 인메모리 폴백
-            }
-        }
-
-        return memoryAccessLogged.putIfAbsent(auditKey, Boolean.TRUE) == null;
     }
 
     public long resolveExpiresInSeconds() {
