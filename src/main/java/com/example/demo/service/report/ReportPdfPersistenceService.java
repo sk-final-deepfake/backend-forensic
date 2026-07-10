@@ -112,7 +112,7 @@ public class ReportPdfPersistenceService {
             boolean approvedForReport
     ) {
         List<String> lines = reportContentBuilder.buildCompareLines(
-                verification, originalInfo, candidateInfo, items);
+                verification, original, originalInfo, candidateInfo, items);
 
         if (!preview && !approvedForReport) {
             throw new BusinessException(

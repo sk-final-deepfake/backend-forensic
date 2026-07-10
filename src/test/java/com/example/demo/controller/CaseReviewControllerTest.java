@@ -21,6 +21,8 @@ import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.ReportRepository;
 import com.example.demo.support.JwtTestSupport;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -233,6 +235,50 @@ class CaseReviewControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewStatus").value("REVIEW_SUPPLEMENT_REQUESTED"));
+    }
+
+    @Test
+    void reportDownload_usesCaseApprovalForEvidenceCompletedAfterThePreviousApproval() throws Exception {
+        CaseProfile profile = caseProfileRepository.save(new CaseProfile(
+                investigator.getUserId(),
+                "review-case",
+                completedEvidence.getEvidenceId()
+        ));
+        profile.assignReviewer(reviewer.getUserId());
+        profile.approveReview();
+        caseProfileRepository.save(profile);
+
+        AnalysisRequest request = analysisRequestRepository
+                .findTopByEvidenceIdOrderByRequestedAtDesc(completedEvidence.getEvidenceId())
+                .orElseThrow();
+        request.setCompletedAt(profile.getReviewApprovedAt().plusSeconds(1));
+        analysisRequestRepository.save(request);
+
+        AnalysisResult result = new AnalysisResult();
+        result.setAnalysisRequestId(request.getAnalysisRequestId());
+        result.setRiskScore(52.0);
+        result.setConfidenceScore(0.81);
+        result.setRiskLevel(RiskLevel.MEDIUM);
+        result.setSummary("case-level approval report");
+        result.setAnalyzedAt(request.getCompletedAt());
+        analysisResultRepository.save(result);
+
+        byte[] pdfBytes = mockMvc.perform(get("/api/v1/evidences/" + completedEvidence.getEvidenceId() + "/reports/pdf")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+
+        PdfReader pdfReader = new PdfReader(pdfBytes);
+        try {
+            String overviewText = new PdfTextExtractor(pdfReader).getTextFromPage(1);
+            String integrityText = new PdfTextExtractor(pdfReader).getTextFromPage(3);
+            assertThat(overviewText).contains("review-case", "분석관");
+            assertThat(integrityText).contains("검토자");
+        } finally {
+            pdfReader.close();
+        }
     }
 
     @Test

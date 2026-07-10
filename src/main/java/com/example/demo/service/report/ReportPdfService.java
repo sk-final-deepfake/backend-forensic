@@ -8,7 +8,6 @@ import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.BlockchainAnchor;
-import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.CompareVerification;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceManifest;
@@ -73,7 +72,7 @@ public class ReportPdfService {
     private final EvidenceManifestService evidenceManifestService;
     private final BlockchainAnchorRepository blockchainAnchorRepository;
 
-    @Value("${report.public-view-base-url:http://localhost:3000/public-report}")
+    @Value("${report.public-view-base-url:https://forensheildjangdochi.com/public-report}")
     private String publicViewBaseUrl;
 
     @Value("${report.public-access-ttl-days:7}")
@@ -98,7 +97,7 @@ public class ReportPdfService {
                 request,
                 result,
                 modules,
-                isApprovedForReport(evidence, request)
+                isApprovedForReport(evidence)
         );
     }
 
@@ -116,10 +115,6 @@ public class ReportPdfService {
         );
         CompareFileInfoDto candidateInfo = compareVerificationService.getCandidateFileInfo(user, compareId);
 
-        AnalysisRequest originalAnalysis = analysisRequestRepository
-                .findTopByEvidenceIdOrderByRequestedAtDesc(original.getEvidenceId())
-                .orElse(null);
-
         return reportPdfPersistenceService.persistCompareReport(
                 user,
                 compareId,
@@ -129,7 +124,7 @@ public class ReportPdfService {
                 originalInfo,
                 candidateInfo,
                 items,
-                isApprovedForReport(original, originalAnalysis)
+                isApprovedForReport(original)
         );
     }
 
@@ -495,19 +490,11 @@ public class ReportPdfService {
                         HttpStatus.CONFLICT, "ANALYSIS_RESULT_NOT_FOUND", "분석 결과가 없습니다."));
     }
 
-    private boolean isApprovedForReport(Evidence evidence, AnalysisRequest request) {
+    private boolean isApprovedForReport(Evidence evidence) {
         String caseKey = EvidenceCaseIdResolver.resolve(evidence);
         return caseProfileRepository.findByUploaderIdAndCaseKey(evidence.getUploaderId(), caseKey)
                 .filter(profile -> profile.getReviewStatus() == CaseReviewStatus.REPORT_APPROVED)
-                .map(profile -> approvalCoversRequest(profile, request))
-                .orElse(false);
-    }
-
-    private boolean approvalCoversRequest(CaseProfile profile, AnalysisRequest request) {
-        if (request == null || request.getCompletedAt() == null || profile.getReviewApprovedAt() == null) {
-            return true;
-        }
-        return !request.getCompletedAt().isAfter(profile.getReviewApprovedAt());
+                .isPresent();
     }
 
     private ReportPdfPayload toPayload(Report report, byte[] pdfBytes) {

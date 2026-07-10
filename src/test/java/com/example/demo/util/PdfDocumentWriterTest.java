@@ -11,6 +11,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PdfDocumentWriterTest {
 
     private static final List<String> REPORT_LINES = List.of(
+            "Case Name: 서울-디지털증거-2026",
+            "Case Number: CASE-2026-0710",
+            "Analyst Name: Analyst Kim",
+            "Reviewer Name: Reviewer Lee",
             "Evidence ID: 101",
             "File Name: sample.mp4",
             "SHA-256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -35,6 +39,11 @@ class PdfDocumentWriterTest {
         try {
             assertThat(reader.getNumberOfPages()).isEqualTo(3);
             String integrityPageText = new PdfTextExtractor(reader).getTextFromPage(3);
+            String overviewText = new PdfTextExtractor(reader).getTextFromPage(1);
+            assertThat(overviewText)
+                    .contains("서울-디지털증거-2026")
+                    .contains("Analyst Kim");
+            assertThat(integrityPageText).contains("Reviewer Lee");
             assertThat(integrityPageText).contains(verifyUrl);
             assertThat(integrityPageText).contains(verificationCode);
         } finally {

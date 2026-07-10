@@ -145,8 +145,8 @@ readiness:
 
 # 공개 보고서 QR·외부 열람 URL
 report:
-  public-verify-base-url: ${REPORT_PUBLIC_VERIFY_BASE_URL:http://localhost:3000/verify}
-  public-view-base-url: ${REPORT_PUBLIC_VIEW_BASE_URL:http://localhost:3000/public-report}
+  public-verify-base-url: ${REPORT_PUBLIC_VERIFY_BASE_URL:https://forensheildjangdochi.com/verify}
+  public-view-base-url: ${REPORT_PUBLIC_VIEW_BASE_URL:https://forensheildjangdochi.com/public-report}
   public-access-ttl-days: ${REPORT_PUBLIC_ACCESS_TTL_DAYS:7}
 
 springdoc:

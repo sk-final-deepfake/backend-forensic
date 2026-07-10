@@ -166,7 +166,7 @@ public final class PdfDocumentWriter {
                 row("보고서 유형", "딥페이크 분석 종합 보고서"),
                 row("검토 상태", issued ? "검토 승인 완료" : "검토 승인 대기"),
                 row("보안 등급", "내부망 전용"),
-                row("생성자", "분석관"),
+                row("생성자", data.value("Analyst Name").orElse("분석관")),
                 row("생성일", LocalDateTime.now().format(DATE_TIME_FORMAT)),
                 row("검증 방식", issued ? "QR · 검증 URL · 전자서명" : "승인 후 발급")
         ));
@@ -334,7 +334,7 @@ public final class PdfDocumentWriter {
         caution.setSpacingBefore(8);
         document.add(caution);
 
-        addSignatureBlock(document, reportTitle);
+        addSignatureBlock(document, reportTitle, data);
     }
 
     private static void addPageHeader(Document document, String title, String subtitle) throws DocumentException {
@@ -516,7 +516,7 @@ public final class PdfDocumentWriter {
         document.add(outer);
     }
 
-    private static void addSignatureBlock(Document document, String reportTitle) throws DocumentException {
+    private static void addSignatureBlock(Document document, String reportTitle, ReportData data) throws DocumentException {
         Paragraph statement = new Paragraph("위와 같이 " + reportTitle + "를 보고합니다.", font(13, Font.NORMAL, INK));
         statement.setAlignment(Element.ALIGN_CENTER);
         statement.setSpacingBefore(12);
@@ -531,8 +531,8 @@ public final class PdfDocumentWriter {
         PdfPTable signatures = new PdfPTable(new float[]{0.9f, 3.2f, 1.4f});
         signatures.setWidthPercentage(72);
         signatures.setHorizontalAlignment(Element.ALIGN_CENTER);
-        addSignatureRow(signatures, "작성자", "분석관", "(서명)");
-        addSignatureRow(signatures, "검토자", "책임 검토관", "(서명)");
+        addSignatureRow(signatures, "작성자", data.value("Analyst Name").orElse("분석관"), "(서명)");
+        addSignatureRow(signatures, "검토자", data.value("Reviewer Name").orElse("책임 검토관"), "(서명)");
         document.add(signatures);
     }
 

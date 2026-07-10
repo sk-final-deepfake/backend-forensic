@@ -51,3 +51,7 @@ blockchain:
     network: local-simulated
     scheduler-enabled: true
     daily-cron: "0 0 1 * * *"
+
+report:
+  public-verify-base-url: ${REPORT_PUBLIC_VERIFY_BASE_URL:http://localhost:3000/verify}
+  public-view-base-url: ${REPORT_PUBLIC_VIEW_BASE_URL:http://localhost:3000/public-report}

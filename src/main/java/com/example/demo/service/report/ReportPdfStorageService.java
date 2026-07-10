@@ -39,7 +39,7 @@ public class ReportPdfStorageService {
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
 
-    @Value("${report.public-verify-base-url:http://localhost:3000/verify}")
+    @Value("${report.public-verify-base-url:https://forensheildjangdochi.com/verify}")
     private String publicVerifyBaseUrl;
 
     public Report persistAnalysisReport(
