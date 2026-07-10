@@ -59,6 +59,8 @@ public final class EvidenceStoragePaths {
 
     public static String hlsMasterKey(Long evidenceId) {
         return hlsPrefix(evidenceId) + "master.m3u8";
+    }
+
     private static String sanitizePart(String value) {
         if (value == null || value.isBlank()) {
             return "";
