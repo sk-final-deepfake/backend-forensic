@@ -18,7 +18,9 @@ public record BlockchainAnchorRequest(
         String signerCertHash,
         Boolean certVerified,
         String offchainLogHash,
-        OffchainRef offchainRef
+        OffchainRef offchainRef,
+        AnalysisModelRef analysisModel,
+        java.util.List<AnalysisModuleRef> analysisModules
 ) {
     public static BlockchainAnchorRequest of(
             String subjectHash,
@@ -43,7 +45,23 @@ public record BlockchainAnchorRequest(
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
+    }
+
+    public record AnalysisModelRef(
+            String name,
+            String version,
+            String identifier
+    ) {
+    }
+
+    public record AnalysisModuleRef(
+            String module,
+            String name,
+            String version
+    ) {
     }
 }

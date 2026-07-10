@@ -109,6 +109,12 @@ public class HttpBlockchainAnchorClient implements BlockchainAnchorClient {
         if (request.offchainRef() != null && !request.offchainRef().isEmpty()) {
             body.put("offchainRef", request.offchainRef().toMap());
         }
+        if (request.analysisModel() != null) {
+            body.put("analysisModel", request.analysisModel());
+        }
+        if (request.analysisModules() != null && !request.analysisModules().isEmpty()) {
+            body.put("analysisModules", request.analysisModules());
+        }
         return body;
     }
 }

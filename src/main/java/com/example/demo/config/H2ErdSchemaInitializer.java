@@ -44,6 +44,7 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
         migrateReportPublicationLifecycle();
         migrateEvidencesV2Workflow();
         migrateEvidenceMetadataReadiness();
+        migrateBlockchainAnchorAnalysisSnapshot();
     }
 
     void migrateEvidencesV2Workflow() {
@@ -63,6 +64,11 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
 
     void migrateEvidenceMetadataReadiness() {
         addColumnIfMissing("evidence_metadata", "readiness_json", "JSON");
+    }
+
+    void migrateBlockchainAnchorAnalysisSnapshot() {
+        addColumnIfMissing("blockchain_anchors", "analysis_model_json", "CLOB");
+        addColumnIfMissing("blockchain_anchors", "analysis_modules_json", "CLOB");
     }
 
     private void addColumnIfMissing(String table, String column, String type) {
