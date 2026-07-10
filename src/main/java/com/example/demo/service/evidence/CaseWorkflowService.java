@@ -16,7 +16,6 @@ import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.util.CaseKeyNormalizer;
-import com.example.demo.util.CaseNumberSupport;
 import com.example.demo.util.EvidenceCaseIdResolver;
 import com.example.demo.util.UserRoleSupport;
 import java.util.HashSet;
@@ -42,7 +41,7 @@ public class CaseWorkflowService {
     private final CaseEvidencePresentationService caseEvidencePresentationService;
 
     @Transactional
-    public String createCase(User user, String caseName, String caseNumber) {
+    public String createCase(User user, String caseName) {
         if (!UserRoleSupport.isInvestigator(user.getRole()) && !UserRoleSupport.isOrgAdmin(user.getRole())) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "FORBIDDEN", "사건을 생성할 권한이 없습니다.");
         }
@@ -54,8 +53,7 @@ public class CaseWorkflowService {
 
         String caseKey = CaseKeyNormalizer.requireCaseKey(trimmedName);
         assertNoDuplicateCase(user.getUserId(), caseKey);
-        String trimmedCaseNumber = CaseNumberSupport.resolve(caseNumber, trimmedName);
-        caseProfileRepository.save(new CaseProfile(user.getUserId(), caseKey, null, trimmedCaseNumber));
+        caseProfileRepository.save(new CaseProfile(user.getUserId(), caseKey, null));
         return caseKey;
     }
 
@@ -210,18 +208,7 @@ public class CaseWorkflowService {
             throw new BusinessException(HttpStatus.NOT_FOUND, "CASE_NOT_FOUND", "사건을 찾을 수 없습니다.");
         }
         Long representativeEvidenceId = evidences.get(0).getEvidenceId();
-        String caseName = evidences.stream()
-                .map(Evidence::getCaseName)
-                .filter(name -> name != null && !name.isBlank())
-                .findFirst()
-                .orElse(caseKey);
-        String caseNumber = evidences.stream()
-                .map(Evidence::getCaseNumber)
-                .filter(number -> number != null && !number.isBlank())
-                .findFirst()
-                .orElse(null);
-        return caseProfileRepository.save(
-                new CaseProfile(uploaderId, caseKey, representativeEvidenceId, CaseNumberSupport.resolve(caseNumber, caseName)));
+        return caseProfileRepository.save(new CaseProfile(uploaderId, caseKey, representativeEvidenceId));
     }
 
     private Long resolveCaseOwnerForAssignment(User actor, String normalizedCaseKey, Long requestedUploaderId) {

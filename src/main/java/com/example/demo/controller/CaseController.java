@@ -57,8 +57,7 @@ public class CaseController {
     public CaseDetailResponse createCase(@Valid @RequestBody CreateCaseRequest request) {
         String caseKey = caseWorkflowService.createCase(
                 authUserResolver.requireCurrentUser(),
-                request.getCaseName(),
-                request.getCaseNumber()
+                request.getCaseName()
         );
         return evidenceDetailService.getCaseDetail(
                 authUserResolver.requireCurrentUser(),

@@ -35,9 +35,6 @@ public class CaseProfile {
     @Column(name = "case_key", nullable = false, length = 255)
     private String caseKey;
 
-    @Column(name = "case_number", length = 255)
-    private String caseNumber;
-
     @Column(name = "representative_evidence_id")
     private Long representativeEvidenceId;
 
@@ -61,13 +58,8 @@ public class CaseProfile {
     private LocalDateTime updatedAt;
 
     public CaseProfile(Long uploaderId, String caseKey, Long representativeEvidenceId) {
-        this(uploaderId, caseKey, representativeEvidenceId, null);
-    }
-
-    public CaseProfile(Long uploaderId, String caseKey, Long representativeEvidenceId, String caseNumber) {
         this.uploaderId = uploaderId;
         this.caseKey = caseKey;
-        this.caseNumber = caseNumber;
         this.representativeEvidenceId = representativeEvidenceId;
         this.assigneeId = uploaderId;
         this.reviewStatus = CaseReviewStatus.NONE;

@@ -11,7 +11,6 @@ public class CaseDetailResponse {
 
     private String caseId;
     private String caseName;
-    private String caseNumber;
     private String status;
     private String createdAt;
     private Long representativeEvidenceId;
