@@ -23,6 +23,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.example.demo.support.StepUpTestSupport;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -143,5 +144,17 @@ class StepUpAuthControllerTest {
                                 """))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.errorCode").value("RATE_LIMIT_EXCEEDED"));
+    }
+
+    @Test
+    @DisplayName("Step-up 발급 직후 연장 요청은 400 STEP_UP_EXTEND_TOO_EARLY")
+    void extendStepUp_tooEarly() throws Exception {
+        String stepUpToken = StepUpTestSupport.issueStepUpToken(mockMvc, accessToken, "2222");
+
+        mockMvc.perform(post("/api/v1/auth/step-up/extend")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header(StepUpTestSupport.STEP_UP_HEADER, stepUpToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("STEP_UP_EXTEND_TOO_EARLY"));
     }
 }
