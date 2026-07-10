@@ -116,6 +116,8 @@ public class CompareController {
                         (preview ? "inline" : "attachment") + "; filename=\"" + payload.fileName() + "\"")
                 .header("X-Report-Hash", payload.reportHash())
                 .header("X-Report-Preview", String.valueOf(preview))
+                .header("X-Report-Status", payload.publicationStatus())
+                .header("X-Report-Version", String.valueOf(payload.version()))
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(payload.content());
     }

@@ -109,7 +109,10 @@ public class ReportListService {
                 .verdictLabel(verdictLabel)
                 .createdAt(ApiDateTimeFormatter.formatUtc(report.getCreatedAt()))
                 .reportHash(report.getReportHash())
-                .downloadPath(resolveDownloadPath(report, isCompare))
+                .publicationStatus(report.getPublicationStatus().name())
+                .version(report.getReportVersion())
+                .issuedAt(report.getIssuedAt() == null ? null : ApiDateTimeFormatter.formatUtc(report.getIssuedAt()))
+                .downloadPath(report.isIssued() ? resolveDownloadPath(report, isCompare) : null)
                 .build();
     }
 

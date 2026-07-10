@@ -71,6 +71,21 @@ public final class PdfDocumentWriter {
             String verificationCode,
             String reportNo
     ) {
+        return writeReport(title, lines, qrContent, verificationCode, reportNo, true);
+    }
+
+    public static byte[] writeDraftReport(String title, List<String> lines) {
+        return writeReport(title, lines, null, null, null, false);
+    }
+
+    private static byte[] writeReport(
+            String title,
+            List<String> lines,
+            String qrContent,
+            String verificationCode,
+            String reportNo,
+            boolean issued
+    ) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try {
             ReportData data = ReportData.parse(lines);
@@ -83,15 +98,15 @@ public final class PdfDocumentWriter {
             document.open();
 
             if (compareReport) {
-                addCompareReportPage(document, data, reportNo);
+                addCompareReportPage(document, data, reportNo, issued);
                 document.newPage();
-                addIntegrityPage(document, "비교검증 보고서", data, reportNo, qrContent, verificationCode, true);
+                addIntegrityPage(document, "비교검증 보고서", data, reportNo, qrContent, verificationCode, true, issued);
             } else {
-                addAnalysisOverviewPage(document, data, reportNo);
+                addAnalysisOverviewPage(document, data, reportNo, issued);
                 document.newPage();
                 addAnalysisDetailPage(document, data, reportNo);
                 document.newPage();
-                addIntegrityPage(document, "전체 종합 보고서", data, reportNo, qrContent, verificationCode, false);
+                addIntegrityPage(document, "전체 종합 보고서", data, reportNo, qrContent, verificationCode, false, issued);
             }
 
             document.close();
@@ -137,18 +152,23 @@ public final class PdfDocumentWriter {
         }
     }
 
-    private static void addAnalysisOverviewPage(Document document, ReportData data, String reportNo)
+    private static void addAnalysisOverviewPage(
+            Document document,
+            ReportData data,
+            String reportNo,
+            boolean issued
+    )
             throws DocumentException {
         addPageHeader(document, "전체 종합 보고서", "보고서 번호: " + blankFallback(reportNo, "-"));
 
         addSectionTitle(document, 1, "문서 개요");
         addInfoGrid(document, List.of(
                 row("보고서 유형", "딥페이크 분석 종합 보고서"),
-                row("검토 상태", "검토 승인 완료"),
+                row("검토 상태", issued ? "검토 승인 완료" : "검토 승인 대기"),
                 row("보안 등급", "내부망 전용"),
                 row("생성자", "분석관"),
                 row("생성일", LocalDateTime.now().format(DATE_TIME_FORMAT)),
-                row("검증 방식", "QR · 검증 URL · 전자서명")
+                row("검증 방식", issued ? "QR · 검증 URL · 전자서명" : "승인 후 발급")
         ));
 
         addSectionTitle(document, 2, "사건 및 증거 요약");
@@ -216,14 +236,19 @@ public final class PdfDocumentWriter {
         document.add(timeline);
     }
 
-    private static void addCompareReportPage(Document document, ReportData data, String reportNo)
+    private static void addCompareReportPage(
+            Document document,
+            ReportData data,
+            String reportNo,
+            boolean issued
+    )
             throws DocumentException {
         addPageHeader(document, "비교검증 보고서", "보고서 번호: " + blankFallback(reportNo, "-"));
 
         addSectionTitle(document, 1, "검증 개요");
         addInfoGrid(document, List.of(
                 row("보고서 유형", "비교검증 보고서"),
-                row("검토 상태", "검토 승인 완료"),
+                row("검토 상태", issued ? "검토 승인 완료" : "검토 승인 대기"),
                 row("비교검증 ID", data.value("Compare ID").orElse("-")),
                 row("생성일", data.value("Created At").orElse(LocalDateTime.now().format(DATE_TIME_FORMAT))),
                 row("판정", compareVerdict(data.value("Verdict").orElse("-"))),
@@ -268,28 +293,29 @@ public final class PdfDocumentWriter {
             String reportNo,
             String qrContent,
             String verificationCode,
-            boolean compareReport
+            boolean compareReport,
+            boolean issued
     ) throws DocumentException {
         addPageHeader(document, "무결성 및 감사 이력", "보고서 번호: " + blankFallback(reportNo, "-"));
 
         addSectionTitle(document, 1, "무결성 검증 결과");
         addInfoGrid(document, List.of(
                 row("원본 해시", shorten(data.value("SHA-256").orElse(rowValue(data.section("Original File Information"), "SHA-256")), 18, 12)),
-                row("PDF 해시", "검증 페이지에서 확인"),
+                row("PDF 해시", issued ? "검증 페이지에서 확인" : "최종 발행 전"),
                 row("해시 알고리즘", "SHA-256"),
-                row("검증 결과", "저장된 해시 기준 검증"),
-                row("전자서명", "유효성 확인 가능"),
+                row("검증 결과", issued ? "저장된 해시 기준 검증" : "검토 승인 대기"),
+                row("전자서명", issued ? "유효성 확인 가능" : "발행 전"),
                 row("서명 기관", "ForenShield Evidence Authority")
         ));
 
         addSectionTitle(document, 2, "블록체인 기록");
         addInfoGrid(document, List.of(
-                row("기록 상태", "검증 페이지에서 확인"),
+                row("기록 상태", issued ? "검증 페이지에서 확인" : "발행 전"),
                 row("네트워크", "private forensic ledger"),
                 row("트랜잭션", "검증 페이지에서 확인"),
                 row("앵커 시각", "-"),
                 row("블록 번호", "-"),
-                row("상태", "조회 필요")
+                row("상태", issued ? "조회 필요" : "검토 승인 대기")
         ));
 
         addSectionTitle(document, 3, "CoC 처리 이력");
@@ -476,10 +502,15 @@ public final class PdfDocumentWriter {
         info.setBorder(Rectangle.BOX);
         info.setBorderColor(BORDER);
         info.setPadding(8);
-        info.addElement(verificationLine("모바일", "QR 코드를 스캔하여 공개 진위 확인 페이지에 접속합니다."));
-        info.addElement(verificationLine("PC", "검증 URL 접속 후 검증코드를 입력합니다."));
-        info.addElement(verificationLine("검증 URL", blankFallback(qrContent, "-")));
-        info.addElement(verificationLine("검증코드", blankFallback(verificationCode, "-")));
+        if (qrContent == null || qrContent.isBlank()) {
+            info.addElement(verificationLine("발행 상태", "검토 승인 대기"));
+            info.addElement(verificationLine("안내", "검토 승인 후 QR과 공개 검증코드가 발급됩니다."));
+        } else {
+            info.addElement(verificationLine("모바일", "QR 코드를 스캔하여 공개 진위 확인 페이지에 접속합니다."));
+            info.addElement(verificationLine("PC", "검증 URL 접속 후 검증코드를 입력합니다."));
+            info.addElement(verificationLine("검증 URL", qrContent));
+            info.addElement(verificationLine("검증코드", blankFallback(verificationCode, "-")));
+        }
         outer.addCell(info);
 
         document.add(outer);

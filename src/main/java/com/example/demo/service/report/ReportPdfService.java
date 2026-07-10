@@ -8,6 +8,7 @@ import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.BlockchainAnchor;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.CompareVerification;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceManifest;
@@ -16,6 +17,7 @@ import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
+import com.example.demo.domain.enums.CaseReviewStatus;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.dto.PublicReportAccessIssueResponse;
@@ -30,9 +32,11 @@ import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.BlockchainAnchorRepository;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.ReportRepository;
 import com.example.demo.service.manifest.EvidenceManifestService;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.EvidenceCaseIdResolver;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -58,6 +62,7 @@ public class ReportPdfService {
     private final AnalysisRequestRepository analysisRequestRepository;
     private final AnalysisResultRepository analysisResultRepository;
     private final AnalysisModuleResultRepository analysisModuleResultRepository;
+    private final CaseProfileRepository caseProfileRepository;
     private final ReportRepository reportRepository;
     private final CompareVerificationService compareVerificationService;
     private final CompareVerificationAssembler compareVerificationAssembler;
@@ -87,26 +92,56 @@ public class ReportPdfService {
                 .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
 
         List<String> lines = reportContentBuilder.buildEvidenceLines(evidence, request, result, modules);
-        Report report = reportPdfStorageService.persistAnalysisReport(
-                result.getAnalysisResultId(),
-                evidenceId,
-                user.getUserId(),
-                "analysis-report-" + evidenceId + ".pdf",
-                lines,
-                "ForenShield Analysis Report"
-        );
+        boolean approvedForReport = isApprovedForReport(evidence, request);
+        if (!preview && !approvedForReport) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "REPORT_NOT_APPROVED",
+                    "검토 승인 완료 후 최종 PDF를 다운로드할 수 있습니다."
+            );
+        }
+
+        Report report = reportRepository
+                .findTopByAnalysisResultIdOrderByCreatedAtDesc(result.getAnalysisResultId())
+                .orElseGet(() -> reportPdfStorageService.persistAnalysisReport(
+                        result.getAnalysisResultId(),
+                        evidenceId,
+                        evidence.getUploaderId(),
+                        "analysis-report-" + evidenceId + ".pdf",
+                        lines,
+                        "ForenShield Analysis Report"
+                ));
+
+        if (approvedForReport && !report.isIssued()) {
+            report = reportPdfStorageService.issueReport(
+                    report,
+                    user.getUserId(),
+                    lines,
+                    "ForenShield Analysis Report"
+            );
+        }
+
+        if (!preview && !report.isIssued()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "REPORT_NOT_APPROVED",
+                    "검토 승인 완료 후 최종 PDF를 다운로드할 수 있습니다."
+            );
+        }
 
         byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
         if (preview) {
             return new ReportPdfPayload(
                     report.getReportFileName(),
                     reportPdfStorageService.addPreviewWatermark(pdfBytes),
-                    report.getReportHash()
+                    report.getReportHash(),
+                    report.getPublicationStatus().name(),
+                    report.getReportVersion()
             );
         }
 
         reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
-        return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
+        return toPayload(report, pdfBytes);
     }
 
     @Transactional
@@ -128,25 +163,99 @@ public class ReportPdfService {
         List<String> lines = reportContentBuilder.buildCompareLines(
                 verification, originalInfo, candidateInfo, items);
 
-        Report report = reportPdfStorageService.persistCompareReport(
-                compareId,
-                original.getEvidenceId(),
-                user.getUserId(),
-                "compare-report-" + compareId + ".pdf",
-                lines,
-                "ForenShield Compare Verification Report"
-        );
+        AnalysisRequest originalAnalysis = analysisRequestRepository
+                .findTopByEvidenceIdOrderByRequestedAtDesc(original.getEvidenceId())
+                .orElse(null);
+        boolean approvedForReport = isApprovedForReport(original, originalAnalysis);
+        if (!preview && !approvedForReport) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "REPORT_NOT_APPROVED",
+                    "검토 승인 완료 후 비교검증 PDF를 다운로드할 수 있습니다."
+            );
+        }
+
+        Report report = reportRepository.findTopByCompareIdOrderByCreatedAtDesc(compareId)
+                .orElseGet(() -> reportPdfStorageService.persistCompareReport(
+                        compareId,
+                        original.getEvidenceId(),
+                        user.getUserId(),
+                        "compare-report-" + compareId + ".pdf",
+                        lines,
+                        "ForenShield Compare Verification Report"
+                ));
+
+        if (approvedForReport && !report.isIssued()) {
+            report = reportPdfStorageService.issueReport(
+                    report,
+                    user.getUserId(),
+                    lines,
+                    "ForenShield Compare Verification Report"
+            );
+        }
+
+        if (!preview && !report.isIssued()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "REPORT_NOT_APPROVED",
+                    "검토 승인 완료 후 비교검증 PDF를 다운로드할 수 있습니다."
+            );
+        }
+
         byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
         if (preview) {
             return new ReportPdfPayload(
                     report.getReportFileName(),
                     reportPdfStorageService.addPreviewWatermark(pdfBytes),
-                    report.getReportHash()
+                    report.getReportHash(),
+                    report.getPublicationStatus().name(),
+                    report.getReportVersion()
             );
         }
 
         reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
-        return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
+        return toPayload(report, pdfBytes);
+    }
+
+    @Transactional
+    public void issueCaseReports(User reviewer, List<Evidence> evidences) {
+        for (Evidence evidence : evidences) {
+            AnalysisRequest request = analysisRequestRepository
+                    .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
+                    .filter(candidate -> candidate.getStatus() == AnalysisStatus.COMPLETED)
+                    .orElse(null);
+            if (request == null) {
+                continue;
+            }
+
+            AnalysisResult result = analysisResultRepository.findByAnalysisRequestId(request.getAnalysisRequestId())
+                    .orElse(null);
+            if (result == null) {
+                continue;
+            }
+
+            List<AnalysisModuleResult> modules = analysisModuleResultRepository
+                    .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
+            List<String> lines = reportContentBuilder.buildEvidenceLines(evidence, request, result, modules);
+            Report report = reportRepository
+                    .findTopByAnalysisResultIdOrderByCreatedAtDesc(result.getAnalysisResultId())
+                    .orElseGet(() -> reportPdfStorageService.persistAnalysisReport(
+                            result.getAnalysisResultId(),
+                            evidence.getEvidenceId(),
+                            evidence.getUploaderId(),
+                            "analysis-report-" + evidence.getEvidenceId() + ".pdf",
+                            lines,
+                            "ForenShield Analysis Report"
+                    ));
+            if (!report.isIssued()) {
+                reportPdfStorageService.issueReport(
+                        report,
+                        reviewer.getUserId(),
+                        lines,
+                        "ForenShield Analysis Report"
+                );
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -300,15 +409,15 @@ public class ReportPdfService {
     public ReportPdfPayload downloadPublicReport(String accessCode) {
         Report report = requirePublicAccessReport(accessCode);
         byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
-        return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
+        return toPayload(report, pdfBytes);
     }
 
     private Optional<Report> resolvePublicReport(String token, String code) {
         if (token != null && !token.isBlank()) {
-            return reportRepository.findByVerificationToken(token.trim());
+            return reportRepository.findByVerificationToken(token.trim()).filter(Report::isIssued);
         }
         if (code != null && !code.isBlank()) {
-            return reportRepository.findByVerificationCode(normalizeVerificationCode(code));
+            return reportRepository.findByVerificationCode(normalizeVerificationCode(code)).filter(Report::isIssued);
         }
         throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "token 또는 code는 필수입니다.");
     }
@@ -341,6 +450,13 @@ public class ReportPdfService {
     }
 
     private void ensureCanIssuePublicAccess(User user, Report report) {
+        if (!report.isIssued()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "REPORT_NOT_ISSUED",
+                    "검토 승인 후 발행된 보고서만 외부 열람코드를 발급할 수 있습니다."
+            );
+        }
         if (Objects.equals(report.getCreatedBy(), user.getUserId())) {
             return;
         }
@@ -368,6 +484,9 @@ public class ReportPdfService {
         }
         if (isExpired(report.getPublicAccessExpiresAt())) {
             throw new BusinessException(HttpStatus.GONE, "REPORT_ACCESS_EXPIRED", "만료된 열람코드입니다.");
+        }
+        if (!report.isIssued()) {
+            throw new BusinessException(HttpStatus.GONE, "REPORT_ACCESS_REVOKED", "더 이상 유효하지 않은 보고서입니다.");
         }
         return report;
     }
@@ -460,6 +579,31 @@ public class ReportPdfService {
                         HttpStatus.CONFLICT, "ANALYSIS_RESULT_NOT_FOUND", "분석 결과가 없습니다."));
     }
 
+    private boolean isApprovedForReport(Evidence evidence, AnalysisRequest request) {
+        String caseKey = EvidenceCaseIdResolver.resolve(evidence);
+        return caseProfileRepository.findByUploaderIdAndCaseKey(evidence.getUploaderId(), caseKey)
+                .filter(profile -> profile.getReviewStatus() == CaseReviewStatus.REPORT_APPROVED)
+                .map(profile -> approvalCoversRequest(profile, request))
+                .orElse(false);
+    }
+
+    private boolean approvalCoversRequest(CaseProfile profile, AnalysisRequest request) {
+        if (request == null || request.getCompletedAt() == null || profile.getReviewApprovedAt() == null) {
+            return true;
+        }
+        return !request.getCompletedAt().isAfter(profile.getReviewApprovedAt());
+    }
+
+    private ReportPdfPayload toPayload(Report report, byte[] pdfBytes) {
+        return new ReportPdfPayload(
+                report.getReportFileName(),
+                pdfBytes,
+                report.getReportHash(),
+                report.getPublicationStatus().name(),
+                report.getReportVersion()
+        );
+    }
+
     private SignatureSnapshot resolveSignature(Long evidenceId) {
         return evidenceManifestService.findByEvidenceId(evidenceId)
                 .map(manifest -> new SignatureSnapshot(
@@ -522,7 +666,13 @@ public class ReportPdfService {
         return dateTime == null ? null : ApiDateTimeFormatter.formatUtc(dateTime);
     }
 
-    public record ReportPdfPayload(String fileName, byte[] content, String reportHash) {
+    public record ReportPdfPayload(
+            String fileName,
+            byte[] content,
+            String reportHash,
+            String publicationStatus,
+            Integer version
+    ) {
     }
 
     private record SignatureSnapshot(

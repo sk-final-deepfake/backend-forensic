@@ -17,5 +17,8 @@ public class ReportSummaryDto {
     private String verdictLabel;
     private String createdAt;
     private String reportHash;
+    private String publicationStatus;
+    private Integer version;
+    private String issuedAt;
     private String downloadPath;
 }

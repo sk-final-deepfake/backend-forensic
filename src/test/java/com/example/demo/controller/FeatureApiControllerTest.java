@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.BlockchainAnchor;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.AnalysisResult;
@@ -14,13 +15,16 @@ import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.ListViewMode;
 import com.example.demo.domain.enums.OrgType;
 import com.example.demo.domain.enums.RiskLevel;
+import com.example.demo.domain.enums.ReportPublicationStatus;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.BlockchainAnchorRepository;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.CompareVerificationRepository;
+import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.NotificationRepository;
 import com.example.demo.repository.ReportRepository;
@@ -50,6 +54,7 @@ import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -90,6 +95,12 @@ class FeatureApiControllerTest {
     private ReportRepository reportRepository;
 
     @Autowired
+    private CaseProfileRepository caseProfileRepository;
+
+    @Autowired
+    private CustodyLogRepository custodyLogRepository;
+
+    @Autowired
     private BlockchainAnchorRepository blockchainAnchorRepository;
 
     @Autowired
@@ -115,8 +126,11 @@ class FeatureApiControllerTest {
     @BeforeEach
     void setUp() throws Exception {
         compareVerificationRepository.deleteAll();
-        notificationRepository.deleteAll();
+        custodyLogRepository.deleteAll();
         blockchainAnchorRepository.deleteAll();
+        reportRepository.deleteAll();
+        caseProfileRepository.deleteAll();
+        notificationRepository.deleteAll();
         userSettingRepository.deleteAll();
         analysisModuleResultRepository.deleteAll();
         analysisResultRepository.deleteAll();
@@ -156,8 +170,11 @@ class FeatureApiControllerTest {
     @AfterEach
     void tearDown() {
         compareVerificationRepository.deleteAll();
-        notificationRepository.deleteAll();
+        custodyLogRepository.deleteAll();
         blockchainAnchorRepository.deleteAll();
+        reportRepository.deleteAll();
+        caseProfileRepository.deleteAll();
+        notificationRepository.deleteAll();
         userSettingRepository.deleteAll();
         analysisModuleResultRepository.deleteAll();
         analysisResultRepository.deleteAll();
@@ -302,11 +319,14 @@ class FeatureApiControllerTest {
                 .andExpect(jsonPath("$.fileName").value("candidate.mp4"))
                 .andExpect(jsonPath("$.compareId").value(compareId));
 
+        approveCase();
+
         mockMvc.perform(get("/api/v1/compare/" + compareId + "/reports/pdf")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
-                .andExpect(header().string("X-Report-Hash", notNullValue(String.class)));
+                .andExpect(header().string("X-Report-Hash", notNullValue(String.class)))
+                .andExpect(header().string("X-Report-Status", "ISSUED"));
     }
 
     @Test
@@ -340,13 +360,42 @@ class FeatureApiControllerTest {
         analysisResultRepository.save(result);
 
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf")
+                        .param("preview", "true")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
-                .andExpect(header().string("X-Report-Hash", notNullValue(String.class)));
+                .andExpect(header().string("X-Report-Preview", "true"));
 
+        Report previewReport = reportRepository.findTopByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())
+                .orElseThrow();
+        assertThat(previewReport.getPublicationStatus()).isEqualTo(ReportPublicationStatus.DRAFT);
+        assertThat(previewReport.getVerificationToken()).isNull();
+
+        mockMvc.perform(post("/api/v1/reports/" + previewReport.getReportId() + "/public-access")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("REPORT_NOT_ISSUED"));
+
+        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("REPORT_NOT_APPROVED"));
+
+        approveCase();
+
+        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
+                .andExpect(header().string("X-Report-Hash", notNullValue(String.class)))
+                .andExpect(header().string("X-Report-Status", "ISSUED"))
+                .andExpect(header().string("X-Report-Version", "1"));
+
+        assertThat(reportRepository.findByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())).hasSize(1);
         Report report = reportRepository.findTopByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())
                 .orElseThrow();
+        assertThat(report.getPublicationStatus()).isEqualTo(ReportPublicationStatus.ISSUED);
+        assertThat(report.getVerificationToken()).isNotBlank();
         String reportHash = report.getReportHash();
 
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/verify")
@@ -397,6 +446,20 @@ class FeatureApiControllerTest {
                         .param("token", "missing-token"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("REPORT_VERIFICATION_NOT_FOUND"));
+    }
+
+    private void approveCase() {
+        CaseProfile profile = caseProfileRepository.findByUploaderIdAndCaseKey(
+                        testUser.getUserId(),
+                        "비교 테스트"
+                )
+                .orElseGet(() -> new CaseProfile(
+                        testUser.getUserId(),
+                        "비교 테스트",
+                        evidence.getEvidenceId()
+                ));
+        profile.approveReview();
+        caseProfileRepository.save(profile);
     }
 
     @Test

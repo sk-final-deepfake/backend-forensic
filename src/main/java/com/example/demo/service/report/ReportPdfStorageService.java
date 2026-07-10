@@ -1,6 +1,7 @@
 package com.example.demo.service.report;
 
 import com.example.demo.domain.Report;
+import com.example.demo.domain.enums.ReportPublicationStatus;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.ReportRepository;
 import com.example.demo.service.blockchain.BlockchainAnchorService;
@@ -49,30 +50,22 @@ public class ReportPdfStorageService {
             List<String> lines,
             String title
     ) {
-        ReportVerificationPayload verificationPayload = createVerificationPayload();
-        byte[] pdfBytes = buildPdfWithQr(
-                title,
-                lines,
-                verificationPayload.reportNo(),
-                verificationPayload.verifyUrl(),
-                verificationPayload.verificationCode()
-        );
-        Path reportPath = storePdf("evidence", evidenceId, fileName, pdfBytes);
+        int version = Math.toIntExact(reportRepository.countByEvidenceIdAndCompareIdIsNull(evidenceId) + 1);
+        String versionedFileName = withVersion(fileName, version);
+        byte[] pdfBytes = PdfDocumentWriter.writeDraftReport(title, lines);
+        Path reportPath = storePdf("evidence", evidenceId, versionedFileName, pdfBytes);
         Report report = new Report();
         report.setAnalysisResultId(analysisResultId);
         report.setEvidenceId(evidenceId);
         report.setCreatedBy(userId);
-        report.setReportFileName(fileName);
-        report.setReportNo(verificationPayload.reportNo());
-        report.setVerificationToken(verificationPayload.verificationToken());
-        report.setVerificationCode(verificationPayload.verificationCode());
+        report.setReportFileName(versionedFileName);
+        report.setPublicationStatus(ReportPublicationStatus.DRAFT);
+        report.setReportVersion(version);
         report.setStoragePath(reportPath.toString());
         report.setReportHash(hashService.generateSha256(pdfBytes));
         report.setFileSize((long) pdfBytes.length);
         report.setCreatedAt(LocalDateTime.now());
-        Report saved = reportRepository.save(report);
-        recordReportSideEffects(saved, userId);
-        return saved;
+        return reportRepository.save(report);
     }
 
     public Report persistCompareReport(
@@ -83,6 +76,32 @@ public class ReportPdfStorageService {
             List<String> lines,
             String title
     ) {
+        byte[] pdfBytes = PdfDocumentWriter.writeDraftReport(title, lines);
+        Path reportPath = storePdf("compare", compareId, fileName, pdfBytes);
+        Report report = new Report();
+        report.setCompareId(compareId);
+        report.setEvidenceId(evidenceId);
+        report.setCreatedBy(userId);
+        report.setReportFileName(fileName);
+        report.setPublicationStatus(ReportPublicationStatus.DRAFT);
+        report.setReportVersion(1);
+        report.setStoragePath(reportPath.toString());
+        report.setReportHash(hashService.generateSha256(pdfBytes));
+        report.setFileSize((long) pdfBytes.length);
+        report.setCreatedAt(LocalDateTime.now());
+        return reportRepository.save(report);
+    }
+
+    public Report issueReport(
+            Report report,
+            Long userId,
+            List<String> lines,
+            String title
+    ) {
+        if (report.isIssued()) {
+            return report;
+        }
+
         ReportVerificationPayload verificationPayload = createVerificationPayload();
         byte[] pdfBytes = buildPdfWithQr(
                 title,
@@ -91,20 +110,16 @@ public class ReportPdfStorageService {
                 verificationPayload.verifyUrl(),
                 verificationPayload.verificationCode()
         );
-        Path reportPath = storePdf("compare", compareId, fileName, pdfBytes);
-        Report report = new Report();
-        report.setCompareId(compareId);
-        report.setEvidenceId(evidenceId);
-        report.setCreatedBy(userId);
-        report.setReportFileName(fileName);
+        overwritePdf(report.getStoragePath(), pdfBytes);
+
         report.setReportNo(verificationPayload.reportNo());
         report.setVerificationToken(verificationPayload.verificationToken());
         report.setVerificationCode(verificationPayload.verificationCode());
-        report.setStoragePath(reportPath.toString());
         report.setReportHash(hashService.generateSha256(pdfBytes));
         report.setFileSize((long) pdfBytes.length);
-        report.setCreatedAt(LocalDateTime.now());
+        report.markIssued(userId, LocalDateTime.now());
         Report saved = reportRepository.save(report);
+        supersedeOlderAnalysisReports(saved);
         recordReportSideEffects(saved, userId);
         return saved;
     }
@@ -183,6 +198,38 @@ public class ReportPdfStorageService {
         } catch (IOException ex) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "REPORT_SAVE_FAILED", "PDF 리포트 저장에 실패했습니다.");
         }
+    }
+
+    private void overwritePdf(String storagePath, byte[] pdfBytes) {
+        try {
+            Files.write(Paths.get(storagePath), pdfBytes);
+        } catch (IOException ex) {
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "REPORT_SAVE_FAILED", "최종 PDF 리포트 저장에 실패했습니다.");
+        }
+    }
+
+    private void supersedeOlderAnalysisReports(Report issuedReport) {
+        if (issuedReport.getAnalysisResultId() == null) {
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Report> superseded = reportRepository
+                .findByEvidenceIdAndCompareIdIsNullOrderByCreatedAtDesc(issuedReport.getEvidenceId())
+                .stream()
+                .filter(candidate -> !candidate.getReportId().equals(issuedReport.getReportId()))
+                .filter(Report::isIssued)
+                .toList();
+        superseded.forEach(report -> report.markSuperseded(now));
+        reportRepository.saveAll(superseded);
+    }
+
+    private String withVersion(String fileName, int version) {
+        int extensionIndex = fileName.lastIndexOf('.');
+        if (extensionIndex < 0) {
+            return fileName + "-v" + version;
+        }
+        return fileName.substring(0, extensionIndex) + "-v" + version + fileName.substring(extensionIndex);
     }
 
     private record ReportVerificationPayload(

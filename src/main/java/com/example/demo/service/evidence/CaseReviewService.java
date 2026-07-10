@@ -11,6 +11,7 @@ import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.evidence.hls.EvidenceHlsLookupService;
+import com.example.demo.service.report.ReportPdfService;
 import com.example.demo.util.UserRoleSupport;
 import java.util.EnumSet;
 import java.util.List;
@@ -36,6 +37,7 @@ public class CaseReviewService {
     private final CaseDetailAssembler caseDetailAssembler;
     private final CaseEvidencePresentationService caseEvidencePresentationService;
     private final EvidenceHlsLookupService evidenceHlsLookupService;
+    private final ReportPdfService reportPdfService;
 
     @Transactional
     public CaseDetailResponse requestReview(User user, String caseKey, String memo) {
@@ -96,6 +98,9 @@ public class CaseReviewService {
         }
 
         caseProfileRepository.save(profile);
+        if ("APPROVED".equals(normalizedDecision)) {
+            reportPdfService.issueCaseReports(user, context.evidences());
+        }
         return assembleDetail(user, context, profile);
     }
 

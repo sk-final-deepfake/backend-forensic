@@ -1,18 +1,25 @@
 package com.example.demo.controller;
 
 import com.example.demo.domain.AnalysisRequest;
+import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.FileType;
 import com.example.demo.domain.enums.OrgType;
+import com.example.demo.domain.enums.ReportPublicationStatus;
+import com.example.demo.domain.enums.RiskLevel;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.repository.AnalysisRequestRepository;
+import com.example.demo.repository.AnalysisResultRepository;
+import com.example.demo.repository.BlockchainAnchorRepository;
 import com.example.demo.repository.CaseProfileRepository;
+import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.repository.ReportRepository;
 import com.example.demo.support.JwtTestSupport;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +38,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
@@ -54,6 +62,18 @@ class CaseReviewControllerTest {
     private AnalysisRequestRepository analysisRequestRepository;
 
     @Autowired
+    private AnalysisResultRepository analysisResultRepository;
+
+    @Autowired
+    private ReportRepository reportRepository;
+
+    @Autowired
+    private BlockchainAnchorRepository blockchainAnchorRepository;
+
+    @Autowired
+    private CustodyLogRepository custodyLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private User investigator;
@@ -66,7 +86,11 @@ class CaseReviewControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        custodyLogRepository.deleteAll();
+        blockchainAnchorRepository.deleteAll();
+        reportRepository.deleteAll();
         caseProfileRepository.deleteAll();
+        analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
@@ -116,7 +140,11 @@ class CaseReviewControllerTest {
 
     @AfterEach
     void tearDown() {
+        custodyLogRepository.deleteAll();
+        blockchainAnchorRepository.deleteAll();
+        reportRepository.deleteAll();
         caseProfileRepository.deleteAll();
+        analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
@@ -124,6 +152,18 @@ class CaseReviewControllerTest {
 
     @Test
     void reviewWorkflow_requestAssignAndApprove() throws Exception {
+        AnalysisRequest completedRequest = analysisRequestRepository
+                .findTopByEvidenceIdOrderByRequestedAtDesc(completedEvidence.getEvidenceId())
+                .orElseThrow();
+        AnalysisResult result = new AnalysisResult();
+        result.setAnalysisRequestId(completedRequest.getAnalysisRequestId());
+        result.setRiskScore(64.0);
+        result.setConfidenceScore(0.88);
+        result.setRiskLevel(RiskLevel.MEDIUM);
+        result.setSummary("review lifecycle test");
+        result.setAnalyzedAt(LocalDateTime.now());
+        analysisResultRepository.save(result);
+
         mockMvc.perform(post("/api/v1/cases/review-request?caseKey=review-case")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + investigatorToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -152,6 +192,12 @@ class CaseReviewControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewStatus").value("REPORT_APPROVED"));
+
+        var issuedReport = reportRepository
+                .findTopByEvidenceIdOrderByCreatedAtDesc(completedEvidence.getEvidenceId())
+                .orElseThrow();
+        assertThat(issuedReport.getPublicationStatus()).isEqualTo(ReportPublicationStatus.ISSUED);
+        assertThat(issuedReport.getVerificationToken()).isNotBlank();
     }
 
     @Test

@@ -139,6 +139,7 @@ class ReportControllerTest {
         report.setReportHash("c".repeat(64));
         report.setFileSize(2048L);
         report.setCreatedAt(LocalDateTime.now());
+        report.markIssued(testUser.getUserId(), LocalDateTime.now());
         reportRepository.save(report);
 
         mockMvc.perform(get("/api/v1/reports")
@@ -148,6 +149,8 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.content[0].reportType").value("ANALYSIS"))
                 .andExpect(jsonPath("$.content[0].caseName").value("report-case"))
                 .andExpect(jsonPath("$.content[0].verdictLabel").value("위험"))
+                .andExpect(jsonPath("$.content[0].publicationStatus").value("ISSUED"))
+                .andExpect(jsonPath("$.content[0].version").value(1))
                 .andExpect(jsonPath("$.content[0].downloadPath")
                         .value("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf"))
                 .andExpect(jsonPath("$.totalElements").value(1));

@@ -12,7 +12,13 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     Optional<Report> findTopByEvidenceIdOrderByCreatedAtDesc(Long evidenceId);
 
+    Optional<Report> findTopByAnalysisResultIdOrderByCreatedAtDesc(Long analysisResultId);
+
     List<Report> findByEvidenceIdOrderByCreatedAtDesc(Long evidenceId);
+
+    List<Report> findByEvidenceIdAndCompareIdIsNullOrderByCreatedAtDesc(Long evidenceId);
+
+    long countByEvidenceIdAndCompareIdIsNull(Long evidenceId);
 
     Optional<Report> findTopByCompareIdOrderByCreatedAtDesc(Long compareId);
 
