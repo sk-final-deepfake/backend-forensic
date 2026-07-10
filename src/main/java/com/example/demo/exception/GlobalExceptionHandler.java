@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 
@@ -102,6 +103,17 @@ public class GlobalExceptionHandler {
                         .success(false)
                         .errorCode("UPLOAD_FAILED")
                         .message("파일 업로드 처리 중 오류가 발생했습니다.")
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<StandardErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("NOT_FOUND")
+                        .message("요청한 API를 찾을 수 없습니다.")
                         .build()
         );
     }

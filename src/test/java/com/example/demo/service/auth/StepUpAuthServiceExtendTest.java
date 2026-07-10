@@ -16,6 +16,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.lang.reflect.Field;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -44,9 +46,8 @@ class StepUpAuthServiceExtendTest {
     private User user;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         user = User.builder()
-                .userId(10L)
                 .loginId("1111")
                 .email("1111@test.local")
                 .password("encoded")
@@ -57,7 +58,9 @@ class StepUpAuthServiceExtendTest {
                 .status(UserStatus.APPROVED)
                 .darkMode(false)
                 .build();
-        when(jwtProperties.resolveStepUpExpirationMs()).thenReturn(15 * 60 * 1000L);
+        Field userIdField = User.class.getDeclaredField("userId");
+        userIdField.setAccessible(true);
+        userIdField.set(user, 10L);
     }
 
     @Test
@@ -75,6 +78,7 @@ class StepUpAuthServiceExtendTest {
     @Test
     @DisplayName("남은 시간이 5분 이하이면 15분 연장 후 expiresIn 반환")
     void extendToken_success() {
+        when(jwtProperties.resolveStepUpExpirationMs()).thenReturn(15 * 60 * 1000L);
         when(stepUpTokenRedisService.resolveUserId("token")).thenReturn(10L);
         when(stepUpTokenRedisService.resolveRemainingMs("token")).thenReturn(4 * 60 * 1000L);
         when(stepUpTokenRedisService.extendToken(eq("token"), anyLong())).thenReturn(19 * 60 * 1000L);
