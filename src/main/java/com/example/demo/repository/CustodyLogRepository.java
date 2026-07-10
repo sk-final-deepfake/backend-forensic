@@ -17,6 +17,8 @@ public interface CustodyLogRepository extends JpaRepository<CustodyLog, Long>, J
             Long targetId
     );
 
+    List<CustodyLog> findByTargetTypeOrderByLogIdAsc(CustodyTargetType targetType);
+
     Optional<CustodyLog> findTopByOrderByLogIdDesc();
 
     Optional<CustodyLog> findTopByLogIdLessThanOrderByLogIdDesc(Long logId);

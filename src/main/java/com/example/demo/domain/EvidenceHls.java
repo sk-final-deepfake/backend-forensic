@@ -81,4 +81,10 @@ public class EvidenceHls {
         this.hlsStatus = HlsStatus.PENDING;
         this.updatedAt = now;
     }
+
+    public void requeueForPackaging(LocalDateTime now) {
+        this.hlsStatus = HlsStatus.PENDING;
+        this.hlsError = null;
+        this.updatedAt = now;
+    }
 }

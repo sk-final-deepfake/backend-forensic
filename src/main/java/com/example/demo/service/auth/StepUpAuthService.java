@@ -3,6 +3,7 @@ package com.example.demo.service.auth;
 import com.example.demo.config.JwtProperties;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.CustodyTargetType;
+import com.example.demo.dto.auth.StepUpExtendResponse;
 import com.example.demo.dto.auth.StepUpVerifyResponse;
 import com.example.demo.exception.AuthException;
 import com.example.demo.service.custody.CustodyLogService;
@@ -15,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class StepUpAuthService {
+
+    private static final long EXTEND_ELIGIBLE_REMAINING_MS = 5 * 60 * 1000L;
 
     private final PasswordEncoder passwordEncoder;
     private final StepUpTokenRedisService stepUpTokenRedisService;
@@ -50,6 +53,54 @@ public class StepUpAuthService {
                 .success(true)
                 .stepUpToken(stepUpToken)
                 .expiresIn(expiresInMs)
+                .build();
+    }
+
+    @Transactional
+    public StepUpExtendResponse extendToken(User user, String stepUpToken) {
+        if (stepUpToken == null || stepUpToken.isBlank()) {
+            throw stepUpRequired();
+        }
+
+        Long tokenUserId = stepUpTokenRedisService.resolveUserId(stepUpToken);
+        if (tokenUserId == null || !tokenUserId.equals(user.getUserId())) {
+            throw stepUpRequired();
+        }
+
+        Long remainingMs = stepUpTokenRedisService.resolveRemainingMs(stepUpToken);
+        if (remainingMs == null || remainingMs <= 0) {
+            throw stepUpRequired();
+        }
+
+        if (remainingMs > EXTEND_ELIGIBLE_REMAINING_MS) {
+            throw new AuthException(
+                    HttpStatus.BAD_REQUEST,
+                    "STEP_UP_EXTEND_TOO_EARLY",
+                    "남은 시간이 5분 이하일 때만 연장할 수 있습니다."
+            );
+        }
+
+        long extensionMs = jwtProperties.resolveStepUpExpirationMs();
+        Long newExpiresInMs = stepUpTokenRedisService.extendToken(stepUpToken, extensionMs);
+        if (newExpiresInMs == null || newExpiresInMs <= 0) {
+            throw stepUpRequired();
+        }
+
+        custodyLogService.record(
+                user.getUserId(),
+                CustodyTargetType.USER,
+                user.getUserId(),
+                "STEP_UP_EXTENDED",
+                null,
+                null,
+                "민감 정보 조회용 Step-up 세션 연장",
+                null,
+                null
+        );
+
+        return StepUpExtendResponse.builder()
+                .success(true)
+                .expiresIn(newExpiresInMs)
                 .build();
     }
 

@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS users (
 
     CONSTRAINT uq_users_login_id UNIQUE (login_id),
     CONSTRAINT uq_users_email UNIQUE (email),
-    CONSTRAINT chk_users_role CHECK (role IN ('ROLE_USER', 'ROLE_ADMIN')),
+    CONSTRAINT chk_users_role CHECK (
+        role IN ('ROLE_USER', 'ROLE_ADMIN', 'ROLE_INVESTIGATOR', 'ROLE_REVIEWER', 'ROLE_ORG_ADMIN')
+    ),
     CONSTRAINT chk_users_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
     CONSTRAINT chk_users_org_type CHECK (
         organization_type IN ('POLICE', 'PROSECUTION', 'NFS', 'PUBLIC_SECURITY', 'ETC')

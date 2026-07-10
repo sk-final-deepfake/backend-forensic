@@ -829,6 +829,9 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                 "coc test image bytes".getBytes(StandardCharsets.UTF_8)
         );
         String caseName = "2026-서울-0123 딥페이크 유포 사건";
+        String previousLogHash = custodyLogRepository.findTopByOrderByLogIdDesc()
+                .map(CustodyLog::getCurrentLogHash)
+                .orElse(null);
 
         String responseBody = mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
@@ -863,7 +866,7 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
                     assertThat(log.getCurrentLogHash()).matches("[0-9a-f]{64}");
                 });
 
-        assertThat(logs.get(0).getPreviousLogHash()).isNull();
+        assertThat(logs.get(0).getPreviousLogHash()).isEqualTo(previousLogHash);
         assertThat(logs.get(1).getPreviousLogHash()).isEqualTo(logs.get(0).getCurrentLogHash());
         assertThat(logs.get(2).getPreviousLogHash()).isEqualTo(logs.get(1).getCurrentLogHash());
 

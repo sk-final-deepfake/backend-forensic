@@ -17,6 +17,5 @@ public class VideoDeepfakeTimelineDto {
     private List<SuspiciousSegmentDto> opticalSuspiciousSegments;
     private List<ModuleTimelineDto> moduleTimelines;
     private List<RepresentativeFrameDto> representativeFrames;
-    private String heatmapImageUrl;
     private String overlayVideoUrl;
 }

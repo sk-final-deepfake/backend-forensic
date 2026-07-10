@@ -15,6 +15,7 @@ import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.ReportRepository;
 import com.example.demo.util.ApiDateTimeFormatter;
 import com.example.demo.util.EvidenceCaseIdResolver;
+import com.example.demo.util.UserRoleSupport;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,10 +39,10 @@ public class ReportListService {
     private final CompareVerificationRepository compareVerificationRepository;
 
     public ReportListPageResponse listReports(User user, int page, int size) {
-        Page<Report> reportPage = reportRepository.findByCreatedByOrderByCreatedAtDesc(
-                user.getUserId(),
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
-        );
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Report> reportPage = UserRoleSupport.isReviewer(user.getRole())
+                ? reportRepository.findIssuedByReviewerAssignment(user.getUserId(), pageable)
+                : reportRepository.findByCreatedByOrderByCreatedAtDesc(user.getUserId(), pageable);
 
         List<Long> evidenceIds = reportPage.getContent().stream()
                 .map(Report::getEvidenceId)
@@ -50,7 +51,7 @@ public class ReportListService {
                 .toList();
 
         Map<Long, Evidence> evidenceById = evidenceRepository
-                .findByEvidenceIdInAndUploaderIdAndDeletedAtIsNull(evidenceIds, user.getUserId())
+                .findByEvidenceIdInAndDeletedAtIsNull(evidenceIds)
                 .stream()
                 .collect(Collectors.toMap(Evidence::getEvidenceId, Function.identity()));
 
@@ -109,7 +110,10 @@ public class ReportListService {
                 .verdictLabel(verdictLabel)
                 .createdAt(ApiDateTimeFormatter.formatUtc(report.getCreatedAt()))
                 .reportHash(report.getReportHash())
-                .downloadPath(resolveDownloadPath(report, isCompare))
+                .publicationStatus(report.getPublicationStatus().name())
+                .version(report.getReportVersion())
+                .issuedAt(report.getIssuedAt() == null ? null : ApiDateTimeFormatter.formatUtc(report.getIssuedAt()))
+                .downloadPath(report.isIssued() ? resolveDownloadPath(report, isCompare) : null)
                 .build();
     }
 

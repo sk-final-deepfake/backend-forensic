@@ -5,6 +5,7 @@ import com.example.demo.security.SecurityErrorResponses;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 
@@ -25,6 +27,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<StandardErrorResponse> handleBusinessException(BusinessException ex) {
         return ResponseEntity.status(ex.getStatus()).body(toErrorResponse(ex));
+    }
+
+    @ExceptionHandler(LoginRateLimitException.class)
+    public ResponseEntity<StandardErrorResponse> handleLoginRateLimit(LoginRateLimitException ex) {
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(ex.getStatus());
+        if (ex.getRetryAfterSeconds() > 0) {
+            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()));
+        }
+        return builder.body(toErrorResponse(ex));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -102,6 +113,17 @@ public class GlobalExceptionHandler {
                         .success(false)
                         .errorCode("UPLOAD_FAILED")
                         .message("파일 업로드 처리 중 오류가 발생했습니다.")
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<StandardErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                StandardErrorResponse.builder()
+                        .success(false)
+                        .errorCode("NOT_FOUND")
+                        .message("요청한 API를 찾을 수 없습니다.")
                         .build()
         );
     }

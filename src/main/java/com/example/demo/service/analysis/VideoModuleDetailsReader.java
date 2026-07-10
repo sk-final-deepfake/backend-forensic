@@ -29,7 +29,6 @@ public class VideoModuleDetailsReader {
         List<SuspiciousSegmentDto> opticalSuspiciousSegments = List.of();
         List<ModuleTimelineDto> moduleTimelines = List.of();
         List<RepresentativeFrameDto> representativeFrames = List.of();
-        String heatmapImageUrl = null;
         String overlayVideoUrl = null;
         List<String> evidenceItems = List.of();
 
@@ -59,9 +58,6 @@ public class VideoModuleDetailsReader {
             if (representativeFrames.isEmpty()) {
                 representativeFrames = readRepresentativeFrames(details);
             }
-            if (heatmapImageUrl == null) {
-                heatmapImageUrl = asString(details.get("heatmapImageUrl"));
-            }
             if (overlayVideoUrl == null) {
                 overlayVideoUrl = asString(details.get("overlayVideoUrl"));
             }
@@ -87,7 +83,6 @@ public class VideoModuleDetailsReader {
                 opticalSuspiciousSegments,
                 moduleTimelines,
                 representativeFrames,
-                heatmapImageUrl,
                 overlayVideoUrl,
                 evidenceItems
         );
@@ -102,7 +97,6 @@ public class VideoModuleDetailsReader {
             List<SuspiciousSegmentDto> opticalSuspiciousSegments,
             List<ModuleTimelineDto> moduleTimelines,
             List<RepresentativeFrameDto> representativeFrames,
-            String heatmapImageUrl,
             String overlayVideoUrl,
             List<String> evidenceItems
     ) {
@@ -210,7 +204,6 @@ public class VideoModuleDetailsReader {
                             .frameNumber(asNullableInt(map.get("frameNumber")))
                             .score(asNullableDouble(map.get("score")))
                             .imageUrl(asString(map.get("imageUrl")))
-                            .heatmapUrl(asString(map.get("heatmapUrl")))
                             .build();
                 })
                 .toList();

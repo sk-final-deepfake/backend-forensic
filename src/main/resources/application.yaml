@@ -57,6 +57,7 @@ hls:
     stale-packaging-minutes: ${HLS_STALE_PACKAGING_MINUTES:45}
     backfill-interval-ms: ${HLS_BACKFILL_INTERVAL_MS:60000}
     stale-reaper-interval-ms: ${HLS_STALE_REAPER_INTERVAL_MS:300000}
+    artifact-cleanup-batch-size: ${HLS_ARTIFACT_CLEANUP_BATCH_SIZE:20}
     content-key-encryption-secret: ${HLS_CONTENT_KEY_ENCRYPTION_SECRET:forenshield-hls-dev-key-change-in-prod-32b}
 
 # 인프라팀 env 변수와 1:1 매핑
@@ -141,6 +142,12 @@ readiness:
   script-path: ${READINESS_SCRIPT_PATH:}
   sample-every: ${READINESS_SAMPLE_EVERY:10}
   process-timeout-seconds: ${READINESS_PROCESS_TIMEOUT_SEC:180}
+
+# 공개 보고서 QR·외부 열람 URL
+report:
+  public-verify-base-url: ${REPORT_PUBLIC_VERIFY_BASE_URL:https://forensheildjangdochi.com/verify}
+  public-view-base-url: ${REPORT_PUBLIC_VIEW_BASE_URL:https://forensheildjangdochi.com/public-report}
+  public-access-ttl-days: ${REPORT_PUBLIC_ACCESS_TTL_DAYS:7}
 
 springdoc:
   swagger-ui:

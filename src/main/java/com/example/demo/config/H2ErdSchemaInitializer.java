@@ -41,8 +41,10 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
 
         migrateReportsTableForComparePdf();
         migrateReportsPublicVerification();
+        migrateReportPublicationLifecycle();
         migrateEvidencesV2Workflow();
         migrateEvidenceMetadataReadiness();
+        migrateBlockchainAnchorAnalysisSnapshot();
     }
 
     void migrateEvidencesV2Workflow() {
@@ -62,6 +64,11 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
 
     void migrateEvidenceMetadataReadiness() {
         addColumnIfMissing("evidence_metadata", "readiness_json", "JSON");
+    }
+
+    void migrateBlockchainAnchorAnalysisSnapshot() {
+        addColumnIfMissing("blockchain_anchors", "analysis_model_json", "CLOB");
+        addColumnIfMissing("blockchain_anchors", "analysis_modules_json", "CLOB");
     }
 
     private void addColumnIfMissing(String table, String column, String type) {
@@ -112,6 +119,16 @@ public class H2ErdSchemaInitializer implements ApplicationRunner {
         createIndexIfMissing("ux_reports_verification_token", "reports", "verification_token", true);
         createIndexIfMissing("ux_reports_verification_code", "reports", "verification_code", true);
         createIndexIfMissing("ux_reports_public_access_code", "reports", "public_access_code", true);
+    }
+
+    void migrateReportPublicationLifecycle() {
+        addColumnIfMissing("reports", "publication_status", "VARCHAR(20) DEFAULT 'ISSUED' NOT NULL");
+        addColumnIfMissing("reports", "report_version", "INTEGER DEFAULT 1 NOT NULL");
+        addColumnIfMissing("reports", "issued_by", "BIGINT");
+        addColumnIfMissing("reports", "issued_at", "TIMESTAMP");
+        addColumnIfMissing("reports", "superseded_at", "TIMESTAMP");
+        addColumnIfMissing("case_profiles", "review_approved_at", "TIMESTAMP");
+        createIndexIfMissing("idx_reports_publication_status", "reports", "publication_status", false);
     }
 
     private void createIndexIfMissing(String index, String table, String column, boolean unique) {

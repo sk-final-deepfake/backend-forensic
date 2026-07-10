@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 public class SignupRateLimitInterceptor implements HandlerInterceptor {
 
     private final SignupRateLimitService rateLimitService;
+    private final ClientIpResolver clientIpResolver;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -28,7 +29,7 @@ public class SignupRateLimitInterceptor implements HandlerInterceptor {
         RateLimitDecision decision = rateLimitService.check(
                 request.getMethod(),
                 request.getRequestURI(),
-                resolveClientIp(request),
+                clientIpResolver.resolve(request),
                 resolveAuthenticatedLoginId()
         );
 
@@ -46,14 +47,6 @@ public class SignupRateLimitInterceptor implements HandlerInterceptor {
                 .message("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.")
                 .build());
         return false;
-    }
-
-    private String resolveClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private String resolveAuthenticatedLoginId() {

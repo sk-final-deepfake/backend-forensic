@@ -1,9 +1,10 @@
 package com.example.demo.scheduler;
 
 import com.example.demo.config.HlsPackagingProperties;
-import com.example.demo.domain.enums.HlsStatus;
 import com.example.demo.repository.EvidenceHlsRepository;
+import com.example.demo.service.evidence.EvidenceStoragePaths;
 import com.example.demo.service.evidence.hls.EvidenceHlsPackagingService;
+import com.example.demo.service.evidence.hls.EvidenceHlsWorkFileService;
 import com.example.demo.service.evidence.hls.HlsPackagingEnqueuer;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class HlsPackagingBackfillScheduler {
     private final EvidenceHlsRepository evidenceHlsRepository;
     private final HlsPackagingEnqueuer hlsPackagingEnqueuer;
     private final EvidenceHlsPackagingService packagingService;
+    private final EvidenceHlsWorkFileService workFileService;
 
     @Scheduled(fixedDelayString = "${hls.packaging.backfill-interval-ms:60000}")
     public void enqueuePendingJobs() {
@@ -32,7 +34,6 @@ public class HlsPackagingBackfillScheduler {
         }
 
         List<Long> evidenceIds = evidenceHlsRepository.findEvidenceIdsNeedingHlsPackaging(
-                List.of(HlsStatus.PENDING, HlsStatus.FAILED),
                 PageRequest.of(0, properties.getBatchSize())
         );
         for (Long evidenceId : evidenceIds) {
@@ -40,6 +41,22 @@ public class HlsPackagingBackfillScheduler {
         }
         if (!evidenceIds.isEmpty()) {
             log.info("Enqueued {} HLS packaging jobs", evidenceIds.size());
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${hls.packaging.stale-reaper-interval-ms:300000}")
+    public void cleanupStrayHlsArtifacts() {
+        List<Long> evidenceIds = evidenceHlsRepository.findReadyEvidenceIdsForArtifactCleanup(
+                PageRequest.of(0, properties.getArtifactCleanupBatchSize())
+        );
+        int totalDeleted = 0;
+        for (Long evidenceId : evidenceIds) {
+            totalDeleted += workFileService.purgeStrayUploadsUnderPrefix(
+                    EvidenceStoragePaths.hlsPrefix(evidenceId)
+            );
+        }
+        if (totalDeleted > 0) {
+            log.info("Purged {} stray objects from {} READY HLS prefixes", totalDeleted, evidenceIds.size());
         }
     }
 }

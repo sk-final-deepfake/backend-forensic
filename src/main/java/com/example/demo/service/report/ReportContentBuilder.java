@@ -3,17 +3,27 @@ package com.example.demo.service.report;
 import com.example.demo.domain.AnalysisModuleResult;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.CompareVerification;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.User;
 import com.example.demo.dto.compare.CompareFileInfoDto;
 import com.example.demo.dto.compare.CompareItemDto;
+import com.example.demo.repository.CaseProfileRepository;
+import com.example.demo.repository.UserRepository;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.EvidenceCaseIdResolver;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class ReportContentBuilder {
+
+    private final CaseProfileRepository caseProfileRepository;
+    private final UserRepository userRepository;
 
     public List<String> buildEvidenceLines(
             Evidence evidence,
@@ -22,8 +32,12 @@ public class ReportContentBuilder {
             List<AnalysisModuleResult> modules
     ) {
         List<String> lines = new ArrayList<>();
+        appendEvidenceContext(lines, evidence);
         lines.add("Evidence ID: " + evidence.getEvidenceId());
         lines.add("File Name: " + evidence.getFileName());
+        lines.add("File Type: " + valueOrDash(evidence.getFileType()));
+        lines.add("File Size: " + valueOrDash(evidence.getFileSize()));
+        lines.add("Uploaded At: " + ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()));
         lines.add("SHA-256: " + evidence.getOriginalHashValue());
         lines.add("Analysis Status: " + request.getStatus());
         lines.add("Risk Level: " + (result.getRiskLevel() == null ? "-" : result.getRiskLevel()));
@@ -42,13 +56,45 @@ public class ReportContentBuilder {
         return lines;
     }
 
+    private void appendEvidenceContext(List<String> lines, Evidence evidence) {
+        String caseKey = EvidenceCaseIdResolver.resolve(evidence);
+        CaseProfile profile = caseProfileRepository
+                .findByUploaderIdAndCaseKey(evidence.getUploaderId(), caseKey)
+                .orElse(null);
+
+        lines.add("Case Name: " + valueOrDash(evidence.getCaseName()));
+        lines.add("Case Number: " + valueOrDash(evidence.getCaseNumber()));
+        lines.add("Analyst Name: " + resolveUserName(evidence.getUploaderId()));
+        lines.add("Reviewer Name: " + resolveUserName(profile == null ? null : profile.getReviewerId()));
+    }
+
+    private String resolveUserName(Long userId) {
+        if (userId == null) {
+            return "-";
+        }
+        return userRepository.findByUserIdAndDeletedAtIsNull(userId)
+                .map(User::getName)
+                .filter(name -> !name.isBlank())
+                .orElse("-");
+    }
+
+    private String valueOrDash(Object value) {
+        if (value == null) {
+            return "-";
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? "-" : text;
+    }
+
     public List<String> buildCompareLines(
             CompareVerification verification,
+            Evidence originalEvidence,
             CompareFileInfoDto originalInfo,
             CompareFileInfoDto candidateInfo,
             List<CompareItemDto> items
     ) {
         List<String> lines = new ArrayList<>();
+        appendEvidenceContext(lines, originalEvidence);
         lines.add("Compare ID: " + verification.getCompareId());
         lines.add("Verdict: " + verification.getVerdict());
         lines.add("Match Count: " + verification.getMatchCount());

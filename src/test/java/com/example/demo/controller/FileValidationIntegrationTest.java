@@ -10,6 +10,7 @@ import com.example.demo.service.analysis.AnalysisCancelService;
 import com.example.demo.service.analysis.AnalysisJobEnqueuer;
 import com.example.demo.service.analysis.AnalysisService;
 import com.example.demo.service.analysis.AnalysisStatusService;
+import com.example.demo.service.auth.StepUpAuthService;
 import com.example.demo.service.blockchain.BlockchainAnchorService;
 import com.example.demo.service.custody.CocChainVerificationService;
 import com.example.demo.service.dashboard.DashboardIntroService;
@@ -71,6 +72,9 @@ class FileValidationIntegrationTest {
 
     @MockBean
     private AnalysisStatusService analysisStatusService;
+
+    @MockBean
+    private StepUpAuthService stepUpAuthService;
 
     @MockBean
     private ReportPdfService reportPdfService;

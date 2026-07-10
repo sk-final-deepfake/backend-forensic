@@ -22,14 +22,16 @@ public class AdminReviewerController {
     private final AdminUserService adminUserService;
     private final AuthUserResolver authUserResolver;
 
-    @Operation(summary = "검토자 목록", description = "승인된 검토자 계정 목록. ORG_ADMIN은 동일 기관만 조회.")
+    @Operation(summary = "검토자 목록", description = "승인된 검토자 계정 목록. uploaderId를 전달하면 해당 수사관과 같은 기관·부서만 조회합니다.")
     @GetMapping
     public AdminReviewerListResponse listReviewers(
-            @RequestParam(required = false) String department
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String uploaderId
     ) {
         return adminUserService.listReviewers(
                 authUserResolver.requireCurrentUser(),
-                department
+                department,
+                uploaderId
         );
     }
 }

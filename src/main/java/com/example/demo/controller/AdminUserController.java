@@ -79,6 +79,12 @@ public class AdminUserController {
         return adminUserService.suspend(authUserResolver.requireCurrentUser(), userId);
     }
 
+    @Operation(summary = "계정 재활성", description = "SUSPENDED 또는 REJECTED 계정을 APPROVED 상태로 복구")
+    @PostMapping("/{userId}/reactivate")
+    public AdminUserStatusResponse reactivate(@PathVariable Long userId) {
+        return adminUserService.reactivate(authUserResolver.requireCurrentUser(), userId);
+    }
+
     @Operation(summary = "계정 정보 수정")
     @PatchMapping("/{userId}")
     public AdminUserItemResponse updateUser(

@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.User;
@@ -15,12 +16,14 @@ import com.example.demo.dto.AnalysisResponseMessage;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.analysis.AnalysisWorkerService;
 import com.example.demo.support.JwtTestSupport;
 import com.example.demo.support.StepUpTestSupport;
+import com.example.demo.security.SignupRateLimitService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -70,10 +73,16 @@ class Sprint45E2EIntegrationTest {
     private CustodyLogRepository custodyLogRepository;
 
     @Autowired
+    private CaseProfileRepository caseProfileRepository;
+
+    @Autowired
     private AnalysisWorkerService analysisWorkerService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private SignupRateLimitService signupRateLimitService;
 
     private String userToken;
     private String stepUpToken;
@@ -82,10 +91,12 @@ class Sprint45E2EIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        signupRateLimitService.reset();
         analysisModuleResultRepository.deleteAll();
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         custodyLogRepository.deleteAll();
+        caseProfileRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -124,6 +135,7 @@ class Sprint45E2EIntegrationTest {
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         custodyLogRepository.deleteAll();
+        caseProfileRepository.deleteAll();
         evidenceRepository.deleteAll();
         userRepository.deleteAll();
     }
@@ -211,6 +223,14 @@ class Sprint45E2EIntegrationTest {
         result.setSummary("E2E report test");
         result.setAnalyzedAt(LocalDateTime.now());
         analysisResultRepository.save(result);
+
+        CaseProfile profile = new CaseProfile(
+                testUser.getUserId(),
+                "Sprint45 E2E",
+                evidence.getEvidenceId()
+        );
+        profile.approveReview();
+        caseProfileRepository.save(profile);
 
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))

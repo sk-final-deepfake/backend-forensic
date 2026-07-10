@@ -26,6 +26,8 @@ public class BlockchainAnchorRecordDto {
     private Boolean certVerified;
     private String offchainLogHash;
     private String offchainRefJson;
+    private String analysisModelJson;
+    private String analysisModulesJson;
     private String errorCode;
     private String message;
     /** RQ-DTL-080 */

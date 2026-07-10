@@ -13,6 +13,7 @@ import com.example.demo.dto.BlockchainAnchorRecordDto;
 import com.example.demo.dto.BlockchainAnchorStatusResponse;
 import com.example.demo.dto.detail.BlockchainInfoDto;
 import com.example.demo.exception.BusinessException;
+import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.BlockchainAnchorRepository;
 import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
@@ -30,6 +31,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -51,6 +53,7 @@ public class BlockchainAnchorService {
     private final BlockchainAnchorRepository anchorRepository;
     private final CustodyLogRepository custodyLogRepository;
     private final EvidenceRepository evidenceRepository;
+    private final AnalysisModuleResultRepository analysisModuleResultRepository;
     private final EvidenceAccessService evidenceAccessService;
     private final EvidenceManifestService evidenceManifestService;
     private final OffchainLogHashService offchainLogHashService;
@@ -96,6 +99,8 @@ public class BlockchainAnchorService {
                     false,
                     offchainLogHash,
                     offchainRef,
+                    null,
+                    null,
                     ERROR_MANIFEST_SIGNATURE_INVALID,
                     "Manifest signature is not valid; blockchain anchor held."
             );
@@ -114,7 +119,9 @@ public class BlockchainAnchorService {
                 manifest.getSignerCertificateHash(),
                 true,
                 offchainLogHash,
-                offchainRef
+                offchainRef,
+                null,
+                null
         );
         return executeAnchor(request, userId);
     }
@@ -140,6 +147,7 @@ public class BlockchainAnchorService {
                 .orElse(null);
         String offchainLogHash = offchainLogHashService.hashReportBundle(report);
         OffchainRef offchainRef = OffchainRef.ofReport(report.getStoragePath(), originalStoragePath);
+        AnalysisAnchorMetadata analysisAnchorMetadata = buildAnalysisAnchorMetadata(report);
 
         // PDF signing not introduced yet — omit signature / certVerified.
         BlockchainAnchorRequest request = new BlockchainAnchorRequest(
@@ -155,7 +163,9 @@ public class BlockchainAnchorService {
                 null,
                 null,
                 offchainLogHash,
-                offchainRef
+                offchainRef,
+                analysisAnchorMetadata.analysisModel(),
+                analysisAnchorMetadata.analysisModules()
         );
         return executeAnchor(request, userId);
     }
@@ -208,7 +218,9 @@ public class BlockchainAnchorService {
                 null,
                 null,
                 offchainLogHash,
-                offchainRef
+                offchainRef,
+                null,
+                null
         );
         return executeAnchor(request, null);
     }
@@ -327,6 +339,8 @@ public class BlockchainAnchorService {
             Boolean certVerified,
             String offchainLogHash,
             OffchainRef offchainRef,
+            BlockchainAnchorRequest.AnalysisModelRef analysisModel,
+            List<BlockchainAnchorRequest.AnalysisModuleRef> analysisModules,
             String errorCode,
             String errorMessage
     ) {
@@ -342,7 +356,9 @@ public class BlockchainAnchorService {
                 signerCertHash,
                 certVerified,
                 offchainLogHash,
-                offchainRef
+                offchainRef,
+                analysisModel,
+                analysisModules
         );
         anchor.setStatus(BlockchainAnchorStatus.FAILED);
         anchor.setErrorCode(errorCode);
@@ -368,7 +384,9 @@ public class BlockchainAnchorService {
                 request.signerCertHash(),
                 request.certVerified(),
                 request.offchainLogHash(),
-                request.offchainRef()
+                request.offchainRef(),
+                request.analysisModel(),
+                request.analysisModules()
         );
         anchorRepository.save(anchor);
 
@@ -402,7 +420,9 @@ public class BlockchainAnchorService {
             String signerCertHash,
             Boolean certVerified,
             String offchainLogHash,
-            OffchainRef offchainRef
+            OffchainRef offchainRef,
+            BlockchainAnchorRequest.AnalysisModelRef analysisModel,
+            List<BlockchainAnchorRequest.AnalysisModuleRef> analysisModules
     ) {
         BlockchainAnchor anchor = new BlockchainAnchor();
         anchor.setAnchorType(anchorType);
@@ -420,6 +440,8 @@ public class BlockchainAnchorService {
         anchor.setCertVerified(certVerified);
         anchor.setOffchainLogHash(offchainLogHash);
         anchor.setOffchainRefJson(toOffchainRefJson(offchainRef));
+        anchor.setAnalysisModelJson(toJson(analysisModel));
+        anchor.setAnalysisModulesJson(toJson(analysisModules == null || analysisModules.isEmpty() ? null : analysisModules));
         return anchor;
     }
 
@@ -432,6 +454,83 @@ public class BlockchainAnchorService {
         } catch (JsonProcessingException ex) {
             log.warn("Failed to serialize offchainRef", ex);
             return null;
+        }
+    }
+
+    private String toJson(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            log.warn("Failed to serialize blockchain anchor metadata", ex);
+            return null;
+        }
+    }
+
+    private AnalysisAnchorMetadata buildAnalysisAnchorMetadata(Report report) {
+        if (report == null || report.getAnalysisResultId() == null) {
+            return AnalysisAnchorMetadata.empty();
+        }
+        List<com.example.demo.domain.AnalysisModuleResult> modules =
+                analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(report.getAnalysisResultId());
+        if (modules.isEmpty()) {
+            return AnalysisAnchorMetadata.empty();
+        }
+
+        BlockchainAnchorRequest.AnalysisModelRef analysisModel = null;
+        List<BlockchainAnchorRequest.AnalysisModuleRef> analysisModules = new ArrayList<>();
+        for (com.example.demo.domain.AnalysisModuleResult module : modules) {
+            String moduleName = normalize(module.getModuleName());
+            String modelName = normalize(module.getModelName());
+            String modelVersion = normalize(module.getModelVersion());
+            if (moduleName == null || modelName == null || modelVersion == null) {
+                continue;
+            }
+            if ("video_timeline".equalsIgnoreCase(moduleName)) {
+                if (analysisModel == null) {
+                    analysisModel = new BlockchainAnchorRequest.AnalysisModelRef(
+                            modelName,
+                            modelVersion,
+                            modelVersion
+                    );
+                }
+                continue;
+            }
+            if ("deepfake".equalsIgnoreCase(moduleName) && analysisModel == null) {
+                analysisModel = new BlockchainAnchorRequest.AnalysisModelRef(
+                        modelName,
+                        modelVersion,
+                        modelVersion
+                );
+            }
+            analysisModules.add(new BlockchainAnchorRequest.AnalysisModuleRef(
+                    moduleName,
+                    modelName,
+                    modelVersion
+            ));
+        }
+        return new AnalysisAnchorMetadata(
+                analysisModel,
+                analysisModules.isEmpty() ? List.of() : List.copyOf(analysisModules)
+        );
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private record AnalysisAnchorMetadata(
+            BlockchainAnchorRequest.AnalysisModelRef analysisModel,
+            List<BlockchainAnchorRequest.AnalysisModuleRef> analysisModules
+    ) {
+        private static AnalysisAnchorMetadata empty() {
+            return new AnalysisAnchorMetadata(null, List.of());
         }
     }
 
@@ -468,6 +567,8 @@ public class BlockchainAnchorService {
                 .certVerified(anchor.getCertVerified())
                 .offchainLogHash(anchor.getOffchainLogHash())
                 .offchainRefJson(anchor.getOffchainRefJson())
+                .analysisModelJson(anchor.getAnalysisModelJson())
+                .analysisModulesJson(anchor.getAnalysisModulesJson())
                 .errorCode(anchor.getErrorCode())
                 .message(resolveMessage(anchor))
                 .transactionExplorerUrl(buildTransactionExplorerUrl(anchor.getTransactionHash()))

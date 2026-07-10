@@ -16,9 +16,11 @@ import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
+import com.example.demo.domain.enums.CaseReviewStatus;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.dto.PublicReportAccessIssueResponse;
+import com.example.demo.dto.PublicReportFileHashVerifyResponse;
 import com.example.demo.dto.PublicReportVerifyResponse;
 import com.example.demo.dto.PublicReportViewResponse;
 import com.example.demo.dto.ReportVerifyResponse;
@@ -29,9 +31,11 @@ import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.BlockchainAnchorRepository;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.ReportRepository;
 import com.example.demo.service.manifest.EvidenceManifestService;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.EvidenceCaseIdResolver;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -57,27 +61,27 @@ public class ReportPdfService {
     private final AnalysisRequestRepository analysisRequestRepository;
     private final AnalysisResultRepository analysisResultRepository;
     private final AnalysisModuleResultRepository analysisModuleResultRepository;
+    private final CaseProfileRepository caseProfileRepository;
     private final ReportRepository reportRepository;
     private final CompareVerificationService compareVerificationService;
     private final CompareVerificationAssembler compareVerificationAssembler;
     private final ReportContentBuilder reportContentBuilder;
     private final ReportPdfStorageService reportPdfStorageService;
     private final ReportCustodyLogService reportCustodyLogService;
+    private final ReportPdfPersistenceService reportPdfPersistenceService;
     private final EvidenceManifestService evidenceManifestService;
     private final BlockchainAnchorRepository blockchainAnchorRepository;
 
-    @Value("${report.public-view-base-url:http://localhost:3000/public-report}")
+    @Value("${report.public-view-base-url:https://forensheildjangdochi.com/public-report}")
     private String publicViewBaseUrl;
 
     @Value("${report.public-access-ttl-days:7}")
     private long publicAccessTtlDays;
 
-    @Transactional
     public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId) {
         return generateEvidenceReport(user, evidenceId, false);
     }
 
-    @Transactional
     public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId, boolean preview) {
         Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
         AnalysisRequest request = requireCompletedAnalysis(evidenceId);
@@ -85,35 +89,22 @@ public class ReportPdfService {
         List<AnalysisModuleResult> modules = analysisModuleResultRepository
                 .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
 
-        List<String> lines = reportContentBuilder.buildEvidenceLines(evidence, request, result, modules);
-        Report report = reportPdfStorageService.persistAnalysisReport(
-                result.getAnalysisResultId(),
+        return reportPdfPersistenceService.persistEvidenceReport(
+                user,
                 evidenceId,
-                user.getUserId(),
-                "analysis-report-" + evidenceId + ".pdf",
-                lines,
-                "ForenShield Analysis Report"
+                preview,
+                evidence,
+                request,
+                result,
+                modules,
+                isApprovedForReport(evidence)
         );
-
-        byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
-        if (preview) {
-            return new ReportPdfPayload(
-                    report.getReportFileName(),
-                    reportPdfStorageService.addPreviewWatermark(pdfBytes),
-                    report.getReportHash()
-            );
-        }
-
-        reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
-        return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
     }
 
-    @Transactional
     public ReportPdfPayload generateCompareReport(User user, Long compareId) {
         return generateCompareReport(user, compareId, false);
     }
 
-    @Transactional
     public ReportPdfPayload generateCompareReport(User user, Long compareId, boolean preview) {
         CompareVerification verification = compareVerificationService.requireOwnedVerification(user, compareId);
         List<CompareItemDto> items = compareVerificationAssembler.deserializeItems(verification.getResultJson());
@@ -124,28 +115,58 @@ public class ReportPdfService {
         );
         CompareFileInfoDto candidateInfo = compareVerificationService.getCandidateFileInfo(user, compareId);
 
-        List<String> lines = reportContentBuilder.buildCompareLines(
-                verification, originalInfo, candidateInfo, items);
-
-        Report report = reportPdfStorageService.persistCompareReport(
+        return reportPdfPersistenceService.persistCompareReport(
+                user,
                 compareId,
-                original.getEvidenceId(),
-                user.getUserId(),
-                "compare-report-" + compareId + ".pdf",
-                lines,
-                "ForenShield Compare Verification Report"
+                preview,
+                verification,
+                original,
+                originalInfo,
+                candidateInfo,
+                items,
+                isApprovedForReport(original)
         );
-        byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
-        if (preview) {
-            return new ReportPdfPayload(
-                    report.getReportFileName(),
-                    reportPdfStorageService.addPreviewWatermark(pdfBytes),
-                    report.getReportHash()
-            );
-        }
+    }
 
-        reportCustodyLogService.recordReportDownloaded(user.getUserId(), report);
-        return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
+    @Transactional
+    public void issueCaseReports(User reviewer, List<Evidence> evidences) {
+        for (Evidence evidence : evidences) {
+            AnalysisRequest request = analysisRequestRepository
+                    .findTopByEvidenceIdOrderByRequestedAtDesc(evidence.getEvidenceId())
+                    .filter(candidate -> candidate.getStatus() == AnalysisStatus.COMPLETED)
+                    .orElse(null);
+            if (request == null) {
+                continue;
+            }
+
+            AnalysisResult result = analysisResultRepository.findByAnalysisRequestId(request.getAnalysisRequestId())
+                    .orElse(null);
+            if (result == null) {
+                continue;
+            }
+
+            List<AnalysisModuleResult> modules = analysisModuleResultRepository
+                    .findByAnalysisResultIdOrderByCreatedAtAsc(result.getAnalysisResultId());
+            List<String> lines = reportContentBuilder.buildEvidenceLines(evidence, request, result, modules);
+            Report report = reportRepository
+                    .findTopByAnalysisResultIdOrderByCreatedAtDesc(result.getAnalysisResultId())
+                    .orElseGet(() -> reportPdfStorageService.persistAnalysisReport(
+                            result.getAnalysisResultId(),
+                            evidence.getEvidenceId(),
+                            evidence.getUploaderId(),
+                            "analysis-report-" + evidence.getEvidenceId() + ".pdf",
+                            lines,
+                            "ForenShield Analysis Report"
+                    ));
+            if (!report.isIssued()) {
+                reportPdfStorageService.issueReport(
+                        report,
+                        reviewer.getUserId(),
+                        lines,
+                        "ForenShield Analysis Report"
+                );
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -210,6 +231,7 @@ public class ReportPdfService {
                 .reportFileName(report.getReportFileName())
                 .createdAt(formatDateTime(report.getCreatedAt()))
                 .hashMatched(hashMatched)
+                .storedFileIntact(hashMatched)
                 .signatureValid(signature.valid())
                 .signatureStatus(signature.status())
                 .signatureAlgorithm(signature.algorithm())
@@ -219,6 +241,48 @@ public class ReportPdfService {
                 .blockchainTxHash(blockchain.transactionHash())
                 .blockchainNetwork(blockchain.network())
                 .blockchainAnchoredAt(blockchain.anchoredAt())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public PublicReportFileHashVerifyResponse verifyPublicReportFileHash(
+            String token,
+            String code,
+            String fileHash
+    ) {
+        Report report = resolvePublicReport(token, code)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND,
+                        "REPORT_VERIFICATION_NOT_FOUND",
+                        "등록되지 않은 검증 정보입니다."
+                ));
+
+        String normalizedHash = normalizeSha256(fileHash);
+        boolean storedFileIntact = reportPdfStorageService.verifyStoredFileHash(report);
+        boolean matched = report.getReportHash() != null
+                && report.getReportHash().equalsIgnoreCase(normalizedHash);
+
+        String status;
+        String message;
+        if (!matched) {
+            status = "MISMATCH";
+            message = "선택한 PDF가 발급 시 등록된 최종 파일과 일치하지 않습니다.";
+        } else if (!storedFileIntact) {
+            status = "WARNING";
+            message = "선택한 PDF 해시는 등록값과 일치하지만 서버 보관 원본 상태를 확인할 수 없습니다.";
+        } else {
+            status = "MATCH";
+            message = "선택한 PDF가 발급 시 등록된 최종 파일과 일치합니다.";
+        }
+
+        return PublicReportFileHashVerifyResponse.builder()
+                .status(status)
+                .matched(matched)
+                .storedFileIntact(storedFileIntact)
+                .message(message)
+                .reportNo(report.getReportNo())
+                .submittedHash(normalizedHash)
+                .registeredHash(report.getReportHash())
                 .build();
     }
 
@@ -256,15 +320,15 @@ public class ReportPdfService {
     public ReportPdfPayload downloadPublicReport(String accessCode) {
         Report report = requirePublicAccessReport(accessCode);
         byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
-        return new ReportPdfPayload(report.getReportFileName(), pdfBytes, report.getReportHash());
+        return toPayload(report, pdfBytes);
     }
 
     private Optional<Report> resolvePublicReport(String token, String code) {
         if (token != null && !token.isBlank()) {
-            return reportRepository.findByVerificationToken(token.trim());
+            return reportRepository.findByVerificationToken(token.trim()).filter(Report::isIssued);
         }
         if (code != null && !code.isBlank()) {
-            return reportRepository.findByVerificationCode(normalizeVerificationCode(code));
+            return reportRepository.findByVerificationCode(normalizeVerificationCode(code)).filter(Report::isIssued);
         }
         throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "token 또는 code는 필수입니다.");
     }
@@ -281,7 +345,29 @@ public class ReportPdfService {
         return normalized;
     }
 
+    private String normalizeSha256(String fileHash) {
+        if (fileHash == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_FILE_HASH", "PDF SHA-256 해시는 필수입니다.");
+        }
+        String normalized = fileHash.trim().toLowerCase(Locale.ROOT);
+        if (!normalized.matches("[0-9a-f]{64}")) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_FILE_HASH",
+                    "PDF SHA-256 해시 형식이 올바르지 않습니다."
+            );
+        }
+        return normalized;
+    }
+
     private void ensureCanIssuePublicAccess(User user, Report report) {
+        if (!report.isIssued()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "REPORT_NOT_ISSUED",
+                    "검토 승인 후 발행된 보고서만 외부 열람코드를 발급할 수 있습니다."
+            );
+        }
         if (Objects.equals(report.getCreatedBy(), user.getUserId())) {
             return;
         }
@@ -309,6 +395,9 @@ public class ReportPdfService {
         }
         if (isExpired(report.getPublicAccessExpiresAt())) {
             throw new BusinessException(HttpStatus.GONE, "REPORT_ACCESS_EXPIRED", "만료된 열람코드입니다.");
+        }
+        if (!report.isIssued()) {
+            throw new BusinessException(HttpStatus.GONE, "REPORT_ACCESS_REVOKED", "더 이상 유효하지 않은 보고서입니다.");
         }
         return report;
     }
@@ -401,6 +490,23 @@ public class ReportPdfService {
                         HttpStatus.CONFLICT, "ANALYSIS_RESULT_NOT_FOUND", "분석 결과가 없습니다."));
     }
 
+    private boolean isApprovedForReport(Evidence evidence) {
+        String caseKey = EvidenceCaseIdResolver.resolve(evidence);
+        return caseProfileRepository.findByUploaderIdAndCaseKey(evidence.getUploaderId(), caseKey)
+                .filter(profile -> profile.getReviewStatus() == CaseReviewStatus.REPORT_APPROVED)
+                .isPresent();
+    }
+
+    private ReportPdfPayload toPayload(Report report, byte[] pdfBytes) {
+        return new ReportPdfPayload(
+                report.getReportFileName(),
+                pdfBytes,
+                report.getReportHash(),
+                report.getPublicationStatus().name(),
+                report.getReportVersion()
+        );
+    }
+
     private SignatureSnapshot resolveSignature(Long evidenceId) {
         return evidenceManifestService.findByEvidenceId(evidenceId)
                 .map(manifest -> new SignatureSnapshot(
@@ -463,7 +569,13 @@ public class ReportPdfService {
         return dateTime == null ? null : ApiDateTimeFormatter.formatUtc(dateTime);
     }
 
-    public record ReportPdfPayload(String fileName, byte[] content, String reportHash) {
+    public record ReportPdfPayload(
+            String fileName,
+            byte[] content,
+            String reportHash,
+            String publicationStatus,
+            Integer version
+    ) {
     }
 
     private record SignatureSnapshot(

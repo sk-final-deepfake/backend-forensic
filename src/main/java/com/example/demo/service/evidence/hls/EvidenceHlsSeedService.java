@@ -3,7 +3,9 @@ package com.example.demo.service.evidence.hls;
 import com.example.demo.config.HlsPackagingProperties;
 import com.example.demo.domain.EvidenceHls;
 import com.example.demo.domain.enums.FileType;
+import com.example.demo.domain.enums.HlsStatus;
 import com.example.demo.repository.EvidenceHlsRepository;
+import com.example.demo.service.evidence.EvidenceStoragePaths;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -24,10 +26,16 @@ public class EvidenceHlsSeedService {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
-        evidenceHlsRepository.findByEvidenceId(evidenceId).orElseGet(() -> {
-            EvidenceHls created = EvidenceHls.createPending(evidenceId, now);
-            return evidenceHlsRepository.save(created);
-        });
+        evidenceHlsRepository.findByEvidenceId(evidenceId).ifPresentOrElse(
+                hls -> {
+                    if (hls.getHlsStatus() == HlsStatus.PACKAGING || hls.getHlsStatus() == HlsStatus.READY) {
+                        return;
+                    }
+                    hls.requeueForPackaging(now);
+                    evidenceHlsRepository.save(hls);
+                },
+                () -> evidenceHlsRepository.save(EvidenceHls.createPending(evidenceId, now))
+        );
         if (!properties.isEnabled()) {
             return;
         }

@@ -129,7 +129,10 @@ class AdminControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.content[0].username").exists());
+                .andExpect(jsonPath("$.content[0].username").exists())
+                .andExpect(jsonPath("$.content[*].role").value(
+                        org.hamcrest.Matchers.containsInAnyOrder("ORG_ADMIN", "INVESTIGATOR", "INVESTIGATOR")
+                ));
     }
 
     @Test
@@ -168,6 +171,30 @@ class AdminControllerTest {
                                 """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("ACCOUNT_SUSPENDED"));
+    }
+
+    @Test
+    void reactivateSuspendedUser_restoresApprovedStatusAndLogin() throws Exception {
+        User approvedUser = userRepository.findByLoginIdAndDeletedAtIsNull("1111").orElseThrow();
+
+        mockMvc.perform(post("/api/v1/admin/users/{userId}/suspend", approvedUser.getUserId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/admin/users/{userId}/reactivate", approvedUser.getUserId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        assertThat(custodyLogRepository.findAll())
+                .extracting(log -> log.getActionType())
+                .contains("USER_REACTIVATED");
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"loginId":"1111","password":"2222"}
+                                """))
+                .andExpect(status().isOk());
     }
 
     @Test

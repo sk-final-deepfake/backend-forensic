@@ -107,7 +107,8 @@ public class CaseDetailAssembler {
                         : CaseReviewStatus.NONE.name())
                 .reviewRequestedAt(profile != null && profile.getReviewRequestedAt() != null
                         ? ApiDateTimeFormatter.formatUtc(profile.getReviewRequestedAt())
-                        : null);
+                        : null)
+                .reviewerComment(profile == null ? null : profile.getReviewerComment());
     }
 
     public String resolveAggregateStatus(List<Evidence> evidences, List<AnalysisRequest> analysisRequests) {

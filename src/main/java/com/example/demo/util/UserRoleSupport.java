@@ -39,6 +39,20 @@ public final class UserRoleSupport {
         return role;
     }
 
+    public static String toClientRole(UserRole role) {
+        UserRole apiRole = toApiRole(role);
+        if (apiRole == null) {
+            return null;
+        }
+        return switch (apiRole) {
+            case ROLE_INVESTIGATOR -> "INVESTIGATOR";
+            case ROLE_REVIEWER -> "REVIEWER";
+            case ROLE_ORG_ADMIN -> "ORG_ADMIN";
+            case ROLE_USER -> "INVESTIGATOR";
+            case ROLE_ADMIN -> "ORG_ADMIN";
+        };
+    }
+
     public static boolean isOrgAdmin(UserRole role) {
         return role == UserRole.ROLE_ADMIN || role == UserRole.ROLE_ORG_ADMIN;
     }

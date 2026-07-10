@@ -3,6 +3,7 @@ package com.example.demo.exception;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,6 +19,19 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().isSuccess()).isFalse();
         assertThat(response.getBody().getErrorCode()).isEqualTo("FILE_TOO_LARGE");
+    }
+
+    @Test
+    void handleNoResourceFound_returnsNotFound() {
+        var response = handler.handleNoResourceFound(
+                new NoResourceFoundException(org.springframework.http.HttpMethod.POST, "/api/v1/auth/step-up/extend")
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getErrorCode()).isEqualTo("NOT_FOUND");
+        assertThat(response.getBody().getMessage()).isEqualTo("요청한 API를 찾을 수 없습니다.");
     }
 
     @Test
