@@ -110,7 +110,7 @@ public class ReportPdfStorageService {
                 verificationPayload.verifyUrl(),
                 verificationPayload.verificationCode()
         );
-        overwritePdf(report.getStoragePath(), pdfBytes);
+        persistReportBytes(report, pdfBytes);
 
         report.setReportNo(verificationPayload.reportNo());
         report.setVerificationToken(verificationPayload.verificationToken());
@@ -130,6 +130,26 @@ public class ReportPdfStorageService {
         } catch (IOException ex) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "REPORT_READ_FAILED", "PDF 리포트를 읽을 수 없습니다.");
         }
+    }
+
+    /**
+     * Prod stores reports under ephemeral pod storage ({@code /tmp/uploads}). After redeploy the DB row
+     * may outlive the file; regenerate from current content instead of failing preview/download.
+     */
+    public byte[] ensureReportPdfBytes(Report report, List<String> lines, String title) {
+        if (hasStoredPdf(report.getStoragePath())) {
+            return readStoredPdf(report.getStoragePath());
+        }
+
+        log.warn(
+                "Report PDF missing on disk; regenerating reportId={} evidenceId={} path={}",
+                report.getReportId(),
+                report.getEvidenceId(),
+                report.getStoragePath()
+        );
+        byte[] pdfBytes = renderReportBytes(report, lines, title);
+        persistReportBytes(report, pdfBytes);
+        return pdfBytes;
     }
 
     public byte[] addPreviewWatermark(byte[] pdfBytes) {
@@ -186,6 +206,37 @@ public class ReportPdfStorageService {
     private String buildVerifyUrl(String token) {
         String separator = publicVerifyBaseUrl.contains("?") ? "&" : "?";
         return publicVerifyBaseUrl + separator + "token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
+    }
+
+    private byte[] renderReportBytes(Report report, List<String> lines, String title) {
+        if (report.isIssued() && report.getVerificationToken() != null && !report.getVerificationToken().isBlank()) {
+            return buildPdfWithQr(
+                    title,
+                    lines,
+                    report.getReportNo(),
+                    buildVerifyUrl(report.getVerificationToken()),
+                    report.getVerificationCode()
+            );
+        }
+        return PdfDocumentWriter.writeDraftReport(title, lines);
+    }
+
+    private void persistReportBytes(Report report, byte[] pdfBytes) {
+        if (hasStoredPdf(report.getStoragePath())) {
+            overwritePdf(report.getStoragePath(), pdfBytes);
+        } else {
+            String category = report.getCompareId() != null ? "compare" : "evidence";
+            Long id = report.getCompareId() != null ? report.getCompareId() : report.getEvidenceId();
+            Path reportPath = storePdf(category, id, report.getReportFileName(), pdfBytes);
+            report.setStoragePath(reportPath.toString());
+        }
+        report.setReportHash(hashService.generateSha256(pdfBytes));
+        report.setFileSize((long) pdfBytes.length);
+        reportRepository.save(report);
+    }
+
+    private boolean hasStoredPdf(String storagePath) {
+        return storagePath != null && !storagePath.isBlank() && Files.exists(Paths.get(storagePath));
     }
 
     private Path storePdf(String category, Long id, String fileName, byte[] pdfBytes) {

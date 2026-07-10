@@ -80,7 +80,11 @@ public class ReportPdfPersistenceService {
             );
         }
 
-        byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
+        byte[] pdfBytes = reportPdfStorageService.ensureReportPdfBytes(
+                report,
+                lines,
+                "ForenShield Analysis Report"
+        );
         if (preview) {
             return new ReportPdfPayload(
                     report.getReportFileName(),
@@ -145,7 +149,11 @@ public class ReportPdfPersistenceService {
             );
         }
 
-        byte[] pdfBytes = reportPdfStorageService.readStoredPdf(report.getStoragePath());
+        byte[] pdfBytes = reportPdfStorageService.ensureReportPdfBytes(
+                report,
+                lines,
+                "ForenShield Compare Verification Report"
+        );
         if (preview) {
             return new ReportPdfPayload(
                     report.getReportFileName(),
