@@ -40,6 +40,7 @@ public class CompareVerificationService {
     private final FileValidationService fileValidationService;
     private final HashService hashService;
     private final CompareCandidateFileHandler candidateFileHandler;
+    private final CompareOriginalProbeExtractor originalProbeExtractor;
     private final CompareItemEvaluator compareItemEvaluator;
     private final CompareVerificationAssembler compareVerificationAssembler;
     private final CompareTrustMetadataAssembler compareTrustMetadataAssembler;
@@ -59,10 +60,11 @@ public class CompareVerificationService {
         try {
             String candidateHash = hashService.generateSha256(tempFile);
             long candidateSize = candidateFile.getSize();
+            var originalProbe = originalProbeExtractor.extract(original);
             var candidateProbe = candidateFileHandler.extractProbe(tempFile);
 
             List<CompareItemDto> items = compareItemEvaluator.buildComparisonItems(
-                    original, originalMetadata, candidateHash, candidateSize, candidateProbe);
+                    original, originalMetadata, candidateHash, candidateSize, originalProbe, candidateProbe);
             CompareSummaryDto summary = compareItemEvaluator.summarize(items);
             CompareVerdict verdict = compareItemEvaluator.determineVerdict(
                     items, candidateHash, original.getOriginalHashValue());

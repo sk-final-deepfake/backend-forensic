@@ -61,10 +61,12 @@ class CompareItemEvaluatorTest {
 
         Optional<FfprobeCompareHelper.ProbeSnapshot> candidateProbe =
                 FfprobeCompareHelper.fromFfprobeJson(metadata.getFfprobeJson(), objectMapper);
+        Optional<FfprobeCompareHelper.ProbeSnapshot> originalProbe =
+                FfprobeCompareHelper.fromFfprobeJson(metadata.getFfprobeJson(), objectMapper);
         when(blockchainAnchorService.findAnchoredEvidenceSubjectHash(156L)).thenReturn(Optional.empty());
 
         List<CompareItemDto> items = evaluator.buildComparisonItems(
-                original, metadata, "abc", 10477536L, candidateProbe);
+                original, metadata, "abc", 10477536L, originalProbe, candidateProbe);
 
         CompareItemDto codecItem = items.stream()
                 .filter(item -> "CODEC".equals(item.getItemKey()))
@@ -74,6 +76,56 @@ class CompareItemEvaluatorTest {
         assertThat(codecItem.getOriginalValue()).isEqualTo("h264 / aac");
         assertThat(codecItem.getCandidateValue()).isEqualTo("h264 / aac");
         assertThat(codecItem.getResult()).isEqualTo(CompareItemResult.MATCH);
+    }
+
+    @Test
+    void buildComparisonItems_codecMismatchWhenStoredProbeLacksAudioTrack() {
+        Evidence original = Evidence.builder()
+                .fileName("test.mp4")
+                .fileType(FileType.VIDEO)
+                .fileSize(10477536L)
+                .originalHashValue("abc")
+                .build();
+        ReflectionTestUtils.setField(original, "evidenceId", 156L);
+
+        EvidenceMetadata metadata = new EvidenceMetadata();
+        metadata.setCodec("h264");
+        metadata.setFfprobeJson("""
+                {
+                  "format": { "duration": "106.0" },
+                  "streams": [
+                    { "codec_type": "video", "codec_name": "h264", "width": 1280, "height": 720,
+                      "avg_frame_rate": "24/1", "has_b_frames": 0, "pix_fmt": "yuv420p" }
+                  ]
+                }
+                """);
+
+        Optional<FfprobeCompareHelper.ProbeSnapshot> storedProbe =
+                FfprobeCompareHelper.fromFfprobeJson(metadata.getFfprobeJson(), objectMapper);
+        Optional<FfprobeCompareHelper.ProbeSnapshot> candidateProbe =
+                FfprobeCompareHelper.fromFfprobeJson("""
+                {
+                  "format": { "duration": "106.0" },
+                  "streams": [
+                    { "codec_type": "video", "codec_name": "h264", "width": 1280, "height": 720,
+                      "avg_frame_rate": "24/1", "has_b_frames": 0, "pix_fmt": "yuv420p" },
+                    { "codec_type": "audio", "codec_name": "aac" }
+                  ]
+                }
+                """, objectMapper);
+        when(blockchainAnchorService.findAnchoredEvidenceSubjectHash(156L)).thenReturn(Optional.empty());
+
+        List<CompareItemDto> items = evaluator.buildComparisonItems(
+                original, metadata, "abc", 10477536L, storedProbe, candidateProbe);
+
+        CompareItemDto codecItem = items.stream()
+                .filter(item -> "CODEC".equals(item.getItemKey()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(codecItem.getOriginalValue()).isEqualTo("h264");
+        assertThat(codecItem.getCandidateValue()).isEqualTo("h264 / aac");
+        assertThat(codecItem.getResult()).isEqualTo(CompareItemResult.MISMATCH);
     }
 
     @Test

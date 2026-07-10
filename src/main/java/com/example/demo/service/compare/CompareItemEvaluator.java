@@ -28,6 +28,7 @@ public class CompareItemEvaluator {
             EvidenceMetadata originalMetadata,
             String candidateHash,
             long candidateSize,
+            Optional<FfprobeCompareHelper.ProbeSnapshot> originalProbe,
             Optional<FfprobeCompareHelper.ProbeSnapshot> candidateProbe
     ) {
         List<CompareItemDto> items = new ArrayList<>();
@@ -46,40 +47,40 @@ public class CompareItemEvaluator {
                 String.valueOf(candidateSize)
         ));
 
-        Optional<FfprobeCompareHelper.ProbeSnapshot> originalProbe = originalMetadata == null
-                ? Optional.empty()
-                : FfprobeCompareHelper.fromFfprobeJson(originalMetadata.getFfprobeJson(), objectMapper);
+        Optional<FfprobeCompareHelper.ProbeSnapshot> resolvedOriginalProbe = originalProbe != null
+                ? originalProbe
+                : Optional.empty();
 
         items.add(compareOptional(
                 "DURATION",
                 "영상 길이(초)",
                 originalMetadata != null && originalMetadata.getDurationSec() != null
                         ? String.valueOf(originalMetadata.getDurationSec())
-                        : originalProbe.map(p -> p.getDurationSec() == null ? null : String.valueOf(p.getDurationSec())).orElse(null),
+                        : resolvedOriginalProbe.map(p -> p.getDurationSec() == null ? null : String.valueOf(p.getDurationSec())).orElse(null),
                 candidateProbe.map(p -> p.getDurationSec() == null ? null : String.valueOf(p.getDurationSec())).orElse(null)
         ));
 
-        String originalCodec = codecLabel(originalProbe);
+        String originalCodec = codecLabel(resolvedOriginalProbe);
         String candidateCodec = codecLabel(candidateProbe);
         items.add(compareOptional("CODEC", "코덱 정보", originalCodec, candidateCodec));
 
         String originalTimestamp = originalMetadata != null && originalMetadata.getCapturedAt() != null
                 ? ApiDateTimeFormatter.formatUtc(originalMetadata.getCapturedAt())
-                : originalProbe.map(FfprobeCompareHelper.ProbeSnapshot::getTimestamp).orElse(null);
+                : resolvedOriginalProbe.map(FfprobeCompareHelper.ProbeSnapshot::getTimestamp).orElse(null);
         String candidateTimestamp = candidateProbe.map(FfprobeCompareHelper.ProbeSnapshot::getTimestamp).orElse(null);
         items.add(compareOptional("TIMESTAMP", "메타데이터 타임스탬프", originalTimestamp, candidateTimestamp));
 
         items.add(compareOptional(
                 "GOP",
                 "GOP 구조",
-                originalProbe.map(FfprobeCompareHelper.ProbeSnapshot::getGopFingerprint).orElse(null),
+                resolvedOriginalProbe.map(FfprobeCompareHelper.ProbeSnapshot::getGopFingerprint).orElse(null),
                 candidateProbe.map(FfprobeCompareHelper.ProbeSnapshot::getGopFingerprint).orElse(null)
         ));
 
         items.add(compareOptional(
                 "STREAM_CHECKSUM",
                 "스트림 식별값",
-                originalProbe.map(FfprobeCompareHelper.ProbeSnapshot::getStreamFingerprint).orElse(null),
+                resolvedOriginalProbe.map(FfprobeCompareHelper.ProbeSnapshot::getStreamFingerprint).orElse(null),
                 candidateProbe.map(FfprobeCompareHelper.ProbeSnapshot::getStreamFingerprint).orElse(null)
         ));
 
