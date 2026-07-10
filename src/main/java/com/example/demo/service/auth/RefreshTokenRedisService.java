@@ -1,7 +1,7 @@
 package com.example.demo.service.auth;
 
+import com.example.demo.config.AuthRefreshProperties;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -18,35 +18,38 @@ public class RefreshTokenRedisService {
     private static final String KEY_PREFIX = "RT:";
 
     private final StringRedisTemplate redisTemplate;
+    private final AuthRefreshProperties authRefreshProperties;
 
     // 로컬·테스트용 — 운영(EKS 2 Pod)에서는 Redis가 정상이어야 재발급이 Pod 간 공유된다
-    private final Map<String, String> memoryStore = new ConcurrentHashMap<>();
-
-    @Value("${jwt.refresh-expiration-days:7}")
-    private long refreshExpirationDays;
+    private final Map<String, MemoryEntry> memoryStore = new ConcurrentHashMap<>();
 
     @Autowired
-    public RefreshTokenRedisService(@Autowired(required = false) StringRedisTemplate redisTemplate) {
+    public RefreshTokenRedisService(
+            @Autowired(required = false) StringRedisTemplate redisTemplate,
+            AuthRefreshProperties authRefreshProperties
+    ) {
         this.redisTemplate = redisTemplate;
+        this.authRefreshProperties = authRefreshProperties;
     }
 
-    // 로그인·재발급 성공 시 리프레시 JWT 저장
-    public void saveRefreshToken(Long userId, String refreshToken) { // TTL:jwt.refresh-expiration-days,기본 7일
+    // 로그인·재발급 성공 시 리프레시 JWT 저장 (idle TTL 갱신)
+    public void saveRefreshToken(Long userId, String refreshToken) {
         String redisKey = key(userId);
+        long idleMinutes = idleTimeoutMinutes();
         if (useRedis()) {
             try {
                 redisTemplate.opsForValue().set(
                         redisKey,
                         refreshToken,
-                        refreshExpirationDays,
-                        TimeUnit.DAYS
+                        idleMinutes,
+                        TimeUnit.MINUTES
                 );
                 return;
             } catch (RuntimeException ignored) {
                 // Redis 미기동(로컬·테스트) 시 인메모리로 폴백
             }
         }
-        memoryStore.put(redisKey, refreshToken);
+        memoryStore.put(redisKey, new MemoryEntry(refreshToken, expiresAt(idleMinutes)));
     }
 
     // 재발급 시 Redis 저장값 조회
@@ -59,7 +62,7 @@ public class RefreshTokenRedisService {
                 // Redis 미기동 시 인메모리 조회
             }
         }
-        return memoryStore.get(redisKey);
+        return getValidMemoryToken(redisKey);
     }
 
     // 로그아웃·비밀번호 변경·계정 정지 시 리프레시 무효화
@@ -87,5 +90,29 @@ public class RefreshTokenRedisService {
 
     private String key(Long userId) {
         return KEY_PREFIX + userId;
+    }
+
+    private long idleTimeoutMinutes() {
+        int minutes = authRefreshProperties.getIdleTimeoutMinutes();
+        return minutes > 0 ? minutes : 20;
+    }
+
+    private long expiresAt(long idleMinutes) {
+        return System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(idleMinutes);
+    }
+
+    private String getValidMemoryToken(String redisKey) {
+        MemoryEntry entry = memoryStore.get(redisKey);
+        if (entry == null) {
+            return null;
+        }
+        if (entry.expiresAtEpochMs() <= System.currentTimeMillis()) {
+            memoryStore.remove(redisKey);
+            return null;
+        }
+        return entry.token();
+    }
+
+    private record MemoryEntry(String token, long expiresAtEpochMs) {
     }
 }
