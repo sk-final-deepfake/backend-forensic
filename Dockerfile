@@ -15,9 +15,12 @@ WORKDIR /app
 # ffmpeg(ffprobe) + 영상 화질 readiness 프레임 샘플링 (video_readiness.py)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    fontconfig \
+    fonts-noto-cjk \
     python3 \
     python3-pip \
     libglib2.0-0 \
+    && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/readiness/requirements.txt /tmp/readiness-requirements.txt
