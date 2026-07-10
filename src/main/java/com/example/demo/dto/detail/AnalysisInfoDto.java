@@ -46,6 +46,5 @@ public class AnalysisInfoDto {
     private List<ModuleTimelineDto> moduleTimelines;
     /** AI visualization artifacts */
     private List<RepresentativeFrameDto> representativeFrames;
-    private String heatmapImageUrl;
     private String overlayVideoUrl;
 }

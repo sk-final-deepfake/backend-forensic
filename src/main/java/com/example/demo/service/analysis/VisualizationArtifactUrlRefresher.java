@@ -46,7 +46,6 @@ public class VisualizationArtifactUrlRefresher {
                         .frameNumber(frame.getFrameNumber())
                         .score(frame.getScore())
                         .imageUrl(refresh(frame.getImageUrl()))
-                        .heatmapUrl(refresh(frame.getHeatmapUrl()))
                         .build())
                 .toList();
     }

@@ -78,7 +78,6 @@ public class AnalysisResponseMessage {
         private List<ModelScoreItem> modelScores;
         private List<String> evidence;
         private List<RepresentativeFrameItem> representativeFrames;
-        private String heatmapImageUrl;
         private String overlayVideoUrl;
 
         @Getter
@@ -167,7 +166,6 @@ public class AnalysisResponseMessage {
             private Integer frameNumber;
             private Double score;
             private String imageUrl;
-            private String heatmapUrl;
         }
     }
 }

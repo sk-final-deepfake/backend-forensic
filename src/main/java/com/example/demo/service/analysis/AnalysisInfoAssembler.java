@@ -117,7 +117,6 @@ public class AnalysisInfoAssembler {
                 .opticalSuspiciousSegments(visualization.opticalSuspiciousSegments())
                 .moduleTimelines(visualization.moduleTimelines())
                 .representativeFrames(visualizationArtifactUrlRefresher.refreshFrames(visualization.representativeFrames()))
-                .heatmapImageUrl(visualizationArtifactUrlRefresher.refresh(visualization.heatmapImageUrl()))
                 .overlayVideoUrl(visualizationArtifactUrlRefresher.refresh(visualization.overlayVideoUrl()));
     }
 
