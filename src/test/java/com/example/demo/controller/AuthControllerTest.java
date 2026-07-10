@@ -102,6 +102,14 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.message").value("관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다."));
     }
 
+    @Test
+    @DisplayName("리프레시 비활성화 시 /api/auth/refresh 는 401")
+    void refreshFailsWhenDisabled() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("REFRESH_DISABLED"));
+    }
+
     private User createUser(String loginId, String rawPassword, UserRole role, UserStatus status) {
         return User.builder()
                 .loginId(loginId)

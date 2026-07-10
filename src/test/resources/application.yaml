@@ -29,6 +29,8 @@ jwt:
   refresh-expiration-days: 7
 
 auth:
+  refresh:
+    enabled: false
   cookie:
     secure: false  # MockMvc http 테스트용
 

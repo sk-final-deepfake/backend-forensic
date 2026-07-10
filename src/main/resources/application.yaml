@@ -28,6 +28,9 @@ jwt:
 
 # AuthCookieSupport — 리프레시 JWT HttpOnly 쿠키 (AuthController 로그인·재발급·로그아웃)
 auth:
+  refresh:
+    # false: refresh 쿠키·/api/auth/refresh 비활성 — URL 직접 접속 시 자동 로그인 방지
+    enabled: ${AUTH_REFRESH_ENABLED:false}
   cookie:
     name: refreshToken
     path: /
