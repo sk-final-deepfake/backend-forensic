@@ -16,4 +16,5 @@ public class EvidenceDetailResponse {
     private BlockchainInfoDto blockchainInfo;
     private AnalysisInfoDto analysisInfo;
     private List<CocLogDto> cocLogs;
+    private HlsPlaybackDto hlsPlayback;
 }

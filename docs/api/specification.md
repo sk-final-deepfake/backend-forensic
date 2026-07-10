@@ -227,13 +227,13 @@ FE 사건 상세·증거 상세·업로드 패널 연동용 optional 필드.
 | API | 추가/채움 필드 | 설명 |
 | :--- | :--- | :--- |
 | `GET /api/v1/cases?caseKey=` | `evidences[].analysisProgress` | 최신 분석 요청 `progressPercent` (완료 시 100, 미요청 0) |
-| `GET /api/v1/cases?caseKey=` | `evidences[].previewUrl`, `videoUrl`, `fileUrl` | VIDEO 증거 S3 presigned GET (미설정 시 `s3://` URI 또는 null) |
-| `GET /api/evidences/{id}/detail` | `evidenceInfo.previewUrl`, `videoUrl`, `fileUrl` | 동일 |
+| `GET /api/v1/cases?caseKey=` | `evidences[].hlsStatus` | HLS 패키징 상태 (`PENDING`/`PACKAGING`/`READY`/`FAILED`) — presigned URL 제거 |
+| `GET /api/v1/evidences/{id}/detail` | `hlsPlayback` | HLS 재생 메타 (`manifestPath`, `hlsStatus`, `streamToken`, `expiresIn`) — step-up 성공 후 streamToken 발급 (§0.14) |
 | `POST /api/v1/evidences/upload` | `displayLabel` | 사건 내 순번 라벨 (`증거 1`, `증거 2`, …) — DB에도 저장 |
 
 ### 0.11 증거 열람·캡처 감사 로그 API (2026-07)
 
-FE `ProtectedVideoPlayer` / `EvidenceWatermarkOverlay` 연동. 영상 재생·PrintScreen 감지 시 CoC에 접근 이벤트를 기록합니다.
+FE `ProtectedEvidencePlayer` / `EvidenceWatermarkOverlay` 연동. 영상 재생·PrintScreen 감지 시 CoC에 접근 이벤트를 기록합니다.
 
 | API | FE (예상) | 설명 |
 | :--- | :--- | :--- |
@@ -241,6 +241,19 @@ FE `ProtectedVideoPlayer` / `EvidenceWatermarkOverlay` 연동. 영상 재생·Pr
 
 **CoC actionType:** `EVIDENCE_VIEWED`, `EVIDENCE_CAPTURE_ATTEMPTED`  
 **Refs:** RQ-REQ-051 (감사 로그 해시 체이닝)
+
+### 0.14 HLS 암호화 스트림 API (2026-07)
+
+S3 presigned URL 대신 BE 프록시 HLS 재생. FE는 `hls.js` + `streamToken` 쿼리로 manifest/key/segment 요청.
+
+| API | Auth | 설명 |
+| :--- | :--- | :--- |
+| `GET /api/v1/evidences/{id}/hls/master.m3u8?streamToken=` | JWT + streamToken | master manifest (키·세그먼트 URI는 BE 경로로 재작성) |
+| `GET /api/v1/evidences/{id}/hls/key?streamToken=` | JWT + streamToken + **X-Step-Up-Token** | AES-128 키 16바이트 |
+| `GET /api/v1/evidences/{id}/hls/segments/{file}?streamToken=` | JWT + streamToken | 암호화 `.ts` 세그먼트 |
+
+**`hlsPlayback` (detail 응답):** `manifestPath`, `hlsStatus`, `streamToken`, `expiresIn`(초, 기본 900)  
+**Errors:** `STREAM_TOKEN_REQUIRED` (403), `STEP_UP_REQUIRED` (403), `INVALID_STREAM_TOKEN` (403)
 
 ### 0.12 RBAC · 검토 워크플로우 API (2026-07)
 
@@ -740,7 +753,8 @@ X-Step-Up-Token: <stepUpToken>
 
 | 필드 | 설명 |
 | :--- | :--- |
-| `evidenceInfo` | `caseId` 포함 (FE `EvidenceInfo.caseId`) |
+| `evidenceInfo` | `caseId` 포함 (FE `EvidenceInfo.caseId`) — presigned `videoUrl`/`previewUrl` 제거 |
+| `hlsPlayback` | HLS 재생 메타 + `streamToken` (§0.14) |
 | `manifestInfo` | **RQ-DTL-075** — 분석 사본 생성 후 Manifest 요약 (없으면 `null`) |
 | `signatureInfo` | **RQ-DTL-076** — X.509 전자서명 상태 (`signatureStatus` · `signatureValid`) |
 
@@ -954,7 +968,7 @@ X-Step-Up-Token: <stepUpToken>
 | **Path** | `caseId` = **String** (사건명/식별자) |
 
 **Response:** `CaseDetailResponse`  
-**`evidences[]` item (`CaseEvidenceSummaryDto`):** `evidenceId`, `fileName`, `mediaType`, `analysisStatus`, `thumbnailUrl?`, `previewUrl?`, `videoUrl?`, `fileUrl?` — VIDEO 증거는 S3 presigned GET URL (§0.10, 미설정·비VIDEO 시 `null`)  
+**`evidences[]` item (`CaseEvidenceSummaryDto`):** `evidenceId`, `fileName`, `mediaType`, `analysisStatus`, `hlsStatus?` — VIDEO 증거 HLS 패키징 상태 (presigned URL 제거, §0.14)  
 **Errors:** `CASE_NOT_FOUND` (404)
 
 > 명세 FE: `app/cases/[id]/page.tsx` → 이 API 호출.  

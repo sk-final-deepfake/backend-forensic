@@ -1,6 +1,7 @@
 package com.example.demo.service.evidence;
 
-import com.example.demo.service.analysis.AnalysisInfoAssembler;
+import com.example.demo.service.evidence.hls.EvidenceHlsLookupService;
+import com.example.demo.service.evidence.hls.EvidenceHlsPlaybackService;
 import com.example.demo.service.custody.RecoveryScoreService;
 import com.example.demo.service.manifest.EvidenceManifestService;
 import com.example.demo.domain.AnalysisModuleResult;
@@ -58,20 +59,26 @@ public class EvidenceDetailService {
     private final RecoveryScoreService recoveryScoreService;
     private final CaseDetailAssembler caseDetailAssembler;
     private final EvidenceDetailAssembler evidenceDetailAssembler;
+    private final EvidenceHlsLookupService evidenceHlsLookupService;
+    private final EvidenceHlsPlaybackService evidenceHlsPlaybackService;
 
     public EvidenceDetailResponse getEvidenceDetail(User user, Long evidenceId) {
         Evidence evidence = evidenceAccessService.requireOwned(user, evidenceId);
-        return buildEvidenceDetail(evidence, null);
+        return buildEvidenceDetail(user, evidence, null);
     }
 
     /**
      * RQ-SEC-153: 상세 조회 시 이미 수행한 무결성 검증 결과를 재사용해 중복 검증을 방지한다.
      */
-    public EvidenceDetailResponse getEvidenceDetail(Evidence evidence, IntegrityVerifyResponse verification) {
-        return buildEvidenceDetail(evidence, verification);
+    public EvidenceDetailResponse getEvidenceDetail(User user, Evidence evidence, IntegrityVerifyResponse verification) {
+        return buildEvidenceDetail(user, evidence, verification);
     }
 
-    private EvidenceDetailResponse buildEvidenceDetail(Evidence evidence, IntegrityVerifyResponse verification) {
+    private EvidenceDetailResponse buildEvidenceDetail(
+            User user,
+            Evidence evidence,
+            IntegrityVerifyResponse verification
+    ) {
         Long evidenceId = evidence.getEvidenceId();
         AnalysisRequest request = analysisRequestRepository
                 .findTopByEvidenceIdOrderByRequestedAtDesc(evidenceId)
@@ -89,6 +96,7 @@ public class EvidenceDetailService {
                 .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
         EvidenceManifest manifest = evidenceManifestService.findByEvidenceId(evidenceId).orElse(null);
         RecoveryScoreDto recovery = recoveryScoreService.calculate(metadata);
+        var hlsPlayback = evidenceHlsPlaybackService.buildForDetail(user.getUserId(), evidence);
 
         return evidenceDetailAssembler.assemble(
                 evidence,
@@ -99,7 +107,8 @@ public class EvidenceDetailService {
                 moduleResults,
                 custodyLogs,
                 manifest,
-                recovery
+                recovery,
+                hlsPlayback
         );
     }
 
@@ -135,13 +144,17 @@ public class EvidenceDetailService {
         List<AnalysisRequest> requests = analysisRequestRepository.findByEvidenceIdInOrderByRequestedAtDesc(
                 access.evidences().stream().map(Evidence::getEvidenceId).toList()
         );
+        var hlsByEvidenceId = evidenceHlsLookupService.findByEvidenceIds(
+                access.evidences().stream().map(Evidence::getEvidenceId).toList()
+        );
         return caseDetailAssembler.assemble(
                 access.ownerUser(),
                 normalizedCaseId,
                 access.evidences(),
                 requests,
                 access.profile(),
-                access.uploader()
+                access.uploader(),
+                hlsByEvidenceId
         );
     }
 

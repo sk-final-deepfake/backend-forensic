@@ -3,7 +3,7 @@ jwt:
   secret: ${JWT_SECRET_KEY}
   access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1200000}  # 액세스 JWT 20분
   expiration-ms: ${JWT_EXPIRATION_MS:1200000}
-  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}  # ElastiCache·리프레시 JWT TTL (세션 쿠키와 별개)
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:7}  # 리프레시 JWT claim 만료(상한). Redis idle TTL(auth.refresh)과 별개
 
 spring:
   datasource:

@@ -125,7 +125,7 @@ public class EvidenceController {
         var user = authUserResolver.requireCurrentUser();
         stepUpAuthService.requireValidStepUp(user, stepUpToken);
         EvidenceIntegrityResult integrity = integrityVerificationService.verifyAndNotifySecurityIssues(user, evidenceId);
-        return evidenceDetailService.getEvidenceDetail(integrity.evidence(), integrity.verification());
+        return evidenceDetailService.getEvidenceDetail(user, integrity.evidence(), integrity.verification());
     }
 
     @Operation(summary = "분석 시작", description = "업로드된 증거에 대한 분석을 요청합니다. evidenceId(단건) 또는 evidenceIds(복수) 중 하나를 사용합니다.")

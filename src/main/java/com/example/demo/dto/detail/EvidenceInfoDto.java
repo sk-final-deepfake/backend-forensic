@@ -21,8 +21,5 @@ public class EvidenceInfoDto {
     private String role;
     private Long replacementEvidenceId;
     private String excludedReason;
-    private String previewUrl;
-    private String videoUrl;
-    private String fileUrl;
     private VideoMetadataDto technicalMetadata;
 }
