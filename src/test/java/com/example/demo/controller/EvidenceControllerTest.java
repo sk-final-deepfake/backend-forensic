@@ -135,30 +135,26 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("사건번호를 포함하여 업로드하면 S3 파일명과 DB case_number에 반영된다")
-    void shouldUploadFileWithCaseNumber() throws Exception {
+    @DisplayName("업로드하면 S3 파일명에 사건명-증거번호(evidenceId)가 반영된다")
+    void shouldUploadFileWithEvidenceIdInStoragePath() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "secret-name.mp4",
                 "video/mp4",
-                "Case Number Test Data".getBytes()
+                "Evidence Id Test Data".getBytes()
         );
         String caseName = "딥페이크 테스트";
-        String caseNumber = "2026-서울-0123";
 
         mockMvc.perform(multipart("/api/v1/evidences/upload")
                         .file(file)
                         .param("caseName", caseName)
-                        .param("caseNumber", caseNumber)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.caseName").value(caseName))
-                .andExpect(jsonPath("$.caseNumber").value(caseNumber));
+                .andExpect(jsonPath("$.caseName").value(caseName));
 
         assertThat(evidenceRepository.findAll())
                 .anyMatch(evidence ->
                         caseName.equals(evidence.getCaseName())
-                                && caseNumber.equals(evidence.getCaseNumber())
                                 && evidence.getOriginalStoragePath().endsWith(
                                         EvidenceStoragePaths.storedObjectFileName(evidence, evidence.getFileName())));
     }
