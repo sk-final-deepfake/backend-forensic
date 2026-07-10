@@ -5,7 +5,13 @@ import java.util.Set;
 
 public final class LogCategoryMapper {
 
-    private static final Set<String> AUTH_ACTIONS = Set.of("LOGIN", "LOGOUT", "SIGNUP_REQUEST");
+    private static final Set<String> AUTH_ACTIONS = Set.of(
+            "LOGIN",
+            "LOGOUT",
+            "SIGNUP_REQUEST",
+            "STEP_UP_VERIFIED",
+            "STEP_UP_EXTENDED"
+    );
     private static final Set<String> ADMIN_ACTIONS = Set.of(
             "USER_APPROVED",
             "USER_REJECTED",

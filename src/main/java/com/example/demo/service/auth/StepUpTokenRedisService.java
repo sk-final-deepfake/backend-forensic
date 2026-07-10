@@ -59,9 +59,16 @@ public class StepUpTokenRedisService {
         String redisKey = key(token);
         if (useRedis()) {
             try {
-                String userId = redisTemplate.opsForValue().get(redisKey);
-                if (userId != null) {
-                    return Long.parseLong(userId);
+                Long remainingMs = redisTemplate.getExpire(redisKey, TimeUnit.MILLISECONDS);
+                if (remainingMs == null || remainingMs <= 0) {
+                    if (remainingMs != null) {
+                        redisTemplate.delete(redisKey);
+                    }
+                } else {
+                    String userId = redisTemplate.opsForValue().get(redisKey);
+                    if (userId != null) {
+                        return Long.parseLong(userId);
+                    }
                 }
             } catch (RuntimeException ignored) {
                 // Redis 미기동 시 인메모리 조회
@@ -100,8 +107,12 @@ public class StepUpTokenRedisService {
                     return null;
                 }
                 long newTtlMs = remainingMs + extensionMs;
-                redisTemplate.expire(redisKey, newTtlMs, TimeUnit.MILLISECONDS);
-                return newTtlMs;
+                long newTtlSeconds = Math.max(1L, (newTtlMs + 999) / 1000);
+                Boolean extended = redisTemplate.expire(redisKey, newTtlSeconds, TimeUnit.SECONDS);
+                if (!Boolean.TRUE.equals(extended)) {
+                    return null;
+                }
+                return newTtlSeconds * 1000L;
             } catch (RuntimeException ignored) {
                 // Redis 미기동 시 인메모리 연장
             }

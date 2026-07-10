@@ -56,6 +56,7 @@ public class StepUpAuthService {
                 .build();
     }
 
+    @Transactional
     public StepUpExtendResponse extendToken(User user, String stepUpToken) {
         if (stepUpToken == null || stepUpToken.isBlank()) {
             throw stepUpRequired();
