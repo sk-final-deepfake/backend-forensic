@@ -13,6 +13,7 @@ import com.example.demo.dto.signup.SignupResponse;
 import com.example.demo.dto.signup.UsernameCheckResponse;
 import com.example.demo.security.AuthCookieSupport;
 import com.example.demo.security.AuthUserResolver;
+import com.example.demo.security.ClientIpResolver;
 import com.example.demo.service.auth.AuthService;
 import com.example.demo.service.auth.SignupService;
 import com.example.demo.service.auth.StepUpAuthService;
@@ -20,6 +21,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -50,6 +52,7 @@ public class AuthController {
     private final AuthRefreshProperties authRefreshProperties;
     private final StepUpAuthService stepUpAuthService;
     private final AuthUserResolver authUserResolver;
+    private final ClientIpResolver clientIpResolver;
 
     // 액세스 JWT는 JSON, 리프레시 JWT는 Set-Cookie
     @Operation(summary = "로그인", description = "accessToken 을 응답으로 받습니다. Swagger Authorize 에 토큰만 붙여넣으세요.")
@@ -57,9 +60,10 @@ public class AuthController {
     @PostMapping("/api/auth/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse response
     ) {
-        AuthenticatedTokens result = authService.login(request);
+        AuthenticatedTokens result = authService.login(request, clientIpResolver.resolve(httpRequest));
         applyRefreshCookiePolicy(response, result.tokens().getRefreshToken());
         return ResponseEntity.ok(LoginResponse.from(result.user(), result.tokens()));
     }
