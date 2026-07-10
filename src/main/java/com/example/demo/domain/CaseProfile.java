@@ -54,6 +54,9 @@ public class CaseProfile {
     @Column(name = "review_request_memo", length = 500)
     private String reviewRequestMemo;
 
+    @Column(name = "reviewer_comment", length = 500)
+    private String reviewerComment;
+
     @Column(name = "review_approved_at")
     private LocalDateTime reviewApprovedAt;
 
@@ -92,7 +95,13 @@ public class CaseProfile {
         this.reviewStatus = CaseReviewStatus.REVIEW_REQUESTED;
         this.reviewRequestedAt = LocalDateTime.now();
         this.reviewRequestMemo = memo;
+        this.reviewerComment = null;
         this.reviewApprovedAt = null;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateReviewerComment(String reviewerComment) {
+        this.reviewerComment = reviewerComment;
         this.updatedAt = LocalDateTime.now();
     }
 

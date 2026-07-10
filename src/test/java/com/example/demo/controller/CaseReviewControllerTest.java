@@ -201,10 +201,11 @@ class CaseReviewControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"decision":"APPROVED"}
+                                {"decision":"APPROVED","memo":"최종 보고서 발행 승인"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewStatus").value("REPORT_APPROVED"));
+                .andExpect(jsonPath("$.reviewStatus").value("REPORT_APPROVED"))
+                .andExpect(jsonPath("$.reviewerComment").value("최종 보고서 발행 승인"));
 
         var issuedReport = reportRepository
                 .findTopByEvidenceIdOrderByCreatedAtDesc(completedEvidence.getEvidenceId())

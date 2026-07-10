@@ -92,6 +92,7 @@ public class CaseReviewService {
         }
 
         String normalizedDecision = decision == null ? "" : decision.trim().toUpperCase();
+        profile.updateReviewerComment(normalizeMemo(memo));
         switch (normalizedDecision) {
             case "APPROVED" -> profile.approveReview();
             case "REVISION" -> profile.requestRevision();

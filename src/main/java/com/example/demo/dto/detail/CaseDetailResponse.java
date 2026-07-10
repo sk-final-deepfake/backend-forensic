@@ -21,4 +21,5 @@ public class CaseDetailResponse {
     private List<CaseEvidenceSummaryDto> evidences;
     private String organizationId;
     private String reviewRequestedAt;
+    private String reviewerComment;
 }

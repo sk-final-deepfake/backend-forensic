@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
+import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.Report;
 import com.example.demo.domain.User;
@@ -13,6 +14,7 @@ import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
+import com.example.demo.repository.CaseProfileRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.ReportRepository;
 import com.example.demo.repository.UserRepository;
@@ -49,6 +51,9 @@ class ReportControllerTest {
     private EvidenceRepository evidenceRepository;
 
     @Autowired
+    private CaseProfileRepository caseProfileRepository;
+
+    @Autowired
     private AnalysisRequestRepository analysisRequestRepository;
 
     @Autowired
@@ -62,6 +67,8 @@ class ReportControllerTest {
 
     private String userToken;
     private User testUser;
+    private String reviewerToken;
+    private User reviewer;
     private Evidence evidence;
 
     @BeforeEach
@@ -70,6 +77,7 @@ class ReportControllerTest {
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
+        caseProfileRepository.deleteAll();
         userRepository.deleteAll();
 
         testUser = userRepository.save(User.builder()
@@ -85,6 +93,19 @@ class ReportControllerTest {
                 .build());
 
         userToken = JwtTestSupport.loginAndGetToken(mockMvc, "1111", "2222");
+
+        reviewer = userRepository.save(User.builder()
+                .loginId("reviewer")
+                .email("reviewer@local.dev")
+                .password(passwordEncoder.encode("2222"))
+                .name("검토자")
+                .organizationType(OrgType.ETC)
+                .department("로컬개발팀")
+                .role(UserRole.ROLE_REVIEWER)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+        reviewerToken = JwtTestSupport.loginAndGetToken(mockMvc, "reviewer", "2222");
 
         evidence = evidenceRepository.save(Evidence.builder()
                 .uploaderId(testUser.getUserId())
@@ -107,6 +128,7 @@ class ReportControllerTest {
         analysisResultRepository.deleteAll();
         analysisRequestRepository.deleteAll();
         evidenceRepository.deleteAll();
+        caseProfileRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -154,5 +176,36 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.content[0].downloadPath")
                         .value("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf"))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void shouldListIssuedReportsForAssignedReviewer() throws Exception {
+        CaseProfile profile = caseProfileRepository.save(new CaseProfile(
+                testUser.getUserId(),
+                "report-case",
+                evidence.getEvidenceId()
+        ));
+        profile.assignReviewer(reviewer.getUserId());
+        profile.approveReview();
+        caseProfileRepository.save(profile);
+
+        Report report = new Report();
+        report.setEvidenceId(evidence.getEvidenceId());
+        report.setCreatedBy(testUser.getUserId());
+        report.setReportFileName("analysis-report-" + evidence.getEvidenceId() + ".pdf");
+        report.setStoragePath("reports/reviewer-test.pdf");
+        report.setReportHash("d".repeat(64));
+        report.setFileSize(2048L);
+        report.setCreatedAt(LocalDateTime.now());
+        report.markIssued(reviewer.getUserId(), LocalDateTime.now());
+        reportRepository.save(report);
+
+        mockMvc.perform(get("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].reportId").value(report.getReportId()))
+                .andExpect(jsonPath("$.content[0].caseName").value("report-case"))
+                .andExpect(jsonPath("$.content[0].publicationStatus").value("ISSUED"));
     }
 }
