@@ -5,6 +5,7 @@ import com.example.demo.config.OpenApiConfig;
 import com.example.demo.dto.AuthenticatedTokens;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.LoginResponse;
+import com.example.demo.dto.auth.StepUpExtendResponse;
 import com.example.demo.dto.auth.StepUpVerifyRequest;
 import com.example.demo.dto.auth.StepUpVerifyResponse;
 import com.example.demo.dto.signup.SignupRequest;
@@ -103,6 +104,22 @@ public class AuthController {
         StepUpVerifyResponse response = stepUpAuthService.verifyAndIssueToken(
                 authUserResolver.requireCurrentUser(),
                 request.getPassword()
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Step-up 세션 연장",
+            description = "유효한 X-Step-Up-Token으로 남은 시간이 5분 이하일 때 15분을 추가 연장합니다."
+    )
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @PostMapping("/api/v1/auth/step-up/extend")
+    public ResponseEntity<StepUpExtendResponse> extendStepUp(
+            @RequestHeader(value = "X-Step-Up-Token", required = false) String stepUpToken
+    ) {
+        StepUpExtendResponse response = stepUpAuthService.extendToken(
+                authUserResolver.requireCurrentUser(),
+                stepUpToken
         );
         return ResponseEntity.ok(response);
     }

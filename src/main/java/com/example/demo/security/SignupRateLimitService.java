@@ -17,7 +17,8 @@ public class SignupRateLimitService {
             "POST /api/v1/auth/signup", new RateLimitRule(5, Duration.ofMinutes(1), RateLimitScope.IP),
             "GET /api/v1/auth/username/check", new RateLimitRule(20, Duration.ofMinutes(1), RateLimitScope.IP),
             "POST /api/v1/invite-codes/validate", new RateLimitRule(10, Duration.ofMinutes(1), RateLimitScope.IP),
-            "POST /api/v1/auth/step-up/verify", new RateLimitRule(5, Duration.ofMinutes(1), RateLimitScope.USER)
+            "POST /api/v1/auth/step-up/verify", new RateLimitRule(5, Duration.ofMinutes(1), RateLimitScope.USER),
+            "POST /api/v1/auth/step-up/extend", new RateLimitRule(10, Duration.ofMinutes(1), RateLimitScope.USER)
     );
 
     private final ConcurrentHashMap<String, RequestBucket> buckets = new ConcurrentHashMap<>();
