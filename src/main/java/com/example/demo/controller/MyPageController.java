@@ -25,8 +25,17 @@ public class MyPageController {
 	public AnalysisHistoryPageResponse getAnalysisHistory(
 			@RequestParam(defaultValue = "newest") String sort,
 			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size
+			@RequestParam(defaultValue = "10") int size,
+			@RequestParam(required = false) String status,
+			@RequestParam(required = false) String q
 	) {
-		return myPageService.getAnalysisHistory(authUserResolver.requireCurrentUser(), sort, page, size);
+		return myPageService.getAnalysisHistory(
+				authUserResolver.requireCurrentUser(),
+				sort,
+				page,
+				size,
+				status,
+				q
+		);
 	}
 }
