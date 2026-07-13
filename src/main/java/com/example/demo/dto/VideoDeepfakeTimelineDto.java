@@ -1,6 +1,7 @@
 package com.example.demo.dto;
 
 import com.example.demo.dto.detail.ModuleTimelineDto;
+import com.example.demo.dto.detail.ModelOverlayArtifactDto;
 import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,4 +19,5 @@ public class VideoDeepfakeTimelineDto {
     private List<ModuleTimelineDto> moduleTimelines;
     private List<RepresentativeFrameDto> representativeFrames;
     private String overlayVideoUrl;
+    private List<ModelOverlayArtifactDto> modelOverlayArtifacts;
 }
