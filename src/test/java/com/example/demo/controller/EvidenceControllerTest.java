@@ -755,6 +755,28 @@ class EvidenceControllerTest extends AbstractEvidenceIntegrationTest {
     }
 
     @Test
+    @DisplayName("soft COMPLETED(NO_HUMAN_FACE) 시 analysis-status가 advisory errorCode를 반환한다")
+    void getAnalysisStatus_whenSoftCompleted_returnsAdvisory() throws Exception {
+        User user = currentUser();
+        Evidence evidence = saveVideoEvidence(user, "status-soft-completed.mp4");
+        AnalysisRequest request = saveAnalysisRequest(
+                evidence,
+                user,
+                AnalysisStatus.COMPLETED
+        );
+        request.setErrorCode("NO_HUMAN_FACE");
+        request.setErrorMessage("사람 얼굴이 검출되지 않아 딥페이크 판별을 수행할 수 없습니다.");
+        analysisRequestRepository.save(request);
+
+        mockMvc.perform(get("/api/v1/evidences/{evidenceId}/analysis-status", evidence.getEvidenceId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.errorCode").value("NO_HUMAN_FACE"))
+                .andExpect(jsonPath("$.errorMessage").value("사람 얼굴이 검출되지 않아 딥페이크 판별을 수행할 수 없습니다."));
+    }
+
+    @Test
     @DisplayName("분석 시작 후에는 업로드 취소가 불가하다")
     void cancelUpload_afterAnalysisStarted_returnsBadRequest() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
