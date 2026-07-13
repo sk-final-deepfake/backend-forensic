@@ -79,6 +79,7 @@ public class AnalysisResponseMessage {
         private List<String> evidence;
         private List<RepresentativeFrameItem> representativeFrames;
         private String overlayVideoUrl;
+        private List<ModelOverlayArtifactItem> modelOverlayArtifacts;
 
         @Getter
         @Setter
@@ -152,6 +153,22 @@ public class AnalysisResponseMessage {
             private List<ClipRiskItem> clipRisks;
             private List<PairRiskItem> pairRisks;
             private List<SuspiciousSegmentItem> suspiciousSegments;
+            private String overlayVideoUrl;
+        }
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class ModelOverlayArtifactItem {
+            private String key;
+            private String category;
+            private String label;
+            private String overlayVideoUrl;
+            private String status;
+            private String description;
         }
 
         @Getter

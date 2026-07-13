@@ -7,6 +7,7 @@ import com.example.demo.dto.PairRiskDto;
 import com.example.demo.dto.RepresentativeFrameDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
 import com.example.demo.dto.detail.ModuleTimelineDto;
+import com.example.demo.dto.detail.ModelOverlayArtifactDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -30,6 +31,7 @@ public class VideoModuleDetailsReader {
         List<ModuleTimelineDto> moduleTimelines = List.of();
         List<RepresentativeFrameDto> representativeFrames = List.of();
         String overlayVideoUrl = null;
+        List<ModelOverlayArtifactDto> modelOverlayArtifacts = List.of();
         List<String> evidenceItems = List.of();
 
         for (AnalysisModuleResult module : moduleResults) {
@@ -61,6 +63,9 @@ public class VideoModuleDetailsReader {
             if (overlayVideoUrl == null) {
                 overlayVideoUrl = asString(details.get("overlayVideoUrl"));
             }
+            if (modelOverlayArtifacts.isEmpty()) {
+                modelOverlayArtifacts = readModelOverlayArtifacts(details);
+            }
             if (evidenceItems.isEmpty()) {
                 evidenceItems = readEvidenceItems(details);
             }
@@ -84,6 +89,7 @@ public class VideoModuleDetailsReader {
                 moduleTimelines,
                 representativeFrames,
                 overlayVideoUrl,
+                modelOverlayArtifacts,
                 evidenceItems
         );
     }
@@ -98,6 +104,7 @@ public class VideoModuleDetailsReader {
             List<ModuleTimelineDto> moduleTimelines,
             List<RepresentativeFrameDto> representativeFrames,
             String overlayVideoUrl,
+            List<ModelOverlayArtifactDto> modelOverlayArtifacts,
             List<String> evidenceItems
     ) {
     }
@@ -183,6 +190,29 @@ public class VideoModuleDetailsReader {
                             .clipRisks(readClipRisksFromRaw(map.get("clipRisks")))
                             .pairRisks(readPairRisksFromRaw(map.get("pairRisks")))
                             .suspiciousSegments(readSuspiciousSegments(map.get("suspiciousSegments")))
+                            .overlayVideoUrl(asString(map.get("overlayVideoUrl")))
+                            .build();
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<ModelOverlayArtifactDto> readModelOverlayArtifacts(Map<String, Object> details) {
+        Object raw = details.get("modelOverlayArtifacts");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return ModelOverlayArtifactDto.builder()
+                            .key(asString(map.get("key")))
+                            .category(asString(map.get("category")))
+                            .label(asString(map.get("label")))
+                            .overlayVideoUrl(asString(map.get("overlayVideoUrl")))
+                            .status(asString(map.get("status")))
+                            .description(asString(map.get("description")))
                             .build();
                 })
                 .toList();

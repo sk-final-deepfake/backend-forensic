@@ -1,6 +1,8 @@
 package com.example.demo.service.analysis;
 
 import com.example.demo.dto.RepresentativeFrameDto;
+import com.example.demo.dto.detail.ModelOverlayArtifactDto;
+import com.example.demo.dto.detail.ModuleTimelineDto;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -46,6 +48,43 @@ public class VisualizationArtifactUrlRefresher {
                         .frameNumber(frame.getFrameNumber())
                         .score(frame.getScore())
                         .imageUrl(refresh(frame.getImageUrl()))
+                        .build())
+                .toList();
+    }
+
+    public List<ModelOverlayArtifactDto> refreshArtifacts(List<ModelOverlayArtifactDto> artifacts) {
+        if (artifacts == null || artifacts.isEmpty()) {
+            return artifacts == null ? List.of() : artifacts;
+        }
+        return artifacts.stream()
+                .map(artifact -> ModelOverlayArtifactDto.builder()
+                        .key(artifact.getKey())
+                        .category(artifact.getCategory())
+                        .label(artifact.getLabel())
+                        .overlayVideoUrl(refresh(artifact.getOverlayVideoUrl()))
+                        .status(artifact.getStatus())
+                        .description(artifact.getDescription())
+                        .build())
+                .toList();
+    }
+
+    public List<ModuleTimelineDto> refreshModuleTimelines(List<ModuleTimelineDto> timelines) {
+        if (timelines == null || timelines.isEmpty()) {
+            return timelines == null ? List.of() : timelines;
+        }
+        return timelines.stream()
+                .map(timeline -> ModuleTimelineDto.builder()
+                        .module(timeline.getModule())
+                        .modelName(timeline.getModelName())
+                        .modelVersion(timeline.getModelVersion())
+                        .videoScore(timeline.getVideoScore())
+                        .threshold(timeline.getThreshold())
+                        .detected(timeline.isDetected())
+                        .frameRisks(timeline.getFrameRisks())
+                        .clipRisks(timeline.getClipRisks())
+                        .pairRisks(timeline.getPairRisks())
+                        .suspiciousSegments(timeline.getSuspiciousSegments())
+                        .overlayVideoUrl(refresh(timeline.getOverlayVideoUrl()))
                         .build())
                 .toList();
     }

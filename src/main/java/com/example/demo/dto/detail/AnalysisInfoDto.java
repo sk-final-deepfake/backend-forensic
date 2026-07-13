@@ -47,4 +47,6 @@ public class AnalysisInfoDto {
     /** AI visualization artifacts */
     private List<RepresentativeFrameDto> representativeFrames;
     private String overlayVideoUrl;
+    /** Per-model overlay MP4 artifacts (deepfake:cnn / temporal / optical, …) */
+    private List<ModelOverlayArtifactDto> modelOverlayArtifacts;
 }
