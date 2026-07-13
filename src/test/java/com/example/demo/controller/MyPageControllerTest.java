@@ -98,25 +98,7 @@ class MyPageControllerTest {
 
 	@Test
 	void getAnalysisHistory_withoutCaseNumber_usesCaseNameAsCaseId() throws Exception {
-		Evidence evidence = evidenceRepository.save(Evidence.builder()
-				.uploaderId(testUser.getUserId())
-				.caseName("12121212")
-				.fileName("case-name-only.mp4")
-				.fileType(FileType.VIDEO)
-				.mimeType("video/mp4")
-				.fileSize(12L)
-				.hashAlgorithm("SHA-256")
-				.originalHashValue("a".repeat(64))
-				.originalStoragePath("uploads/test/case-name-only.mp4")
-				.uploadedAt(LocalDateTime.now())
-				.build());
-
-		AnalysisRequest request = new AnalysisRequest();
-		request.setEvidenceId(evidence.getEvidenceId());
-		request.setRequestedBy(testUser.getUserId());
-		request.setStatus(AnalysisStatus.QUEUED);
-		request.setRequestedAt(LocalDateTime.now());
-		analysisRequestRepository.save(request);
+		Evidence evidence = saveEvidenceWithAnalysis("12121212", "case-name-only.mp4", AnalysisStatus.QUEUED);
 
 		mockMvc.perform(get("/api/v1/mypage/analysis-history")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
@@ -134,6 +116,58 @@ class MyPageControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.caseId").value("12121212"))
 				.andExpect(jsonPath("$.evidences[0].evidenceId").value(evidence.getEvidenceId()));
+	}
+
+	@Test
+	void getAnalysisHistory_withStatusFilter_returnsMatchingCasesOnly() throws Exception {
+		saveEvidenceWithAnalysis("pending-case", "pending.mp4", AnalysisStatus.QUEUED);
+		saveEvidenceWithAnalysis("completed-case", "completed.mp4", AnalysisStatus.COMPLETED);
+		saveEvidenceWithAnalysis("failed-case", "failed.mp4", AnalysisStatus.FAILED);
+
+		mockMvc.perform(get("/api/v1/mypage/analysis-history")
+						.param("status", "COMPLETED")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.totalElements").value(1))
+				.andExpect(jsonPath("$.totalPages").value(1))
+				.andExpect(jsonPath("$.content.length()").value(1))
+				.andExpect(jsonPath("$.content[0].caseName").value("completed-case"))
+				.andExpect(jsonPath("$.content[0].status").value("COMPLETED"));
+
+		mockMvc.perform(get("/api/v1/mypage/analysis-history")
+						.param("status", "ALL")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.totalElements").value(3));
+	}
+
+	@Test
+	void getAnalysisHistory_withQueryFilter_returnsMatchingCasesOnly() throws Exception {
+		saveEvidenceWithAnalysis("가짜 영상 사건", "fake.mp4", AnalysisStatus.QUEUED);
+		saveEvidenceWithAnalysis("정상 영상 사건", "real.mp4", AnalysisStatus.QUEUED);
+		Evidence matchedById = saveEvidenceWithAnalysis("검색용 사건", "search.mp4", AnalysisStatus.QUEUED);
+
+		mockMvc.perform(get("/api/v1/mypage/analysis-history")
+						.param("q", "가짜")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.totalElements").value(1))
+				.andExpect(jsonPath("$.content.length()").value(1))
+				.andExpect(jsonPath("$.content[0].caseName").value("가짜 영상 사건"));
+
+		mockMvc.perform(get("/api/v1/mypage/analysis-history")
+						.param("q", "evd-" + matchedById.getEvidenceId())
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.totalElements").value(1))
+				.andExpect(jsonPath("$.content[0].caseName").value("검색용 사건"))
+				.andExpect(jsonPath("$.content[0].representativeEvidenceId").value(matchedById.getEvidenceId()));
+
+		mockMvc.perform(get("/api/v1/mypage/analysis-history")
+						.param("q", "")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.totalElements").value(3));
 	}
 
 	@Test
@@ -223,5 +257,28 @@ class MyPageControllerTest {
 								"""))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.errorCode").value("INVALID_PASSWORD"));
+	}
+
+	private Evidence saveEvidenceWithAnalysis(String caseName, String fileName, AnalysisStatus analysisStatus) {
+		Evidence evidence = evidenceRepository.save(Evidence.builder()
+				.uploaderId(testUser.getUserId())
+				.caseName(caseName)
+				.fileName(fileName)
+				.fileType(FileType.VIDEO)
+				.mimeType("video/mp4")
+				.fileSize(12L)
+				.hashAlgorithm("SHA-256")
+				.originalHashValue(String.format("%064x", Math.floorMod(caseName.hashCode(), Integer.MAX_VALUE)))
+				.originalStoragePath("uploads/test/" + fileName)
+				.uploadedAt(LocalDateTime.now())
+				.build());
+
+		AnalysisRequest request = new AnalysisRequest();
+		request.setEvidenceId(evidence.getEvidenceId());
+		request.setRequestedBy(testUser.getUserId());
+		request.setStatus(analysisStatus);
+		request.setRequestedAt(LocalDateTime.now());
+		analysisRequestRepository.save(request);
+		return evidence;
 	}
 }
