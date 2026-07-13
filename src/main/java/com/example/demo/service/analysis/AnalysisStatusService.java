@@ -44,7 +44,10 @@ public class AnalysisStatusService {
                 .queueStatus(AnalysisStatusMapper.toQueueStatus(request.getStatus()))
                 .progressPercent(request.getProgressPercent());
 
-        if (request.getStatus() == AnalysisStatus.FAILED) {
+        if (request.getStatus() == AnalysisStatus.FAILED
+                || (request.getStatus() == AnalysisStatus.COMPLETED
+                && request.getErrorCode() != null
+                && !request.getErrorCode().isBlank())) {
             builder.errorCode(request.getErrorCode())
                     .errorMessage(request.getErrorMessage());
         }
