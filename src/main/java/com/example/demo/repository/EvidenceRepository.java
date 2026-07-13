@@ -106,7 +106,7 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
             WHERE e.uploaderId = :uploaderId
               AND e.deletedAt IS NULL
               AND (
-                :search IS NULL OR TRIM(:search) = '' OR
+                COALESCE(:search, '') = '' OR
                 LOWER(e.fileName) LIKE LOWER(CONCAT('%', :search, '%')) OR
                 LOWER(COALESCE(e.caseName, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR
                 LOWER(COALESCE(e.caseNumber, '')) LIKE LOWER(CONCAT('%', :search, '%'))
