@@ -22,4 +22,5 @@ public class ModuleTimelineDto {
     private List<ClipRiskDto> clipRisks;
     private List<PairRiskDto> pairRisks;
     private List<SuspiciousSegmentDto> suspiciousSegments;
+    private String overlayVideoUrl;
 }

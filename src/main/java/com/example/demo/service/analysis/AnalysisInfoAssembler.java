@@ -56,6 +56,7 @@ public class AnalysisInfoAssembler {
                 .opticalSuspiciousSegments(List.of())
                 .moduleTimelines(List.of())
                 .representativeFrames(List.of())
+                .modelOverlayArtifacts(List.of())
                 .build();
     }
 
@@ -82,7 +83,8 @@ public class AnalysisInfoAssembler {
                 .temporalSuspiciousSegments(List.of())
                 .opticalSuspiciousSegments(List.of())
                 .moduleTimelines(List.of())
-                .representativeFrames(List.of());
+                .representativeFrames(List.of())
+                .modelOverlayArtifacts(List.of());
     }
 
     private AnalysisInfoDto.AnalysisInfoDtoBuilder completedBuilder(
@@ -115,9 +117,13 @@ public class AnalysisInfoAssembler {
                 .pairRisks(visualization.pairRisks())
                 .temporalSuspiciousSegments(visualization.temporalSuspiciousSegments())
                 .opticalSuspiciousSegments(visualization.opticalSuspiciousSegments())
-                .moduleTimelines(visualization.moduleTimelines())
+                .moduleTimelines(visualizationArtifactUrlRefresher.refreshModuleTimelines(visualization.moduleTimelines()))
                 .representativeFrames(visualizationArtifactUrlRefresher.refreshFrames(visualization.representativeFrames()))
-                .overlayVideoUrl(visualizationArtifactUrlRefresher.refresh(visualization.overlayVideoUrl()));
+                .overlayVideoUrl(visualizationArtifactUrlRefresher.refresh(visualization.overlayVideoUrl()))
+                .modelOverlayArtifacts(visualizationArtifactUrlRefresher.refreshArtifacts(visualization.modelOverlayArtifacts()))
+                // Soft-complete advisories (e.g. NO_HUMAN_FACE) while status remains COMPLETED.
+                .errorCode(request.getErrorCode())
+                .errorMessage(request.getErrorMessage());
     }
 
     private String pendingSummary(String status) {

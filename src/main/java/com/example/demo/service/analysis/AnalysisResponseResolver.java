@@ -8,6 +8,7 @@ import com.example.demo.dto.RepresentativeFrameDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
 import com.example.demo.dto.VideoDeepfakeTimelineDto;
 import com.example.demo.dto.detail.ModuleTimelineDto;
+import com.example.demo.dto.detail.ModelOverlayArtifactDto;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -98,6 +99,7 @@ public class AnalysisResponseResolver {
                     .opticalSuspiciousSegments(List.of())
                     .moduleTimelines(List.of())
                     .representativeFrames(List.of())
+                    .modelOverlayArtifacts(List.of())
                     .build();
         }
         return VideoDeepfakeTimelineDto.builder()
@@ -110,6 +112,7 @@ public class AnalysisResponseResolver {
                 .moduleTimelines(toModuleTimelineDtos(videoResult.getModuleTimelines()))
                 .representativeFrames(toRepresentativeFrameDtos(videoResult.getRepresentativeFrames()))
                 .overlayVideoUrl(videoResult.getOverlayVideoUrl())
+                .modelOverlayArtifacts(toModelOverlayArtifactDtos(videoResult.getModelOverlayArtifacts()))
                 .build();
     }
 
@@ -207,6 +210,25 @@ public class AnalysisResponseResolver {
                         .clipRisks(toClipRiskDtos(item.getClipRisks()))
                         .pairRisks(toPairRiskDtos(item.getPairRisks()))
                         .suspiciousSegments(toSuspiciousSegmentDtos(item.getSuspiciousSegments()))
+                        .overlayVideoUrl(item.getOverlayVideoUrl())
+                        .build())
+                .toList();
+    }
+
+    public List<ModelOverlayArtifactDto> toModelOverlayArtifactDtos(
+            List<AnalysisResponseMessage.AnalysisVideoResultItem.ModelOverlayArtifactItem> artifacts
+    ) {
+        if (artifacts == null || artifacts.isEmpty()) {
+            return List.of();
+        }
+        return artifacts.stream()
+                .map(item -> ModelOverlayArtifactDto.builder()
+                        .key(item.getKey())
+                        .category(item.getCategory())
+                        .label(item.getLabel())
+                        .overlayVideoUrl(item.getOverlayVideoUrl())
+                        .status(item.getStatus())
+                        .description(item.getDescription())
                         .build())
                 .toList();
     }

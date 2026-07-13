@@ -59,7 +59,7 @@ public class AnalysisWorkerService {
             }
 
             Long analysisResultId = analysisResultPersistenceService.saveSimulatedVideoResult(analysisRequestId);
-            finalizeCompletedJob(analysisRequestId, analysisResultId);
+            finalizeCompletedJob(analysisRequestId, analysisResultId, null, null);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             log.warn("Analysis job {} interrupted", analysisRequestId);
@@ -109,7 +109,12 @@ public class AnalysisWorkerService {
 
         try {
             Long analysisResultId = analysisResultPersistenceService.saveFromAiResponse(response);
-            finalizeCompletedJob(analysisRequestId, analysisResultId);
+            finalizeCompletedJob(
+                    analysisRequestId,
+                    analysisResultId,
+                    response.getErrorCode(),
+                    response.getMessage()
+            );
         } catch (Exception ex) {
             log.error("Failed to persist AI result for analysisRequestId={}", analysisRequestId, ex);
             finalizeFailedJob(analysisRequestId, "AI_RESULT_PERSIST_FAILED", ex.getMessage());
@@ -154,7 +159,12 @@ public class AnalysisWorkerService {
         );
     }
 
-    private void finalizeCompletedJob(Long analysisRequestId, Long analysisResultId) {
+    private void finalizeCompletedJob(
+            Long analysisRequestId,
+            Long analysisResultId,
+            String softErrorCode,
+            String softErrorMessage
+    ) {
         transactionTemplate.executeWithoutResult(status -> {
             AnalysisRequest request = analysisRequestRepository.findById(analysisRequestId).orElse(null);
             if (request == null) {
@@ -164,6 +174,19 @@ public class AnalysisWorkerService {
             request.setStatus(AnalysisStatus.COMPLETED);
             request.setProgressPercent(100);
             request.setCompletedAt(LocalDateTime.now());
+            // Soft-complete codes (e.g. NO_HUMAN_FACE) keep status COMPLETED so downstream
+            // stages can continue, while still exposing the advisory error to the UI.
+            if (softErrorCode != null && !softErrorCode.isBlank()) {
+                request.setErrorCode(softErrorCode);
+                request.setErrorMessage(
+                        softErrorMessage == null || softErrorMessage.isBlank()
+                                ? softErrorCode
+                                : softErrorMessage
+                );
+            } else {
+                request.setErrorCode(null);
+                request.setErrorMessage(null);
+            }
 
             evidenceRepository.findById(request.getEvidenceId()).ifPresent(evidence -> {
                 analysisCustodyLogService.recordAnalysisCompleted(request, evidence, analysisResultId);
