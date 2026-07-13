@@ -149,6 +149,7 @@ public class AnalysisResultPersistenceService {
                     .moduleTimelines(timeline.getModuleTimelines())
                     .representativeFrames(timeline.getRepresentativeFrames())
                     .overlayVideoUrl(timeline.getOverlayVideoUrl())
+                    .modelOverlayArtifacts(timeline.getModelOverlayArtifacts())
                     .build();
         }
 

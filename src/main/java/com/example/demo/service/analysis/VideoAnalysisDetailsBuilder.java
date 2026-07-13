@@ -51,6 +51,10 @@ public class VideoAnalysisDetailsBuilder {
                 timeline.getRepresentativeFrames() == null ? List.of() : timeline.getRepresentativeFrames()
         );
         details.put("overlayVideoUrl", timeline.getOverlayVideoUrl());
+        details.put(
+                "modelOverlayArtifacts",
+                timeline.getModelOverlayArtifacts() == null ? List.of() : timeline.getModelOverlayArtifacts()
+        );
         details.put("analysisReasons", evidenceItems == null ? List.of() : evidenceItems);
         return details;
     }

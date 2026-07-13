@@ -51,15 +51,29 @@ public class MyPageService {
 	private final CaseEvidencePresentationService caseEvidencePresentationService;
 	private final UserRepository userRepository;
 
-	public AnalysisHistoryPageResponse getAnalysisHistory(User user, String sort, int page, int size) {
+	public AnalysisHistoryPageResponse getAnalysisHistory(
+			User user,
+			String sort,
+			int page,
+			int size,
+			String status,
+			String q
+	) {
 		if (UserRoleSupport.isOrgAdmin(user.getRole()) || UserRoleSupport.isReviewer(user.getRole())) {
-			return getAnalysisHistoryForPrivilegedUser(user, sort, page, size);
+			return getAnalysisHistoryForPrivilegedUser(user, sort, page, size, status, q);
 		}
-		return getAnalysisHistoryForInvestigator(user, sort, page, size);
+		return getAnalysisHistoryForInvestigator(user, sort, page, size, status, q);
 	}
 
 	/** develop baseline: uploader scope + empty profile-only cases. */
-	private AnalysisHistoryPageResponse getAnalysisHistoryForInvestigator(User user, String sort, int page, int size) {
+	private AnalysisHistoryPageResponse getAnalysisHistoryForInvestigator(
+			User user,
+			String sort,
+			int page,
+			int size,
+			String status,
+			String q
+	) {
 		List<Evidence> evidences = evidenceRepository
 				.findByUploaderIdAndStatusAndDeletedAtIsNullOrderByUploadedAtDesc(
 						user.getUserId(), EvidenceStatus.UPLOADED);
@@ -67,20 +81,22 @@ public class MyPageService {
 		Map<Long, User> uploaderById = Map.of(user.getUserId(), user);
 		Map<String, CaseProfile> profileByCaseKey = loadProfilesByCaseKey(user.getUserId());
 
-		return buildPageResponse(user, sort, page, size, evidences, uploaderById, profileByCaseKey, false);
+		return buildPageResponse(user, sort, page, size, status, q, evidences, uploaderById, profileByCaseKey, false);
 	}
 
 	private AnalysisHistoryPageResponse getAnalysisHistoryForPrivilegedUser(
 			User user,
 			String sort,
 			int page,
-			int size
+			int size,
+			String status,
+			String q
 	) {
 		List<Evidence> evidences = loadVisibleEvidences(user);
 		Map<Long, User> uploaderById = loadUploaders(evidences);
 		Map<String, CaseProfile> profileByCaseOwnerKey = loadProfilesByCaseOwnerKey(evidences);
 
-		return buildPageResponse(user, sort, page, size, evidences, uploaderById, profileByCaseOwnerKey, true);
+		return buildPageResponse(user, sort, page, size, status, q, evidences, uploaderById, profileByCaseOwnerKey, true);
 	}
 
 	private AnalysisHistoryPageResponse buildPageResponse(
@@ -88,6 +104,8 @@ public class MyPageService {
 			String sort,
 			int page,
 			int size,
+			String status,
+			String q,
 			List<Evidence> evidences,
 			Map<Long, User> uploaderById,
 			Map<String, CaseProfile> profileLookup,
@@ -123,6 +141,7 @@ public class MyPageService {
 		appendProfileOnlyCases(user, caseSummaries, caseKeysWithEvidence, uploaderById, privilegedScope);
 
 		caseSummaries.sort(buildCaseComparator(sort));
+		caseSummaries = applyCaseFilters(caseSummaries, status, q);
 
 		int safeSize = Math.max(size, 1);
 		int fromIndex = Math.min(page * safeSize, caseSummaries.size());
@@ -137,6 +156,48 @@ public class MyPageService {
 				.totalElements(caseSummaries.size())
 				.totalPages(totalPages)
 				.build();
+	}
+
+	private List<CaseSummaryResponse> applyCaseFilters(
+			List<CaseSummaryResponse> caseSummaries,
+			String status,
+			String q
+	) {
+		String normalizedStatus = normalizeStatusFilter(status);
+		String keyword = q == null ? "" : q.trim().toLowerCase();
+
+		return caseSummaries.stream()
+				.filter(summary -> matchesStatusFilter(summary, normalizedStatus))
+				.filter(summary -> matchesKeywordFilter(summary, keyword))
+				.toList();
+	}
+
+	private String normalizeStatusFilter(String status) {
+		if (status == null || status.isBlank() || "ALL".equalsIgnoreCase(status.trim())) {
+			return null;
+		}
+		return status.trim().toUpperCase();
+	}
+
+	private boolean matchesStatusFilter(CaseSummaryResponse summary, String normalizedStatus) {
+		if (normalizedStatus == null) {
+			return true;
+		}
+		return normalizedStatus.equalsIgnoreCase(summary.getStatus());
+	}
+
+	private boolean matchesKeywordFilter(CaseSummaryResponse summary, String keyword) {
+		if (keyword.isEmpty()) {
+			return true;
+		}
+		String caseName = summary.getCaseName() == null ? "" : summary.getCaseName().toLowerCase();
+		String label = summary.getRepresentativeEvidenceLabel() == null
+				? ""
+				: summary.getRepresentativeEvidenceLabel().toLowerCase();
+		String evidenceId = summary.getRepresentativeEvidenceId() == null
+				? ""
+				: ("evd-" + summary.getRepresentativeEvidenceId()).toLowerCase();
+		return caseName.contains(keyword) || label.contains(keyword) || evidenceId.contains(keyword);
 	}
 
 	private List<Evidence> loadVisibleEvidences(User user) {
