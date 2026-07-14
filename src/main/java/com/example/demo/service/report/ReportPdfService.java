@@ -17,6 +17,7 @@ import com.example.demo.domain.enums.AnalysisStatus;
 import com.example.demo.domain.enums.BlockchainAnchorStatus;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.enums.CaseReviewStatus;
+import com.example.demo.domain.enums.ReportPublicationStatus;
 import com.example.demo.domain.enums.SignatureStatus;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.dto.PublicReportAccessIssueResponse;
@@ -218,17 +219,27 @@ public class ReportPdfService {
         SignatureSnapshot signature = resolveSignature(report.getEvidenceId());
         BlockchainSnapshot blockchain = resolveBlockchain(report);
 
-        // A QR verifies that an issued report record exists. It cannot compare the visitor's local PDF bytes,
-        // and transient server storage or an anchor retry must not turn a valid issuance record into a forgery.
-        String status = "VALID";
+        // QR lookup confirms an issuance-registry record only. The visitor's PDF bytes are not inspected
+        // until the separate file-hash comparison is performed.
+        boolean superseded = report.getPublicationStatus() == ReportPublicationStatus.SUPERSEDED;
+        String status = superseded ? "WARNING" : "VALID";
+        String message = superseded
+                ? "발행 등록정보를 조회했습니다. 이 보고서는 더 최신 발행본으로 대체되었습니다. PDF 파일 자체는 검사하지 않았습니다."
+                : "발행 등록정보를 조회했습니다. PDF 파일 자체는 아직 검사하지 않았습니다.";
 
         return PublicReportVerifyResponse.builder()
                 .status(status)
                 .valid(true)
-                .message("QR 코드로 연결된 공식 발행 기록입니다.")
+                .message(message)
                 .reportId(report.getReportId())
                 .reportNo(report.getReportNo())
                 .verificationCode(report.getVerificationCode())
+                .reportType(report.getCompareId() == null ? "ANALYSIS" : "COMPARE")
+                .revision(report.getReportVersion())
+                .publicationStatus(report.getPublicationStatus().name())
+                .issuedAt(formatDateTime(report.getIssuedAt()))
+                .queriedAt(formatDateTime(LocalDateTime.now()))
+                .pdfSignatureApplied(false)
                 .evidenceId(report.getEvidenceId())
                 .reportHash(report.getReportHash())
                 .reportFileName(report.getReportFileName())

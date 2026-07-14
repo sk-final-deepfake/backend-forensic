@@ -23,7 +23,7 @@ class PdfDocumentWriterTest {
     );
 
     @Test
-    void generatedReportContainsPublicVerificationUrlAndCode() throws Exception {
+    void generatedReportContainsAutomaticPublicVerificationUrlWithoutManualCode() throws Exception {
         String verifyUrl = "https://forensheildjangdochi.com/verify?token=vrf_test_token";
         String verificationCode = "VF-TEST-1234";
 
@@ -44,8 +44,14 @@ class PdfDocumentWriterTest {
                     .contains("서울-디지털증거-2026")
                     .contains("Analyst Kim");
             assertThat(integrityPageText).contains("Reviewer Lee");
-            assertThat(integrityPageText).contains(verifyUrl);
-            assertThat(integrityPageText).contains(verificationCode);
+            assertThat(integrityPageText)
+                    .contains(verifyUrl)
+                    .contains("발행 등록정보 조회")
+                    .contains("PDF 파일 자체는 미검사")
+                    .contains("PDF 전자서명")
+                    .contains("미적용")
+                    .doesNotContain(verificationCode)
+                    .doesNotContain("(서명)");
         } finally {
             reader.close();
         }
@@ -61,7 +67,7 @@ class PdfDocumentWriterTest {
             String integrityPageText = new PdfTextExtractor(reader).getTextFromPage(3);
             assertThat(overviewText).contains("검토 승인 대기");
             assertThat(integrityPageText)
-                    .contains("검토 승인 후 QR과 공개 검증코드가 발급됩니다.")
+                    .contains("검토 승인 후 QR 발행 등록 조회 링크가 발급됩니다.")
                     .doesNotContain("vrf_")
                     .doesNotContain("VF-TEST");
         } finally {

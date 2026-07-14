@@ -462,6 +462,12 @@ class FeatureApiControllerTest {
                 .andExpect(jsonPath("$.valid").value(true))
                 .andExpect(jsonPath("$.reportNo").value(report.getReportNo()))
                 .andExpect(jsonPath("$.verificationCode").value(report.getVerificationCode()))
+                .andExpect(jsonPath("$.reportType").value("ANALYSIS"))
+                .andExpect(jsonPath("$.revision").value(1))
+                .andExpect(jsonPath("$.publicationStatus").value("ISSUED"))
+                .andExpect(jsonPath("$.issuedAt", notNullValue(String.class)))
+                .andExpect(jsonPath("$.queriedAt", notNullValue(String.class)))
+                .andExpect(jsonPath("$.pdfSignatureApplied").value(false))
                 .andExpect(jsonPath("$.hashMatched").value(true))
                 .andExpect(jsonPath("$.reportHash").value(reportHash));
 

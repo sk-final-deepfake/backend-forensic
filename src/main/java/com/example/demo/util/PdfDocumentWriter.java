@@ -46,7 +46,6 @@ public final class PdfDocumentWriter {
     private static final Color TEAL = new Color(0, 137, 123);
     private static final Color DANGER = new Color(185, 28, 28);
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm");
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy. MM. dd.");
     private static final BaseFont DOCUMENT_BASE_FONT = loadDocumentBaseFont();
 
     private PdfDocumentWriter() {
@@ -100,13 +99,13 @@ public final class PdfDocumentWriter {
             if (compareReport) {
                 addCompareReportPage(document, data, reportNo, issued);
                 document.newPage();
-                addIntegrityPage(document, "비교검증 보고서", data, reportNo, qrContent, verificationCode, true, issued);
+                addIntegrityPage(document, data, reportNo, qrContent, true, issued);
             } else {
                 addAnalysisOverviewPage(document, data, reportNo, issued);
                 document.newPage();
                 addAnalysisDetailPage(document, data, reportNo);
                 document.newPage();
-                addIntegrityPage(document, "전체 종합 보고서", data, reportNo, qrContent, verificationCode, false, issued);
+                addIntegrityPage(document, data, reportNo, qrContent, false, issued);
             }
 
             document.close();
@@ -288,11 +287,9 @@ public final class PdfDocumentWriter {
 
     private static void addIntegrityPage(
             Document document,
-            String reportTitle,
             ReportData data,
             String reportNo,
             String qrContent,
-            String verificationCode,
             boolean compareReport,
             boolean issued
     ) throws DocumentException {
@@ -300,22 +297,22 @@ public final class PdfDocumentWriter {
 
         addSectionTitle(document, 1, "무결성 검증 결과");
         addInfoGrid(document, List.of(
-                row("원본 해시", shorten(data.value("SHA-256").orElse(rowValue(data.section("Original File Information"), "SHA-256")), 18, 12)),
-                row("PDF 해시", issued ? "검증 페이지에서 확인" : "최종 발행 전"),
+                row("분석대상 SHA-256", data.value("SHA-256").orElse(rowValue(data.section("Original File Information"), "SHA-256"))),
+                row("최종 PDF SHA-256", issued ? "QR 검증 페이지에서 확인" : "최종 발행 전"),
                 row("해시 알고리즘", "SHA-256"),
-                row("검증 결과", issued ? "저장된 해시 기준 검증" : "검토 승인 대기"),
-                row("전자서명", issued ? "유효성 확인 가능" : "발행 전"),
-                row("서명 기관", "ForenShield Evidence Authority")
+                row("QR 검증 범위", issued ? "발행 등록정보 조회" : "검토 승인 대기"),
+                row("PDF 전자서명", issued ? "미적용" : "발행 전"),
+                row("PDF 동일성 확인", issued ? "검증 페이지에서 파일 해시 대조" : "발행 전")
         ));
 
-        addSectionTitle(document, 2, "블록체인 기록");
+        addSectionTitle(document, 2, "외부 해시 앵커 기록");
         addInfoGrid(document, List.of(
-                row("기록 상태", issued ? "검증 페이지에서 확인" : "발행 전"),
-                row("네트워크", "private forensic ledger"),
-                row("트랜잭션", "검증 페이지에서 확인"),
-                row("앵커 시각", "-"),
-                row("블록 번호", "-"),
-                row("상태", issued ? "조회 필요" : "검토 승인 대기")
+                row("앵커 상태", issued ? "검증 페이지에서 확인" : "발행 전"),
+                row("역할", "발행 시점과 해시 존재 사실의 보조 기록"),
+                row("네트워크", issued ? "등록된 경우 검증 페이지에 표시" : "-"),
+                row("트랜잭션", issued ? "등록된 경우 검증 페이지에 표시" : "-"),
+                row("법적 효력", "자동으로 보장하지 않음"),
+                row("상세 확인", issued ? "QR 검증 페이지" : "검토 승인 대기")
         ));
 
         addSectionTitle(document, 3, "CoC 처리 이력");
@@ -324,17 +321,27 @@ public final class PdfDocumentWriter {
         addTableRow(coc, LocalDateTime.now().format(DATE_TIME_FORMAT), "보고서 생성", compareReport ? "분석관" : "분석관", "완료", "검증 페이지에서 확인");
         document.add(coc);
 
-        addSectionTitle(document, 4, "검증 방법 및 유의사항");
-        addVerificationBlock(document, qrContent, verificationCode);
+        addSectionTitle(document, 4, "발행 등록 조회 및 유의사항");
+        addVerificationBlock(document, qrContent);
+        Paragraph verificationCaution = new Paragraph(
+                "QR 조회는 보고서 번호와 발행 등록정보를 확인하는 절차입니다. 실제 PDF 파일의 동일성은 검증 페이지에서 PDF를 선택하여 발행 시 등록된 SHA-256과 대조해야 합니다.",
+                font(10, Font.BOLD, SLATE)
+        );
+        verificationCaution.setLeading(15);
+        verificationCaution.setSpacingBefore(6);
+        verificationCaution.setSpacingAfter(6);
+        document.add(verificationCaution);
         Paragraph caution = new Paragraph(
-                "본 보고서의 AI 분석 결과는 조작 여부를 확정하지 않는 참고 소견이며, 최종 판단은 원본 자료, 사건 맥락, 전문가 검토와 함께 이루어져야 합니다.",
+                compareReport
+                        ? "본 결과는 보고서에 특정된 두 파일의 기술적 동일성 또는 차이를 나타냅니다. 불일치의 원인, 고의적 변조 여부 또는 법률상 원본성은 본 결과만으로 판단할 수 없습니다."
+                        : "본 보고서의 AI 분석 결과는 조작 여부를 확정하지 않는 확률적 참고분석이며, 원본 자료, 사건 맥락, 파일 비교 및 전문가 검토와 함께 해석해야 합니다.",
                 font(11, Font.NORMAL, INK)
         );
         caution.setLeading(16);
         caution.setSpacingBefore(8);
         document.add(caution);
 
-        addSignatureBlock(document, reportTitle, data);
+        addApprovalBlock(document, data);
     }
 
     private static void addPageHeader(Document document, String title, String subtitle) throws DocumentException {
@@ -475,7 +482,7 @@ public final class PdfDocumentWriter {
         document.add(table);
     }
 
-    private static void addVerificationBlock(Document document, String qrContent, String verificationCode)
+    private static void addVerificationBlock(Document document, String qrContent)
             throws DocumentException {
         PdfPTable outer = new PdfPTable(new float[]{1.2f, 4.1f});
         outer.setWidthPercentage(100);
@@ -504,35 +511,31 @@ public final class PdfDocumentWriter {
         info.setPadding(8);
         if (qrContent == null || qrContent.isBlank()) {
             info.addElement(verificationLine("발행 상태", "검토 승인 대기"));
-            info.addElement(verificationLine("안내", "검토 승인 후 QR과 공개 검증코드가 발급됩니다."));
+            info.addElement(verificationLine("안내", "검토 승인 후 QR 발행 등록 조회 링크가 발급됩니다."));
         } else {
-            info.addElement(verificationLine("모바일", "QR 코드를 스캔하여 공개 진위 확인 페이지에 접속합니다."));
-            info.addElement(verificationLine("PC", "검증 URL 접속 후 검증코드를 입력합니다."));
+            info.addElement(verificationLine("발행 상태", "기관 발행 등록 완료"));
+            info.addElement(verificationLine("조회 방법", "QR 코드를 스캔하거나 아래 URL을 엽니다."));
             info.addElement(verificationLine("검증 URL", qrContent));
-            info.addElement(verificationLine("검증코드", blankFallback(verificationCode, "-")));
+            info.addElement(verificationLine("검증 범위", "발행 등록정보 조회 (PDF 파일 자체는 미검사)"));
         }
         outer.addCell(info);
 
         document.add(outer);
     }
 
-    private static void addSignatureBlock(Document document, String reportTitle, ReportData data) throws DocumentException {
-        Paragraph statement = new Paragraph("위와 같이 " + reportTitle + "를 보고합니다.", font(13, Font.NORMAL, INK));
-        statement.setAlignment(Element.ALIGN_CENTER);
-        statement.setSpacingBefore(12);
-        document.add(statement);
+    private static void addApprovalBlock(Document document, ReportData data) throws DocumentException {
+        Paragraph title = new Paragraph("작성·검토·발행 정보", font(12, Font.BOLD, INK));
+        title.setSpacingBefore(6);
+        title.setSpacingAfter(4);
+        document.add(title);
 
-        Paragraph date = new Paragraph(LocalDateTime.now().format(DATE_FORMAT), font(12, Font.BOLD, INK));
-        date.setAlignment(Element.ALIGN_CENTER);
-        date.setSpacingBefore(10);
-        date.setSpacingAfter(10);
-        document.add(date);
-
-        PdfPTable signatures = new PdfPTable(new float[]{0.9f, 3.2f, 1.4f});
-        signatures.setWidthPercentage(72);
+        PdfPTable signatures = new PdfPTable(new float[]{0.9f, 2.2f, 0.9f, 2.2f});
+        signatures.setWidthPercentage(100);
         signatures.setHorizontalAlignment(Element.ALIGN_CENTER);
-        addSignatureRow(signatures, "작성자", data.value("Analyst Name").orElse("분석관"), "(서명)");
-        addSignatureRow(signatures, "검토자", data.value("Reviewer Name").orElse("책임 검토관"), "(서명)");
+        addSignatureCell(signatures, "작성자", true, Element.ALIGN_CENTER);
+        addSignatureCell(signatures, data.value("Analyst Name").orElse("-"), false, Element.ALIGN_LEFT);
+        addSignatureCell(signatures, "검토자", true, Element.ALIGN_CENTER);
+        addSignatureCell(signatures, data.value("Reviewer Name").orElse("미배정"), false, Element.ALIGN_LEFT);
         document.add(signatures);
     }
 
@@ -610,12 +613,6 @@ public final class PdfDocumentWriter {
         PdfPCell right = noBorderCell(new Phrase(blankFallback(value, "-"), font(10, Font.NORMAL, INK)));
         right.setPaddingBottom(8);
         table.addCell(right);
-    }
-
-    private static void addSignatureRow(PdfPTable table, String role, String name, String sign) {
-        addSignatureCell(table, role, true, Element.ALIGN_CENTER);
-        addSignatureCell(table, name, false, Element.ALIGN_LEFT);
-        addSignatureCell(table, sign, false, Element.ALIGN_CENTER);
     }
 
     private static void addSignatureCell(PdfPTable table, String text, boolean shaded, int align) {

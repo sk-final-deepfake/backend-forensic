@@ -13,9 +13,6 @@ public class UpdateUserProfileRequest {
 	@NotBlank(message = "사용자 이름을 입력해 주세요.")
 	private String loginId;
 
-	@NotBlank(message = "소속 부서를 입력해 주세요.")
-	private String department;
-
 	@NotBlank(message = "현재 비밀번호를 입력해 주세요.")
 	private String currentPassword;
 

@@ -27,7 +27,10 @@ public class PublicReportVerificationController {
 
     private final ReportPdfService reportPdfService;
 
-    @Operation(summary = "공개 리포트 진위 확인", description = "PDF QR의 검증 토큰 또는 검증코드로 리포트 무결성, 전자서명, 블록체인 앵커 상태를 확인합니다.")
+    @Operation(
+            summary = "공개 리포트 발행 등록정보 조회",
+            description = "PDF QR의 검증 토큰 또는 기존 검증코드로 발행 등록정보를 조회합니다. 이 조회만으로 방문자가 보유한 PDF 파일 자체를 검사하지는 않습니다."
+    )
     @GetMapping("/verify")
     public PublicReportVerifyResponse verify(
             @RequestParam(value = "token", required = false) String token,
