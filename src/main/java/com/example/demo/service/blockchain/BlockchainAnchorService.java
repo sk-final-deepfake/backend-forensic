@@ -479,6 +479,9 @@ public class BlockchainAnchorService {
             return AnalysisAnchorMetadata.empty();
         }
 
+        // REPORT_HASH snapshot: primary fusion (deepfake) + all module versions,
+        // including forgery_spatial (TruFor) / forgery_temporal (TimeSformer-Forgery)
+        // when GPU FORGERY_ENABLED lane persists modelScores.
         BlockchainAnchorRequest.AnalysisModelRef analysisModel = null;
         List<BlockchainAnchorRequest.AnalysisModuleRef> analysisModules = new ArrayList<>();
         for (com.example.demo.domain.AnalysisModuleResult module : modules) {
