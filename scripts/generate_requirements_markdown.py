@@ -93,7 +93,7 @@ def generate_index(rq_rows: list[dict]) -> str:
         grouped[rq_area(rq_id)].append(row)
 
     lines = [
-        "# VeriForensics 요구사항 목록 (RQ Index)",
+        "# ForenShield 요구사항 목록 (RQ Index)",
         "",
         "> **기준 문서:** `docs/requirements/source/요구사항명세서_최종 (1).xlsx`",
         f"> **총 요구사항:** {len(rq_rows)}건 (기능 {functional} · 비기능 {non_functional})",
@@ -124,7 +124,7 @@ def generate_index(rq_rows: list[dict]) -> str:
 
 def generate_traceability(be_rows: list[dict]) -> str:
     lines = [
-        "# VeriForensics 요구사항 추적 매트릭스 (RTM)",
+        "# ForenShield 요구사항 추적 매트릭스 (RTM)",
         "",
         "> **기준:** `docs/requirements/source/기능명세서_최종.xlsx` · **백엔드(BE) 시트**",
         "> **미디어 스코프:** 영상(VIDEO) 전용 — Excel REQ·DTL·CMP는 영상 전제",

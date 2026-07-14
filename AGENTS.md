@@ -1,6 +1,6 @@
 # AI Agent Entry Point
 
-**VeriForensics** 프로젝트 문서의 단일 진입점입니다.
+**ForenShield** 프로젝트 문서의 단일 진입점입니다.
 
 👉 **[docs/AGENTS.md](docs/AGENTS.md)** 를 먼저 읽으세요.
 
