@@ -1240,6 +1240,30 @@ X-Step-Up-Token: <stepUpToken>
 | GET | `/api/v1/public/reports/view` | Public | ✅ |
 | GET | `/api/v1/public/reports/view/pdf` | Public | ✅ |
 
+발행된 보고서의 `GET /api/v1/public/reports/verify` 응답은 발행 레지스트리 정보에 다음 스냅샷 요약 필드를 포함합니다.
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `analysisVerdict` | 발행 시점 범주형 결과 (`의심 신호 확인`, `의심 신호 미확인`, `판정 불가` 등) |
+| `analysisCompletedAt` | 발행 스냅샷에 기록된 분석 완료 시각 |
+| `snapshotSchemaVersion` | 공개 요약 데이터 계약 버전 |
+| `pdfTemplateVersion` | 발행에 사용된 PDF 템플릿 버전 |
+| `evidenceManifestSignatureValid` | 발행 시점 증거 매니페스트 서명 유효 여부. 기록 없음·미발행은 `null` |
+| `evidenceManifestSignatureStatus` | 발행 시점 증거 매니페스트 서명 상태 (`VALID`, `INVALID`, `NOT_FOUND`, `FAILED`) |
+| `evidenceManifestSignatureAlgorithm` | 발행 시점 서명 알고리즘. 기록이 없으면 `null` |
+| `evidenceManifestSignerCertificateSubject` | 발행 시점 서명 인증서 Subject. 기록이 없으면 `null` |
+| `blockchainStatus` | 최종 PDF SHA-256의 보고서 블록체인 등록 상태 |
+| `blockchainMatched` | 등록된 보고서 해시와 현재 발행 해시의 일치 여부 |
+| `blockchainNetwork` | 보고서 해시가 등록된 네트워크. `local-simulated`는 개발 검증용 |
+| `blockchainTxHash` | 보고서 해시 등록 트랜잭션 ID |
+| `blockchainAnchoredAt` | 보고서 해시 등록 완료 시각 |
+
+- 숫자 점수·기준값, 사건명, 원본 파일명, 담당자, 의심 구간 및 프레임은 공개 응답에 포함하지 않습니다.
+- 발행 후 현재 분석 결과가 변경되어도 공개 요약은 기존 `ReportPublicationSnapshots` 값을 유지합니다.
+- `signatureValid`, `signatureStatus`, `signatureAlgorithm`, `signerCertificateSubject`, `pdfSignatureApplied`는 이전 클라이언트 호환용 deprecated 필드입니다. 신규 화면은 사용하지 않습니다.
+- `signature*`는 과거 명칭과 달리 PDF 전자서명이 아니라 증거 매니페스트 서명을 뜻합니다. 신규 연동은 반드시 `evidenceManifestSignature*`를 사용합니다.
+- 아직 발행되지 않았거나 스냅샷이 없는 레거시 보고서는 위 스냅샷 요약 필드가 `null`일 수 있습니다.
+
 ### 6.6 비교 검증
 
 | Method | Path | Auth | FE |

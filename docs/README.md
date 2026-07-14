@@ -79,6 +79,7 @@ docs/
 | 구현 했는지 추적 | [requirements/traceability.md](./requirements/traceability.md) |
 | API 경로·Body | [api/specification.md §2](./api/specification.md) |
 | errorCode·예외 JSON | [guides/implementation-standards.md](./guides/implementation-standards.md) |
+| PDF·공개 검증 단계별 개선 | [guides/report-pdf-public-verification-phase-plan.md](./guides/report-pdf-public-verification-phase-plan.md) |
 | DB 테이블 | [database/erd.md](./database/erd.md) |
 | BE↔AI JSON | [integrations/ai-json.md](./integrations/ai-json.md) |
 

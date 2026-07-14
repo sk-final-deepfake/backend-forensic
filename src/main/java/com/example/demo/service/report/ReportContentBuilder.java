@@ -6,6 +6,7 @@ import com.example.demo.domain.AnalysisResult;
 import com.example.demo.domain.CaseProfile;
 import com.example.demo.domain.CompareVerification;
 import com.example.demo.domain.Evidence;
+import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
 import com.example.demo.dto.ClipRiskDto;
 import com.example.demo.dto.FrameRiskDto;
@@ -16,6 +17,7 @@ import com.example.demo.dto.compare.CompareFileInfoDto;
 import com.example.demo.dto.compare.CompareItemDto;
 import com.example.demo.dto.detail.ModuleTimelineDto;
 import com.example.demo.repository.CaseProfileRepository;
+import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.analysis.VideoModuleDetailsReader;
 import com.example.demo.util.ApiDateTimeFormatter;
@@ -40,8 +42,10 @@ public class ReportContentBuilder {
     private static final int MAX_REPRESENTATIVE_FRAMES = 3;
 
     private final CaseProfileRepository caseProfileRepository;
+    private final EvidenceMetadataRepository evidenceMetadataRepository;
     private final UserRepository userRepository;
     private final VideoModuleDetailsReader videoModuleDetailsReader;
+    private final ReportIntegritySnapshotService reportIntegritySnapshotService;
 
     public List<String> buildEvidenceLines(
             Evidence evidence,
@@ -54,10 +58,23 @@ public class ReportContentBuilder {
         lines.add("Evidence ID: " + evidence.getEvidenceId());
         lines.add("File Name: " + evidence.getFileName());
         lines.add("File Type: " + valueOrDash(evidence.getFileType()));
+        lines.add("MIME Type: " + valueOrDash(evidence.getMimeType()));
         lines.add("File Size: " + valueOrDash(evidence.getFileSize()));
         lines.add("Uploaded At: " + ApiDateTimeFormatter.formatUtc(evidence.getUploadedAt()));
+        lines.add("Hash Algorithm: " + valueOrDash(evidence.getHashAlgorithm()));
         lines.add("SHA-256: " + evidence.getOriginalHashValue());
+        lines.add("Analysis Request ID: " + valueOrDash(request.getAnalysisRequestId()));
+        lines.add("Analysis Result ID: " + valueOrDash(result.getAnalysisResultId()));
         lines.add("Analysis Status: " + request.getStatus());
+        lines.add("Requested At: " + ApiDateTimeFormatter.formatUtc(request.getRequestedAt()));
+        lines.add("Started At: " + ApiDateTimeFormatter.formatUtc(request.getStartedAt()));
+        lines.add("Completed At: " + ApiDateTimeFormatter.formatUtc(request.getCompletedAt()));
+        if (request.getErrorCode() != null && !request.getErrorCode().isBlank()) {
+            lines.add("Analysis Error Code: " + request.getErrorCode().trim());
+        }
+        if (request.getErrorMessage() != null && !request.getErrorMessage().isBlank()) {
+            lines.add("Analysis Error Message: " + fieldValue(request.getErrorMessage()));
+        }
         lines.add("Risk Level: " + (result.getRiskLevel() == null ? "-" : result.getRiskLevel()));
         lines.add("Risk Score: " + (result.getRiskScore() == null ? "-" : result.getRiskScore()));
         lines.add("Confidence: " + (result.getConfidenceScore() == null ? "-" : result.getConfidenceScore()));
@@ -69,13 +86,48 @@ public class ReportContentBuilder {
                 continue;
             }
             lines.add("--- Module: " + module.getModuleName() + " ---");
-            lines.add("Model: " + module.getModelName() + " v" + module.getModelVersion());
+            lines.add("Model: " + modelLabel(module));
             lines.add("Detected: " + module.getDetected());
             lines.add("Score: " + module.getScore());
             lines.add("Confidence: " + module.getConfidence());
         }
+        appendTechnicalMetadata(lines, evidence.getEvidenceId());
+        lines.addAll(reportIntegritySnapshotService.toReportLines(evidence));
         appendVisualizationContext(lines, modules);
         return lines;
+    }
+
+    private void appendTechnicalMetadata(List<String> lines, Long evidenceId) {
+        EvidenceMetadata metadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElse(null);
+        lines.add(" ");
+        lines.add("=== Technical Metadata ===");
+        if (metadata == null) {
+            lines.add("Metadata Status: 해당 분석 미실시");
+            return;
+        }
+        lines.add("Metadata Status: " + valueOrDash(metadata.getExtractionStatus()));
+        lines.add("Resolution: " + resolution(metadata));
+        lines.add("Duration Seconds: " + valueOrDash(metadata.getDurationSec()));
+        lines.add("FPS: " + valueOrDash(metadata.getFps()));
+        lines.add("Video Codec: " + valueOrDash(metadata.getCodec()));
+        lines.add("Audio Sample Rate: " + valueOrDash(metadata.getSampleRate()));
+        lines.add("Audio Channels: " + valueOrDash(metadata.getChannels()));
+    }
+
+    private String resolution(EvidenceMetadata metadata) {
+        if (metadata.getWidth() == null || metadata.getHeight() == null) {
+            return "기록 없음";
+        }
+        return metadata.getWidth() + " x " + metadata.getHeight();
+    }
+
+    private String modelLabel(AnalysisModuleResult module) {
+        String name = valueOrDash(module.getModelName());
+        String version = valueOrDash(module.getModelVersion());
+        if ("-".equals(version)) {
+            return name;
+        }
+        return name + " v" + version;
     }
 
     private void appendVisualizationContext(List<String> lines, List<AnalysisModuleResult> modules) {
@@ -271,7 +323,8 @@ public class ReportContentBuilder {
                         + " | timestamp=" + fieldValue(frame.getTimestamp())
                         + " | frameNumber=" + nullableNumber(frame.getFrameNumber())
                         + " | score=" + nullableNumber(frame.getScore())
-                        + " | imageRegistered=" + (frame.getImageUrl() != null && !frame.getImageUrl().isBlank())));
+                        + " | imageRegistered=" + (frame.getImageUrl() != null && !frame.getImageUrl().isBlank())
+                        + " | imageUrl=" + fieldValue(frame.getImageUrl())));
     }
 
     private String modelLabel(ModuleTimelineDto timeline) {

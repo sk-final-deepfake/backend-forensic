@@ -73,6 +73,7 @@ public class ReportPdfService {
     private final EvidenceManifestService evidenceManifestService;
     private final BlockchainAnchorRepository blockchainAnchorRepository;
     private final ReportPublicUrlProperties reportPublicUrlProperties;
+    private final ReportPublicationSnapshotService reportPublicationSnapshotService;
 
     public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId) {
         return generateEvidenceReport(user, evidenceId, false);
@@ -217,6 +218,9 @@ public class ReportPdfService {
         boolean hashMatched = reportPdfStorageService.verifyStoredFileHash(report);
         SignatureSnapshot signature = resolveSignature(report.getEvidenceId());
         BlockchainSnapshot blockchain = resolveBlockchain(report);
+        ReportPublicationSnapshotService.PublicSummary publicSummary = reportPublicationSnapshotService
+                .findPublicSummary(report)
+                .orElse(null);
 
         // QR lookup confirms an issuance-registry record only. The visitor's PDF bytes are not inspected
         // until the separate file-hash comparison is performed.
@@ -243,12 +247,32 @@ public class ReportPdfService {
                 .reportHash(report.getReportHash())
                 .reportFileName(report.getReportFileName())
                 .createdAt(formatDateTime(report.getCreatedAt()))
+                .analysisVerdict(publicSummary == null ? null : publicSummary.verdict())
+                .analysisCompletedAt(publicSummary == null ? null : publicSummary.analysisCompletedAt())
+                .snapshotSchemaVersion(publicSummary == null ? null : publicSummary.snapshotSchemaVersion())
+                .pdfTemplateVersion(publicSummary == null ? null : publicSummary.pdfTemplateVersion())
                 .hashMatched(hashMatched)
                 .storedFileIntact(hashMatched)
                 .signatureValid(signature.valid())
                 .signatureStatus(signature.status())
                 .signatureAlgorithm(signature.algorithm())
                 .signerCertificateSubject(signature.signerCertificateSubject())
+                .evidenceManifestSignatureValid(publicSummary == null
+                        || publicSummary.evidenceManifestSignatureStatus() == null
+                        ? signature.valid()
+                        : publicSummary.evidenceManifestSignatureValid())
+                .evidenceManifestSignatureStatus(publicSummary == null
+                        || publicSummary.evidenceManifestSignatureStatus() == null
+                        ? signature.status()
+                        : publicSummary.evidenceManifestSignatureStatus())
+                .evidenceManifestSignatureAlgorithm(publicSummary == null
+                        || publicSummary.evidenceManifestSignatureStatus() == null
+                        ? signature.algorithm()
+                        : publicSummary.evidenceManifestSignatureAlgorithm())
+                .evidenceManifestSignerCertificateSubject(publicSummary == null
+                        || publicSummary.evidenceManifestSignatureStatus() == null
+                        ? signature.signerCertificateSubject()
+                        : publicSummary.evidenceManifestSignerCertificateSubject())
                 .blockchainMatched(blockchain.matched())
                 .blockchainStatus(blockchain.status())
                 .blockchainTxHash(blockchain.transactionHash())
@@ -372,6 +396,8 @@ public class ReportPdfService {
                 .storedFileIntact(false)
                 .signatureValid(null)
                 .signatureStatus("NOT_ISSUED")
+                .evidenceManifestSignatureValid(null)
+                .evidenceManifestSignatureStatus("NOT_ISSUED")
                 .blockchainMatched(null)
                 .blockchainStatus("NOT_ISSUED")
                 .build();

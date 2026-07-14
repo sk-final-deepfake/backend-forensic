@@ -35,6 +35,7 @@ public class ReportPdfStorageService {
     private final BlockchainAnchorService blockchainAnchorService;
     private final ReportCustodyLogService reportCustodyLogService;
     private final ReportPublicUrlProperties reportPublicUrlProperties;
+    private final ReportPublicationSnapshotService reportPublicationSnapshotService;
 
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
@@ -116,6 +117,7 @@ public class ReportPdfStorageService {
         report.setFileSize((long) pdfBytes.length);
         report.markIssued(userId, LocalDateTime.now());
         Report saved = reportRepository.save(report);
+        reportPublicationSnapshotService.createIfAbsent(saved, lines);
         supersedeOlderAnalysisReports(saved);
         recordReportSideEffects(saved, userId);
         return saved;
@@ -205,16 +207,19 @@ public class ReportPdfStorageService {
     }
 
     private byte[] renderReportBytes(Report report, List<String> lines, String title) {
+        List<String> renderLines = report.isIssued()
+                ? reportPublicationSnapshotService.findReportLines(report).orElse(lines)
+                : lines;
         if (report.isIssued() && report.getVerificationToken() != null && !report.getVerificationToken().isBlank()) {
             return buildPdfWithQr(
                     title,
-                    lines,
+                    renderLines,
                     report.getReportNo(),
                     buildVerifyUrl(report.getVerificationToken()),
                     report.getVerificationCode()
             );
         }
-        return PdfDocumentWriter.writeDraftReport(title, lines);
+        return PdfDocumentWriter.writeDraftReport(title, renderLines);
     }
 
     private void persistReportBytes(Report report, byte[] pdfBytes) {

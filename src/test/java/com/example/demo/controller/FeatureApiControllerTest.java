@@ -28,10 +28,12 @@ import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.NotificationRepository;
 import com.example.demo.repository.ReportRepository;
+import com.example.demo.repository.ReportPublicationSnapshotRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.UserSettingRepository;
 import com.example.demo.service.evidence.HashService;
 import com.example.demo.service.notification.NotificationService;
+import com.example.demo.service.report.ReportPublicationSnapshotService;
 import com.example.demo.security.SignupRateLimitService;
 import com.example.demo.support.JwtTestSupport;
 import com.example.demo.support.StepUpTestSupport;
@@ -99,6 +101,9 @@ class FeatureApiControllerTest {
     private ReportRepository reportRepository;
 
     @Autowired
+    private ReportPublicationSnapshotRepository reportPublicationSnapshotRepository;
+
+    @Autowired
     private CaseProfileRepository caseProfileRepository;
 
     @Autowired
@@ -125,6 +130,9 @@ class FeatureApiControllerTest {
     @Autowired
     private SignupRateLimitService signupRateLimitService;
 
+    @Autowired
+    private ReportPublicationSnapshotService reportPublicationSnapshotService;
+
     private String accessToken;
     private String stepUpToken;
     private User testUser;
@@ -136,6 +144,7 @@ class FeatureApiControllerTest {
         compareVerificationRepository.deleteAll();
         custodyLogRepository.deleteAll();
         blockchainAnchorRepository.deleteAll();
+        reportPublicationSnapshotRepository.deleteAll();
         reportRepository.deleteAll();
         caseProfileRepository.deleteAll();
         notificationRepository.deleteAll();
@@ -180,6 +189,7 @@ class FeatureApiControllerTest {
         compareVerificationRepository.deleteAll();
         custodyLogRepository.deleteAll();
         blockchainAnchorRepository.deleteAll();
+        reportPublicationSnapshotRepository.deleteAll();
         reportRepository.deleteAll();
         caseProfileRepository.deleteAll();
         notificationRepository.deleteAll();
@@ -448,9 +458,9 @@ class FeatureApiControllerTest {
 
         PdfReader previewPdf = new PdfReader(previewResult.getResponse().getContentAsByteArray());
         try {
-            String previewText = new PdfTextExtractor(previewPdf).getTextFromPage(4);
+            String previewText = new PdfTextExtractor(previewPdf).getTextFromPage(5);
             assertThat(previewText)
-                    .contains("검증 QR과 URL은 발행 등록 후 생성됩니다.")
+                    .contains("검증 QR과 URL은 발행 등록 후 생성된다.")
                     .contains("미발행 · 미리보기")
                     .contains("미리보기 - 검증 불가")
                     .doesNotContain("vrf_");
@@ -521,18 +531,25 @@ class FeatureApiControllerTest {
                 .orElseThrow();
         assertThat(report.getPublicationStatus()).isEqualTo(ReportPublicationStatus.ISSUED);
         assertThat(report.getVerificationToken()).isNotBlank();
+        var publicationSnapshot = reportPublicationSnapshotRepository.findByReportId(report.getReportId())
+                .orElseThrow();
+        assertThat(publicationSnapshot.getSchemaVersion()).isEqualTo("1.1");
+        assertThat(publicationSnapshot.getPdfTemplateVersion()).isEqualTo("analysis-5p-v3");
+        assertThat(publicationSnapshot.getSnapshotHash()).matches("[0-9a-f]{64}");
+        assertThat(publicationSnapshot.getReportInputJson()).contains("Risk Level");
+        String immutableInputJson = publicationSnapshot.getReportInputJson();
+        reportPublicationSnapshotService.createIfAbsent(report, java.util.List.of("Risk Level: LOW"));
+        assertThat(reportPublicationSnapshotRepository.findByReportId(report.getReportId()).orElseThrow()
+                .getReportInputJson()).isEqualTo(immutableInputJson);
         PdfReader issuedPdf = new PdfReader(Files.readAllBytes(Path.of(report.getStoragePath())));
         try {
-            assertThat(issuedPdf.getNumberOfPages()).isEqualTo(4);
+            assertThat(issuedPdf.getNumberOfPages()).isEqualTo(5);
             assertThat(new PdfTextExtractor(issuedPdf).getTextFromPage(3))
-                    .contains("AI 상세 근거")
+                    .contains("시간축 및 시각적 근거")
                     .contains("TimeSFormer")
-                    .contains("전체 프레임")
                     .contains("00:12.00 - 00:15.00")
                     .contains("temporal high risk")
-                    .contains("프레임 300")
-                    .contains("310")
-                    .contains("등록됨");
+                    .contains("대표 프레임: 별첨 없음");
         } finally {
             issuedPdf.close();
         }
@@ -557,6 +574,11 @@ class FeatureApiControllerTest {
                 .andExpect(jsonPath("$.issuedAt", notNullValue(String.class)))
                 .andExpect(jsonPath("$.queriedAt", notNullValue(String.class)))
                 .andExpect(jsonPath("$.pdfSignatureApplied").value(false))
+                .andExpect(jsonPath("$.evidenceManifestSignatureStatus", notNullValue(String.class)))
+                .andExpect(jsonPath("$.analysisVerdict").value("판정 불가"))
+                .andExpect(jsonPath("$.analysisCompletedAt", notNullValue(String.class)))
+                .andExpect(jsonPath("$.snapshotSchemaVersion").value("1.1"))
+                .andExpect(jsonPath("$.pdfTemplateVersion").value("analysis-5p-v3"))
                 .andExpect(jsonPath("$.hashMatched").value(true))
                 .andExpect(jsonPath("$.reportHash").value(reportHash));
 

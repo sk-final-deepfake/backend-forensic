@@ -272,10 +272,11 @@ class CaseReviewControllerTest {
 
         PdfReader pdfReader = new PdfReader(pdfBytes);
         try {
-            String overviewText = new PdfTextExtractor(pdfReader).getTextFromPage(1);
-            String integrityText = new PdfTextExtractor(pdfReader).getTextFromPage(3);
-            assertThat(overviewText).contains("review-case", "분석관");
-            assertThat(integrityText).contains("검토자");
+            StringBuilder reportText = new StringBuilder();
+            for (int page = 1; page <= pdfReader.getNumberOfPages(); page++) {
+                reportText.append(new PdfTextExtractor(pdfReader).getTextFromPage(page));
+            }
+            assertThat(reportText.toString()).contains("review-case", "분석관", "검토자");
         } finally {
             pdfReader.close();
         }

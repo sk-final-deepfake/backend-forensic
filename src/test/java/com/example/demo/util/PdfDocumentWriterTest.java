@@ -4,6 +4,8 @@ import com.lowagie.text.pdf.PdfReader;
 import com.lowagie.text.pdf.parser.PdfTextExtractor;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -13,26 +15,40 @@ class PdfDocumentWriterTest {
     private static final List<String> REPORT_LINES = List.of(
             "Case Name: 서울-디지털증거-2026",
             "Case Number: CASE-2026-0710",
-            "Analyst Name: Analyst Kim",
+            "Analyst Name: 김OO",
             "Analyst Department: 디지털포렌식팀",
-            "Reviewer Name: Reviewer Lee",
+            "Analyst Position: 주임",
+            "Reviewer Name: 이OO",
             "Reviewer Department: 검토팀",
+            "Reviewer Position: 검토관",
             "Review Status: REPORT_APPROVED",
             "Review Approved At: 2026.07.14 10:30",
             "Evidence ID: 101",
             "File Name: sample.mp4",
-            "SHA-256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "SHA-256: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
             "Risk Level: HIGH",
             "Risk Score: 72",
             "Confidence: 91",
             "Analyzed At: 2026.07.14 10:00",
+            "=== Integrity Verification Snapshot ===",
+            "Integrity Verified At: 2026.07.14 10:00",
+            "Manifest Signature Status: VALID",
+            "Manifest Signature Algorithm: SHA256withRSA",
+            "Manifest Signer Certificate Subject: CN=ForenShield Test",
+            "CoC Chain Status: VALID",
+            "CoC Log Count: 7",
+            "CoC Broken At Log ID: -",
+            "Evidence Blockchain Status: MATCHED",
+            "Evidence Blockchain Network: hyperledger-fabric-forenshield",
+            "Evidence Blockchain Transaction Hash: tx-report-fixture-001",
+            "Evidence Blockchain Anchored At: 2026.07.14 09:59",
             "--- Module: xception ---",
             "Detected: true",
             "Score: 72",
             "Confidence: 91",
             "=== Evidence Items ===",
             "Total Count: 1",
-            "Evidence Item: 얼굴 경계 불일치 신호가 저장되었습니다.",
+            "Evidence Item: 얼굴 경계 불일치 신호가 확인되었습니다.",
             "=== Module Timeline Summaries ===",
             "Total Count: 1",
             "Module Timeline: module=temporal | model=TimeSFormer v1.2 | videoScore=0.72 | threshold=0.6 | detected=true | points=2 | segments=1",
@@ -63,42 +79,89 @@ class PdfDocumentWriterTest {
 
         PdfReader reader = new PdfReader(pdf);
         try {
-            assertThat(reader.getNumberOfPages()).isEqualTo(4);
-            String integrityPageText = new PdfTextExtractor(reader).getTextFromPage(4);
+            assertThat(reader.getNumberOfPages()).isEqualTo(5);
             String overviewText = new PdfTextExtractor(reader).getTextFromPage(1);
             String detailPageText = new PdfTextExtractor(reader).getTextFromPage(2);
             String evidencePageText = new PdfTextExtractor(reader).getTextFromPage(3);
+            String technicalPageText = new PdfTextExtractor(reader).getTextFromPage(4);
+            String publicationPageText = new PdfTextExtractor(reader).getTextFromPage(5);
             assertThat(overviewText)
                     .contains("서울-디지털증거-2026")
-                    .contains("Analyst Kim")
-                    .contains("조작 가능성 관련 신호 높음")
-                    .contains("얼굴 경계 불일치 신호가 저장되었습니다.");
+                    .contains("AI 기반 영상 분석 결과보고서")
+                    .contains("문서 구분")
+                    .contains("최종 발행본")
+                    .contains("발행일")
+                    .contains("2026.07.14")
+                    .contains("딥페이크 분석")
+                    .contains("영상 콘텐츠 위변조 분석")
+                    .contains("60.0%")
+                    .contains("의심 신호 확인")
+                    .contains("얼굴 경계 불일치 신호가 확인되었다.")
+                    .doesNotContain("근거 1");
+            assertThat(overviewText.replaceAll("\\s+", ""))
+                    .contains("분석대상영상(sample.mp4,EVD-101)에대하여딥페이크분석을수행한결과")
+                    .contains("종합모델출력72.0%로판정기준(60.0%)을초과하는의심신호가확인되었다.")
+                    .contains("특히00:12.00-00:15.00에서시간적불일치신호가최대82.0%로관찰되었다.")
+                    .contains("영상콘텐츠위변조분석은본건에서수행되지않았다.");
             assertThat(detailPageText)
-                    .contains("탐지 신호 있음")
+                    .contains("분석 방법 및 모델별 결과")
+                    .contains("딥페이크 분석 방법론 및 결과")
+                    .contains("영상 콘텐츠 위변조 분석 방법론 및 결과")
                     .doesNotContain("전체 구간")
                     .doesNotContain("기준 미만");
+            assertThat(detailPageText.replaceAll("\\s+", ""))
+                    .contains("의심신호확인");
             assertThat(evidencePageText)
-                    .contains("AI 상세 근거")
+                    .contains("시간축 및 시각적 근거")
                     .contains("TimeSFormer")
                     .contains("00:12.00 - 00:15.00")
                     .contains("시간적 불일치")
-                    .contains("프레임쌍 15")
-                    .contains("등록됨");
-            assertThat(integrityPageText)
-                    .contains("Analyst Kim / 디지털포렌식팀")
-                    .contains("Reviewer Lee / 검토팀")
+                    .contains("종합 점수는 영상 전체에 대한 모델 출력이며, 구간 위험도는 해당 구간의 최대값이다.")
+                    .contains("대표 프레임: 별첨 없음")
+                    .contains("히트맵 결과 없음");
+            assertThat(technicalPageText)
+                    .contains("분석 입력 파일 및 무결성 검증")
+                    .contains("분석 입력 파일 식별 해시(SHA-256)")
+                    .contains("발행 시점 무결성 검증 요약")
+                    .contains("증거 매니페스트 서명")
+                    .contains("CoC 해시 체인")
+                    .contains("CoC 기록 건수")
+                    .contains("7건")
+                    .contains("증거 해시 블록체인")
+                    .contains("hyperledger-fabric-forenshield")
+                    .contains("검증 수행 시각")
+                    .doesNotContain("수집·인계·보관 이력 범위")
+                    .doesNotContain("파일 크기")
+                    .doesNotContain("MIME 유형")
+                    .doesNotContain("오디오 샘플레이트");
+            assertThat(technicalPageText.replaceAll("\\s+", ""))
+                    .contains("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
+            assertThat(publicationPageText)
+                    .contains("김OO / 디지털포렌식팀 / 주임")
+                    .contains("이OO / 검토팀 / 검토관")
                     .contains("기관 내부 절차상 최종 승인")
-                    .contains("시스템 승인 · 2026.07.14 10:30")
+                    .contains("발행 등록 정보")
                     .contains(verifyUrl)
                     .contains("발행 등록정보 조회")
-                    .contains("PDF 파일 자체는 미검사")
-                    .contains("등록된 SHA-256 해시값과 대조")
-                    .contains("확률에 기반한 참고 자료")
-                    .contains("PDF 전자서명")
-                    .contains("미적용")
+                    .contains("바이트 단위로 동일")
+                    .contains("기술 참고자료")
+                    .doesNotContain("PDF 전자서명")
+                    .doesNotContain("외부 해시 앵커")
+                    .doesNotContain("미적용 (도입 예정)")
                     .doesNotContain(verificationCode)
                     .doesNotContain("(서명)")
                     .doesNotContain("출력본 확인 서명");
+            for (int page = 1; page <= 5; page++) {
+                String pageText = new PdfTextExtractor(reader).getTextFromPage(page);
+                assertThat(pageText.replaceAll("\\s+", ""))
+                        .contains("사건번호:CASE-2026-0710");
+                assertThat(pageText).contains("- " + page + " / 5 -");
+            }
+            if ("true".equalsIgnoreCase(System.getenv("WRITE_PDF_FIXTURE"))) {
+                Path fixture = Path.of("build/pdf-fixtures/analysis-report-5p.pdf");
+                Files.createDirectories(fixture.getParent());
+                Files.write(fixture, pdf);
+            }
         } finally {
             reader.close();
         }
@@ -111,12 +174,12 @@ class PdfDocumentWriterTest {
         PdfReader reader = new PdfReader(pdf);
         try {
             String overviewText = new PdfTextExtractor(reader).getTextFromPage(1);
-            String integrityPageText = new PdfTextExtractor(reader).getTextFromPage(4);
+            String publicationPageText = new PdfTextExtractor(reader).getTextFromPage(5);
             assertThat(overviewText)
-                    .contains("검토 승인 대기")
+                    .contains("내부 검토용")
                     .contains("미발행 · 미리보기");
-            assertThat(integrityPageText)
-                    .contains("검증 QR과 URL은 발행 등록 후 생성됩니다.")
+            assertThat(publicationPageText)
+                    .contains("검증 QR과 URL은 발행 등록 후 생성된다.")
                     .contains("미발행 · 미리보기")
                     .contains("승인 전")
                     .doesNotContain("출력본 확인 서명")
@@ -151,11 +214,11 @@ class PdfDocumentWriterTest {
 
         PdfReader reader = new PdfReader(pdf);
         try {
-            assertThat(reader.getNumberOfPages()).isEqualTo(4);
+            assertThat(reader.getNumberOfPages()).isEqualTo(5);
             String evidencePageText = new PdfTextExtractor(reader).getTextFromPage(3);
             assertThat(evidencePageText)
-                    .contains("저장된 실제 모듈 타임라인, 의심 구간 또는 대표 프레임 데이터가 없습니다.")
-                    .contains("임의 데이터를 생성하지 않습니다.")
+                    .contains("모듈 타임라인, 의심 구간 또는 대표 프레임 기록이 없다.")
+                    .contains("임의 데이터를 생성하지 않는다.")
                     .doesNotContain("전체 구간");
         } finally {
             reader.close();
