@@ -11,6 +11,7 @@ import com.example.demo.domain.enums.OverlayJobStatus;
 import com.example.demo.dto.OverlayJobMessage;
 import com.example.demo.dto.OverlayJobStatusResponse;
 import com.example.demo.dto.OverlayResultMessage;
+import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
@@ -31,6 +32,8 @@ import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -64,6 +67,28 @@ public class OverlayJobService {
 
     @Transactional
     public OverlayJobStatusResponse generate(User user, Long evidenceId, String module) {
+        try {
+            return doGenerate(user, evidenceId, module);
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            throw ex;
+        } catch (DataAccessException ex) {
+            log.error("Overlay DB error evidenceId={} module={}", evidenceId, module, ex);
+            throw new BusinessException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "OVERLAY_DB_UNAVAILABLE",
+                    "오버레이 작업 저장에 실패했습니다. 관리자에게 문의해주세요."
+            );
+        } catch (Exception ex) {
+            log.error("Overlay generate failed evidenceId={} module={}", evidenceId, module, ex);
+            throw new BusinessException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "OVERLAY_UNAVAILABLE",
+                    "오버레이 생성을 시작하지 못했습니다. 잠시 후 다시 시도해주세요."
+            );
+        }
+    }
+
+    private OverlayJobStatusResponse doGenerate(User user, Long evidenceId, String module) {
         String normalizedModule = normalizeModule(module);
         Evidence evidence = evidenceAccessService.requireReadable(user, evidenceId);
 
