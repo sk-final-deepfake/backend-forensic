@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class VideoAnalysisDetailsBuilder {
 
-    static final String MODULE_VIDEO_TIMELINE = "video_timeline";
+    public static final String MODULE_VIDEO_TIMELINE = "video_timeline";
 
     private final VideoFrameAnalysisProperties frameAnalysisProperties;
     private final AnalysisResponseResolver responseResolver;

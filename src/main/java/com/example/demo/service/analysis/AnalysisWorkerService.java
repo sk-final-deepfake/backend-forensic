@@ -95,15 +95,25 @@ public class AnalysisWorkerService {
         }
 
         Long analysisRequestId = response.getAnalysisRequestId();
-        if ("FAILED".equalsIgnoreCase(response.getStatus())) {
+        String status = response.getStatus();
+
+        if (isInProgressStatus(status)) {
+            int progress = normalizeProgressPercent(response.getProgressPercent());
+            if (progress >= 0) {
+                updateProgress(analysisRequestId, Math.min(99, progress));
+            }
+            return;
+        }
+
+        if ("FAILED".equalsIgnoreCase(status)) {
             String errorCode = response.getErrorCode() == null ? "AI_ANALYSIS_FAILED" : response.getErrorCode();
             String message = response.getMessage() == null ? "AI analysis failed." : response.getMessage();
             finalizeFailedJob(analysisRequestId, errorCode, message);
             return;
         }
 
-        if (!"COMPLETED".equalsIgnoreCase(response.getStatus())) {
-            log.warn("Ignored AI result message with unsupported status: {}", response.getStatus());
+        if (!"COMPLETED".equalsIgnoreCase(status)) {
+            log.warn("Ignored AI result message with unsupported status: {}", status);
             return;
         }
 
@@ -119,6 +129,22 @@ public class AnalysisWorkerService {
             log.error("Failed to persist AI result for analysisRequestId={}", analysisRequestId, ex);
             finalizeFailedJob(analysisRequestId, "AI_RESULT_PERSIST_FAILED", ex.getMessage());
         }
+    }
+
+    private static boolean isInProgressStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return false;
+        }
+        return "IN_PROGRESS".equalsIgnoreCase(status)
+                || "PROCESSING".equalsIgnoreCase(status)
+                || "ANALYZING".equalsIgnoreCase(status);
+    }
+
+    private static int normalizeProgressPercent(Integer progressPercent) {
+        if (progressPercent == null) {
+            return -1;
+        }
+        return Math.max(0, Math.min(100, progressPercent));
     }
 
     private boolean prepareJob(Long analysisRequestId) {
@@ -152,8 +178,13 @@ public class AnalysisWorkerService {
     private void updateProgress(Long analysisRequestId, int progressPercent) {
         transactionTemplate.executeWithoutResult(status ->
                 analysisRequestRepository.findById(analysisRequestId).ifPresent(request -> {
-                    if (request.getStatus() == AnalysisStatus.ANALYZING) {
-                        request.setProgressPercent(progressPercent);
+                    if (request.getStatus() != AnalysisStatus.ANALYZING) {
+                        return;
+                    }
+                    // Monotonic: never decrease mid-run progress from out-of-order messages.
+                    int next = Math.max(request.getProgressPercent(), Math.min(99, progressPercent));
+                    if (next != request.getProgressPercent()) {
+                        request.setProgressPercent(next);
                     }
                 })
         );
