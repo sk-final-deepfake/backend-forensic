@@ -1,4 +1,4 @@
-# VeriForensics 백엔드 테스트 매트릭스 (Tier 1 · Tier 2)
+# ForenShield 백엔드 테스트 매트릭스 (Tier 1 · Tier 2)
 
 > **작성일:** 2026-07-07  
 > **기준:** 멘토 테스트 전략 가이드 §3.2·§3.5 · `requirements/traceability.md` · 실제 테스트 코드  

@@ -1,4 +1,4 @@
-# VeriForensics — AI 에이전트 통합 컨텍스트
+# ForenShield — AI 에이전트 통합 컨텍스트
 
 > **목적:** 프론트엔드 · 백엔드 · AI · 인프라 담당자와 **모든 AI 코딩 에이전트**가 이 `docs/` 폴더만 읽고 프로젝트 전체를 이해할 수 있게 하는 **단일 진입점**입니다.  
 > **원본 명세:** `요구사항명세서_최종 (1).xlsx` · `기능명세서_최종.xlsx` (Excel이 최종 법적/기획 정본)
@@ -9,7 +9,7 @@
 
 | 항목 | 내용 |
 | :--- | :--- |
-| **서비스** | VeriForensics (ForenShield AI) — 내부망 디지털 포렌식·딥페이크 분석 |
+| **서비스** | ForenShield AI — 내부망 디지털 포렌식·딥페이크 분석 |
 | **사용자** | 수사/검찰 등 내부 직원 (일반 사용자 + 관리자) |
 | **핵심 흐름** | 로그인 → 증거 업로드 → SHA-256 해시 → S3 WORM 보관 → RabbitMQ로 AI 분석 → 결과·CoC·리포트 |
 | **요구사항** | RQ **169건** (Excel 자동 추출) |
@@ -141,21 +141,21 @@ guides/implementation-standards.md (에러 JSON·예외·FE 계약)
 
 | 영역 | 상태 | 참고 |
 | :--- | :---: | :--- |
-| 로그인·가입·JWT | ✅ | `POST /api/auth/login`, `/api/v1/auth/signup` |
-| 관리자 CRUD·로그·증거 | ✅ | `/api/v1/admin/**` |
-| 마이페이지·프로필 | ✅ | `/api/v1/users/me`, `/api/v1/mypage/**` |
-| 증거 업로드·분석·상태 | ✅ | `/api/v1/evidences/**` (v1 only) |
-| 대시보드 stats (RQ-DSH-043) | ✅ | 4카드 필드 통일 |
+| 로그인·가입·JWT · step-up | ✅ | `POST /api/auth/login`, `/api/v1/auth/signup`, step-up |
+| 관리자 CRUD·로그·증거·검토자 | ✅ | `/api/v1/admin/**`, `/admin/reviewers` |
+| 마이페이지·프로필·설정 | ✅ | `/api/v1/users/me`, `/settings`, `/mypage/**` |
+| 증거 업로드·분석·상태·readiness | ✅ | `/api/v1/evidences/**` (v1 only) |
+| 대시보드 stats · 7일 trend | ✅ | RQ-DSH-043/044 — 분석관 `uploaderId` 기준 |
+| 검토 RBAC 플로우 | ✅ | review-request / reviewer / review-decision (§0.12) |
 | 에러 JSON·예외 Handler | ✅ | `BusinessException` + `StandardErrorResponse` |
 | Admin 페이지네이션 | ✅ | `content` / `totalElements` / `totalPages` |
-| PDF 리포트 | ⬜ | RQ-DTL-082~086 |
-| 비교 검증 (Compare) | ⬜ | RQ-CMP-083~095 |
-| 알림 API | ⬜ | RQ-COM-015~016 |
-| 사용자 설정 API | ⬜ | RQ-COM-009 |
-| 블록체인 앵커 (운영) | ⬜ | RQ-SEC-151~152 |
-| 7일 분석 트렌드 차트 API | ⬜ | RQ-DSH-044 |
+| PDF 리포트 · 공개 검증 | ✅ | `/reports`, `/evidences/.../reports/pdf`, `/public/reports` |
+| 비교 검증 (Compare) | ✅ | `/api/v1/compare/**` |
+| 알림 API | ✅ | `/api/v1/notifications` (FE 연동) |
+| HLS 암호화 스트림 | ✅ | streamToken + step-up (§0.14) |
+| 블록체인 앵커 (운영 배포) | 🟡 | API·코드 ✅ · 운영 CA/네트워크 환경 의존 |
 
-상세 Gap: [api/specification.md §0](./api/specification.md)
+상세 Gap·엔드포인트 목록: [api/specification.md](./api/specification.md) (§0 · **§6 Quick Reference**)
 
 ---
 
@@ -165,7 +165,7 @@ guides/implementation-standards.md (에러 JSON·예외·FE 계약)
 
 ```markdown
 ## 프로젝트
-VeriForensics — 내부망 디지털 포렌식·딥페이크 분석 플랫폼
+ForenShield — 내부망 디지털 포렌식·딥페이크 분석 플랫폼
 
 ## 당신의 역할
 [프론트엔드 | 백엔드 | AI | 인프라] 담당
@@ -218,4 +218,6 @@ RQ-XXXX-NNN — requirements/index.md에서 내용 확인
 
 | 날짜 | 내용 |
 | :--- | :--- |
+| 2026-07-14 | 프로젝트명 표기 **ForenShield**로 통일 (구 VeriForensics) |
+| 2026-07-14 | 구현 스냅샷 갱신 — PDF/Compare/알림/설정/검토/HLS ✅ · API 정본 §6 동기화 |
 | 2026-06-17 | AI·팀 통합 진입점 초안 — architecture/teams/product/requirements/overview 추가 |
