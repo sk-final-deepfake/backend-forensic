@@ -29,13 +29,14 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public final class PdfDocumentWriter {
 
-    private static final int THRESHOLD = 60;
     private static final Color INK = new Color(15, 23, 42);
     private static final Color SLATE = new Color(71, 85, 105);
     private static final Color MUTED = new Color(100, 116, 139);
@@ -89,7 +90,7 @@ public final class PdfDocumentWriter {
         try {
             ReportData data = ReportData.parse(lines);
             boolean compareReport = isCompareReport(title, data);
-            int totalPages = compareReport ? 2 : 3;
+            int totalPages = compareReport ? 2 : 4;
 
             Document document = new Document(PageSize.A4, 54, 54, 46, 56);
             PdfWriter writer = PdfWriter.getInstance(document, outputStream);
@@ -104,6 +105,8 @@ public final class PdfDocumentWriter {
                 addAnalysisOverviewPage(document, data, reportNo, issued);
                 document.newPage();
                 addAnalysisDetailPage(document, data, reportNo);
+                document.newPage();
+                addAnalysisEvidencePage(document, data, reportNo);
                 document.newPage();
                 addIntegrityPage(document, data, reportNo, qrContent, false, issued);
             }
@@ -135,7 +138,7 @@ public final class PdfDocumentWriter {
                 ColumnText.showTextAligned(
                         canvas,
                         Element.ALIGN_CENTER,
-                        new Phrase("미리보기", font(68, Font.BOLD, MUTED)),
+                        new Phrase("미리보기 - 검증 불가", font(48, Font.BOLD, MUTED)),
                         pageSize.getWidth() / 2f,
                         pageSize.getHeight() / 2f,
                         35
@@ -164,20 +167,20 @@ public final class PdfDocumentWriter {
         addInfoGrid(document, List.of(
                 row("보고서 유형", "딥페이크 분석 종합 보고서"),
                 row("검토 상태", issued ? "검토 승인 완료" : "검토 승인 대기"),
-                row("보안 등급", "내부망 전용"),
-                row("생성자", data.value("Analyst Name").orElse("분석관")),
+                row("문서 상태", issued ? "최종 발행본" : "미발행 · 미리보기"),
+                row("생성자", data.value("Analyst Name").orElse("-")),
                 row("생성일", LocalDateTime.now().format(DATE_TIME_FORMAT)),
-                row("검증 방식", issued ? "QR · 검증 URL · 전자서명" : "승인 후 발급")
+                row("검증 방식", issued ? "QR 발행정보 조회 · PDF 해시 대조" : "발행 등록 후 QR 조회 · PDF 해시 대조")
         ));
 
         addSectionTitle(document, 2, "사건 및 증거 요약");
         addInfoGrid(document, List.of(
-                row("사건명", data.value("Case Name").orElse("사건명 미지정")),
+                row("사건명", data.value("Case Name").orElse("-")),
                 row("사건 번호", data.value("Case Number").orElse("-")),
                 row("대상 증거", prefixedEvidenceId(data.value("Evidence ID").orElse("-"))),
                 row("파일명", data.value("File Name").orElse("-")),
                 row("등록 일시", data.value("Uploaded At").orElse("-")),
-                row("파일 유형", data.value("File Type").orElse("VIDEO")),
+                row("파일 유형", data.value("File Type").orElse("-")),
                 row("분석 일시", data.value("Analyzed At").orElse("-")),
                 row("원본 해시", shorten(data.value("SHA-256").orElse("-"), 18, 12))
         ));
@@ -185,8 +188,8 @@ public final class PdfDocumentWriter {
         addSectionTitle(document, 3, "최종 분석 판정");
         addVerdictBox(document, riskLabel(data), data.value("Summary").orElse("-"));
         addInfoGrid(document, List.of(
-                row("위험 점수", scoreText(data.value("Risk Score").orElse("-")) + " / 100 (판정 기준 60)"),
-                row("분석 신뢰도", scoreText(data.value("Confidence").orElse("-")) + "%"),
+                row("모델 종합 출력 점수", scoreText(data.value("Risk Score").orElse("-")) + " / 100"),
+                row("모델 신뢰도 출력값", scoreText(data.value("Confidence").orElse("-")) + " / 100"),
                 row("위험 등급", data.value("Risk Level").orElse("-")),
                 row("분석 상태", data.value("Analysis Status").orElse("-"))
         ));
@@ -201,7 +204,7 @@ public final class PdfDocumentWriter {
 
         addSectionTitle(document, 1, "모델별 추론 결과");
         addModelScoreBars(document, data);
-        addFootnote(document, "※ 점선은 판정 기준(60점)을 나타냅니다.");
+        addFootnote(document, "※ 점수는 각 분석 모듈이 반환한 출력값입니다. 탐지 여부는 저장된 모듈 판정값을 따릅니다.");
 
         addSectionTitle(document, 2, "모듈별 측정 항목");
         PdfPTable table = reportTable(new float[]{1.2f, 2.2f, 0.7f, 0.9f, 1f});
@@ -209,30 +212,45 @@ public final class PdfDocumentWriter {
         List<ModuleBlock> modules = moduleRows(data);
         for (ModuleBlock module : modules) {
             int score = percent(module.value("Score").orElse("-"));
+            String detected = detectedLabel(module.value("Detected").orElse(null));
             addTableRow(table,
                     moduleLabel(module.name),
                     moduleMetric(module.name),
                     String.valueOf(score),
-                    score >= THRESHOLD ? "기준 초과" : "기준 미만",
+                    detected,
                     moduleNote(module.name));
+        }
+        if (modules.isEmpty()) {
+            addTableRow(table, "저장된 모듈 결과 없음", "-", "-", "확인 필요", "-");
         }
         document.add(table);
 
-        addSectionTitle(document, 3, "의심 구간 및 타임라인");
-        PdfPTable timeline = reportTable(new float[]{1f, 1.1f, 0.8f, 0.9f, 2f});
-        addTableHeader(timeline, "구간", "모듈", "최대 점수", "상태", "설명");
-        int index = 0;
-        for (ModuleBlock module : modules) {
-            int score = percent(module.value("Score").orElse("-"));
-            addTableRow(timeline,
-                    index == 0 ? "전체 구간" : "모듈 구간",
-                    moduleLabel(module.name),
-                    String.valueOf(score),
-                    score >= THRESHOLD ? "기준 초과" : "기준 미만",
-                    module.value("Detected").orElse("-").equalsIgnoreCase("true") ? "추가 검토 필요" : "위험 신호 낮음");
-            index++;
+    }
+
+    private static void addAnalysisEvidencePage(Document document, ReportData data, String reportNo)
+            throws DocumentException {
+        addPageHeader(document, "AI 상세 근거", "보고서 번호: " + blankFallback(reportNo, "-"));
+
+        if (!hasDetailedEvidence(data)) {
+            addSectionTitle(document, 1, "상세 시각화 데이터");
+            addAvailabilityNotice(
+                    document,
+                    "저장된 실제 모듈 타임라인, 의심 구간 또는 대표 프레임 데이터가 없습니다. 임의 데이터를 생성하지 않습니다."
+            );
+            return;
         }
-        document.add(timeline);
+
+        addSectionTitle(document, 1, "모듈 타임라인 요약");
+        addModuleTimelineSummary(document, data);
+
+        addSectionTitle(document, 2, "위험도 상위 타임라인 지점");
+        addTimelinePointTable(document, data);
+
+        addSectionTitle(document, 3, "실제 의심 구간");
+        addSuspiciousSegmentTable(document, data);
+
+        addSectionTitle(document, 4, "대표 프레임 기록");
+        addRepresentativeFrameTable(document, data);
     }
 
     private static void addCompareReportPage(
@@ -249,9 +267,9 @@ public final class PdfDocumentWriter {
                 row("보고서 유형", "비교검증 보고서"),
                 row("검토 상태", issued ? "검토 승인 완료" : "검토 승인 대기"),
                 row("비교검증 ID", data.value("Compare ID").orElse("-")),
-                row("생성일", data.value("Created At").orElse(LocalDateTime.now().format(DATE_TIME_FORMAT))),
+                row("생성일", data.value("Created At").orElse("-")),
                 row("판정", compareVerdict(data.value("Verdict").orElse("-"))),
-                row("검증 방식", "해시 · 메타데이터 · 전자서명")
+                row("검증 방식", "해시 · 파일 속성 · 메타데이터 항목 대조")
         ));
 
         addSectionTitle(document, 2, "원본 및 비교 대상");
@@ -278,7 +296,10 @@ public final class PdfDocumentWriter {
             addTableRow(result, "비교 결과", "-", "-", "확인 필요");
         } else {
             for (Row row : comparison.rows) {
-                CompareRow item = CompareRow.parse(row.value);
+                String serializedRow = row.value.isBlank()
+                        ? row.label
+                        : row.label + ": " + row.value;
+                CompareRow item = CompareRow.parse(serializedRow);
                 addTableRow(result, item.label, item.original, item.candidate, compareResult(item.result));
             }
         }
@@ -300,7 +321,7 @@ public final class PdfDocumentWriter {
                 row("분석대상 SHA-256", data.value("SHA-256").orElse(rowValue(data.section("Original File Information"), "SHA-256"))),
                 row("최종 PDF SHA-256", issued ? "QR 검증 페이지에서 확인" : "최종 발행 전"),
                 row("해시 알고리즘", "SHA-256"),
-                row("QR 검증 범위", issued ? "발행 등록정보 조회" : "검토 승인 대기"),
+                row("QR 검증 범위", issued ? "발행 등록정보 조회" : "발행 등록 전"),
                 row("PDF 전자서명", issued ? "미적용" : "발행 전"),
                 row("PDF 동일성 확인", issued ? "검증 페이지에서 파일 해시 대조" : "발행 전")
         ));
@@ -316,15 +337,18 @@ public final class PdfDocumentWriter {
         ));
 
         addSectionTitle(document, 3, "CoC 처리 이력");
-        PdfPTable coc = reportTable(new float[]{1.15f, 1.4f, 1f, 0.8f, 1.6f});
-        addTableHeader(coc, "시각", "이벤트", "담당", "상태", "해시");
-        addTableRow(coc, LocalDateTime.now().format(DATE_TIME_FORMAT), "보고서 생성", compareReport ? "분석관" : "분석관", "완료", "검증 페이지에서 확인");
-        document.add(coc);
+        Paragraph cocNotice = new Paragraph(
+                "현재 PDF 생성 데이터에는 실제 Chain of Custody 상세 이력이 연결되어 있지 않아 임의 처리 이력을 표시하지 않습니다.",
+                font(10, Font.NORMAL, SLATE)
+        );
+        cocNotice.setLeading(16);
+        cocNotice.setSpacingAfter(10);
+        document.add(cocNotice);
 
-        addSectionTitle(document, 4, "발행 등록 조회 및 유의사항");
-        addVerificationBlock(document, qrContent);
+        addSectionTitle(document, 4, "발행 등록 조회");
+        addVerificationBlock(document, qrContent, issued);
         Paragraph verificationCaution = new Paragraph(
-                "QR 조회는 보고서 번호와 발행 등록정보를 확인하는 절차입니다. 실제 PDF 파일의 동일성은 검증 페이지에서 PDF를 선택하여 발행 시 등록된 SHA-256과 대조해야 합니다.",
+                "QR 조회로는 보고서 번호와 발행 등록정보를 확인할 수 있습니다. PDF 파일이 발행 당시 원본과 동일한지 확인하려면, 검증 페이지에 해당 PDF를 업로드하여 등록된 SHA-256 해시값과 대조하시기 바랍니다.",
                 font(10, Font.BOLD, SLATE)
         );
         verificationCaution.setLeading(15);
@@ -334,14 +358,14 @@ public final class PdfDocumentWriter {
         Paragraph caution = new Paragraph(
                 compareReport
                         ? "본 결과는 보고서에 특정된 두 파일의 기술적 동일성 또는 차이를 나타냅니다. 불일치의 원인, 고의적 변조 여부 또는 법률상 원본성은 본 결과만으로 판단할 수 없습니다."
-                        : "본 보고서의 AI 분석 결과는 조작 여부를 확정하지 않는 확률적 참고분석이며, 원본 자료, 사건 맥락, 파일 비교 및 전문가 검토와 함께 해석해야 합니다.",
+                        : "본 보고서의 AI 분석 결과는 조작 여부를 확정하는 판정이 아니며, 확률에 기반한 참고 자료입니다. 최종 판단 시에는 원본 자료, 사건 맥락, 파일 비교 결과 및 전문가 검토를 종합하시기 바랍니다.",
                 font(11, Font.NORMAL, INK)
         );
         caution.setLeading(16);
         caution.setSpacingBefore(8);
         document.add(caution);
 
-        addApprovalBlock(document, data);
+        addApprovalBlock(document, data, issued);
     }
 
     private static void addPageHeader(Document document, String title, String subtitle) throws DocumentException {
@@ -356,10 +380,7 @@ public final class PdfDocumentWriter {
         right.setHorizontalAlignment(Element.ALIGN_RIGHT);
         Paragraph reportNo = new Paragraph(blankFallback(subtitle, "-"), font(9, Font.NORMAL, SLATE));
         reportNo.setAlignment(Element.ALIGN_RIGHT);
-        Paragraph security = new Paragraph("보안 등급: 내부망 전용", font(9, Font.NORMAL, SLATE));
-        security.setAlignment(Element.ALIGN_RIGHT);
         right.addElement(reportNo);
-        right.addElement(security);
         meta.addCell(right);
         document.add(meta);
 
@@ -444,13 +465,20 @@ public final class PdfDocumentWriter {
         PdfPTable table = new PdfPTable(new float[]{1.2f, 4.4f});
         table.setWidthPercentage(100);
         table.setSpacingAfter(10);
-        if (data.modules.isEmpty()) {
+        List<String> evidenceItems = sectionValues(data.section("Evidence Items"), "Evidence Item");
+        if (!evidenceItems.isEmpty()) {
+            for (int index = 0; index < evidenceItems.size(); index++) {
+                addReasonRow(table, "근거 " + (index + 1), evidenceItems.get(index));
+            }
+        } else if (data.modules.isEmpty()) {
             addReasonRow(table, "판정 요약", data.value("Summary").orElse("-"));
         } else {
             for (ModuleBlock module : data.modules) {
-                String detail = module.value("Detected").orElse("-").equalsIgnoreCase("true")
-                        ? "해당 모듈에서 의심 신호가 감지되었습니다."
-                        : "해당 모듈의 위험 신호가 기준 미만으로 측정되었습니다.";
+                String detail = switch (detectedLabel(module.value("Detected").orElse(null))) {
+                    case "탐지 신호 있음" -> "해당 모듈의 저장된 판정값에 탐지 신호가 있습니다.";
+                    case "탐지 신호 없음" -> "해당 모듈의 저장된 판정값에 탐지 신호가 없습니다.";
+                    default -> "해당 모듈의 저장된 탐지 판정값을 확인할 수 없습니다.";
+                };
                 addReasonRow(table, moduleLabel(module.name), detail);
             }
         }
@@ -458,12 +486,23 @@ public final class PdfDocumentWriter {
     }
 
     private static void addModelScoreBars(Document document, ReportData data) throws DocumentException {
+        List<ModuleBlock> modules = moduleRows(data);
+        if (modules.isEmpty()) {
+            Paragraph notice = new Paragraph(
+                    "저장된 모듈별 추론 결과가 없습니다.",
+                    font(10, Font.NORMAL, SLATE)
+            );
+            notice.setSpacingAfter(10);
+            document.add(notice);
+            return;
+        }
+
         PdfPTable table = new PdfPTable(new float[]{1.25f, 3.8f, 0.55f});
         table.setWidthPercentage(100);
         table.setSpacingAfter(10);
         table.setSplitLate(false);
 
-        for (ModuleBlock module : moduleRows(data)) {
+        for (ModuleBlock module : modules) {
             int score = percent(module.value("Score").orElse("-"));
             PdfPCell label = noBorderCell(new Phrase(moduleLabel(module.name), font(10, Font.NORMAL, INK)));
             label.setMinimumHeight(22);
@@ -474,7 +513,7 @@ public final class PdfDocumentWriter {
             bar.setCellEvent(new ScoreBarCellEvent(score));
             table.addCell(bar);
 
-            PdfPCell scoreCell = noBorderCell(new Phrase(String.valueOf(score), font(10, score >= THRESHOLD ? Font.BOLD : Font.NORMAL, INK)));
+            PdfPCell scoreCell = noBorderCell(new Phrase(String.valueOf(score), font(10, Font.BOLD, INK)));
             scoreCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
             table.addCell(scoreCell);
         }
@@ -482,8 +521,151 @@ public final class PdfDocumentWriter {
         document.add(table);
     }
 
-    private static void addVerificationBlock(Document document, String qrContent)
+    private static boolean hasDetailedEvidence(ReportData data) {
+        return !sectionValues(data.section("Module Timeline Summaries"), "Module Timeline").isEmpty()
+                || !sectionValues(data.section("Timeline Points"), "Timeline Point").isEmpty()
+                || !sectionValues(data.section("Suspicious Segments"), "Suspicious Segment").isEmpty()
+                || !sectionValues(data.section("Representative Frames"), "Representative Frame").isEmpty();
+    }
+
+    private static void addModuleTimelineSummary(Document document, ReportData data) throws DocumentException {
+        Section section = data.section("Module Timeline Summaries");
+        List<String> values = sectionValues(section, "Module Timeline");
+        if (values.isEmpty()) {
+            addAvailabilityNotice(document, "저장된 모듈별 타임라인 요약이 없습니다.");
+            return;
+        }
+
+        PdfPTable table = reportTable(new float[]{1.05f, 1.35f, 0.75f, 0.75f, 0.8f, 1.1f});
+        addTableHeader(table, "모듈", "모델", "영상 점수", "판정 기준", "탐지", "저장 데이터");
+        for (String value : values) {
+            Map<String, String> fields = parseFields(value);
+            String points = field(fields, "points");
+            String segments = field(fields, "segments");
+            addTableRow(table,
+                    moduleLabel(field(fields, "module")),
+                    field(fields, "model"),
+                    percentageText(field(fields, "videoScore")),
+                    percentageText(field(fields, "threshold")),
+                    detectedLabel(field(fields, "detected")),
+                    "지점 " + blankFallback(points, "0") + " / 구간 " + blankFallback(segments, "0"));
+        }
+        document.add(table);
+        addIncludedCountFootnote(document, section, values.size());
+    }
+
+    private static void addTimelinePointTable(Document document, ReportData data) throws DocumentException {
+        Section section = data.section("Timeline Points");
+        List<String> values = sectionValues(section, "Timeline Point");
+        if (values.isEmpty()) {
+            addAvailabilityNotice(document, "저장된 프레임·클립·프레임쌍 타임라인 지점이 없습니다.");
+            return;
+        }
+
+        PdfPTable table = reportTable(new float[]{1.15f, 0.8f, 1.2f, 0.75f, 2f});
+        addTableHeader(table, "출처", "종류", "시점/구간", "위험도", "참조");
+        for (String value : values) {
+            Map<String, String> fields = parseFields(value);
+            addTableRow(table,
+                    moduleLabel(field(fields, "source")),
+                    timelineKindLabel(field(fields, "kind")),
+                    timeRange(field(fields, "start"), field(fields, "end")),
+                    percentageText(field(fields, "score")),
+                    field(fields, "reference"));
+        }
+        document.add(table);
+        addIncludedCountFootnote(document, section, values.size());
+    }
+
+    private static void addSuspiciousSegmentTable(Document document, ReportData data) throws DocumentException {
+        Section section = data.section("Suspicious Segments");
+        List<String> values = sectionValues(section, "Suspicious Segment");
+        if (values.isEmpty()) {
+            addAvailabilityNotice(document, "저장된 실제 의심 구간이 없습니다.");
+            return;
+        }
+
+        PdfPTable table = reportTable(new float[]{1.1f, 1.25f, 0.8f, 2.75f});
+        addTableHeader(table, "출처", "구간", "최대 위험도", "저장 사유");
+        for (String value : values) {
+            Map<String, String> fields = parseFields(value);
+            addTableRow(table,
+                    moduleLabel(field(fields, "source")),
+                    timeRange(field(fields, "start"), field(fields, "end")),
+                    percentageText(field(fields, "score")),
+                    field(fields, "reason"));
+        }
+        document.add(table);
+        addIncludedCountFootnote(document, section, values.size());
+    }
+
+    private static void addRepresentativeFrameTable(Document document, ReportData data) throws DocumentException {
+        Section section = data.section("Representative Frames");
+        List<String> values = sectionValues(section, "Representative Frame");
+        if (values.isEmpty()) {
+            addAvailabilityNotice(document, "저장된 대표 프레임 기록이 없습니다.");
+            return;
+        }
+
+        PdfPTable table = reportTable(new float[]{1.4f, 1.15f, 1.1f, 1.05f});
+        addTableHeader(table, "시점", "프레임 번호", "위험도", "이미지 참조");
+        for (String value : values) {
+            Map<String, String> fields = parseFields(value);
+            String timestamp = field(fields, "timestamp");
+            if ("-".equals(timestamp)) {
+                timestamp = formatSeconds(field(fields, "timeSec"));
+            }
+            addTableRow(table,
+                    timestamp,
+                    field(fields, "frameNumber"),
+                    percentageText(field(fields, "score")),
+                    booleanLabel(field(fields, "imageRegistered"), "등록됨", "없음"));
+        }
+        document.add(table);
+        addIncludedCountFootnote(document, section, values.size());
+        addFootnote(document, "※ 이미지 접근 URL은 만료될 수 있어 PDF에 기록하지 않고, 발행 당시 이미지 참조 등록 여부만 표시합니다.");
+    }
+
+    private static void addAvailabilityNotice(Document document, String message) throws DocumentException {
+        Paragraph notice = new Paragraph(message, font(9.5f, Font.NORMAL, SLATE));
+        notice.setLeading(15);
+        notice.setSpacingAfter(10);
+        document.add(notice);
+    }
+
+    private static void addIncludedCountFootnote(Document document, Section section, int includedCount)
             throws DocumentException {
+        int totalCount = parseInteger(rowValue(section, "Total Count"), includedCount);
+        if (totalCount > includedCount) {
+            addFootnote(document, "※ 위험도 기준 상위 " + includedCount + "건을 표시합니다. 저장된 전체 데이터: " + totalCount + "건");
+        }
+    }
+
+    private static void addVerificationBlock(Document document, String qrContent, boolean issued)
+            throws DocumentException {
+        if (!issued) {
+            PdfPTable placeholder = new PdfPTable(1);
+            placeholder.setWidthPercentage(100);
+            placeholder.setSpacingAfter(12);
+
+            PdfPCell placeholderCell = new PdfPCell();
+            placeholderCell.setBorder(Rectangle.BOX);
+            placeholderCell.setBorderColor(LIGHT_BORDER);
+            placeholderCell.setBackgroundColor(SURFACE);
+            placeholderCell.setPadding(16);
+            placeholderCell.setMinimumHeight(66);
+            placeholderCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            Paragraph message = new Paragraph(
+                    "검증 QR과 URL은 발행 등록 후 생성됩니다.",
+                    font(10.5f, Font.BOLD, SLATE)
+            );
+            message.setAlignment(Element.ALIGN_CENTER);
+            placeholderCell.addElement(message);
+            placeholder.addCell(placeholderCell);
+            document.add(placeholder);
+            return;
+        }
+
         PdfPTable outer = new PdfPTable(new float[]{1.2f, 4.1f});
         outer.setWidthPercentage(100);
         outer.setSpacingAfter(12);
@@ -509,34 +691,33 @@ public final class PdfDocumentWriter {
         info.setBorder(Rectangle.BOX);
         info.setBorderColor(BORDER);
         info.setPadding(8);
-        if (qrContent == null || qrContent.isBlank()) {
-            info.addElement(verificationLine("발행 상태", "검토 승인 대기"));
-            info.addElement(verificationLine("안내", "검토 승인 후 QR 발행 등록 조회 링크가 발급됩니다."));
-        } else {
-            info.addElement(verificationLine("발행 상태", "기관 발행 등록 완료"));
-            info.addElement(verificationLine("조회 방법", "QR 코드를 스캔하거나 아래 URL을 엽니다."));
-            info.addElement(verificationLine("검증 URL", qrContent));
-            info.addElement(verificationLine("검증 범위", "발행 등록정보 조회 (PDF 파일 자체는 미검사)"));
-        }
+        info.addElement(verificationLine("발행 상태", "기관 발행 등록 완료"));
+        info.addElement(verificationLine("조회 방법", "QR 코드를 스캔하거나 아래 URL을 엽니다."));
+        info.addElement(verificationLine("검증 URL", blankFallback(qrContent, "발행 URL 생성 오류")));
+        info.addElement(verificationLine("검증 범위", "발행 등록정보 조회 (PDF 파일 자체는 미검사)"));
         outer.addCell(info);
 
         document.add(outer);
     }
 
-    private static void addApprovalBlock(Document document, ReportData data) throws DocumentException {
-        Paragraph title = new Paragraph("작성·검토·발행 정보", font(12, Font.BOLD, INK));
+    private static void addApprovalBlock(Document document, ReportData data, boolean issued) throws DocumentException {
+        Paragraph title = new Paragraph("작성·검토 및 승인 정보", font(12, Font.BOLD, INK));
         title.setSpacingBefore(6);
         title.setSpacingAfter(4);
         document.add(title);
 
-        PdfPTable signatures = new PdfPTable(new float[]{0.9f, 2.2f, 0.9f, 2.2f});
-        signatures.setWidthPercentage(100);
-        signatures.setHorizontalAlignment(Element.ALIGN_CENTER);
-        addSignatureCell(signatures, "작성자", true, Element.ALIGN_CENTER);
-        addSignatureCell(signatures, data.value("Analyst Name").orElse("-"), false, Element.ALIGN_LEFT);
-        addSignatureCell(signatures, "검토자", true, Element.ALIGN_CENTER);
-        addSignatureCell(signatures, data.value("Reviewer Name").orElse("미배정"), false, Element.ALIGN_LEFT);
-        document.add(signatures);
+        String approvalTime = data.value("Review Approved At").orElse("-");
+        String approvalInfo = issued
+                ? "시스템 승인" + ("-".equals(approvalTime) ? "" : " · " + approvalTime)
+                : "승인 전";
+        addInfoGrid(document, List.of(
+                row("작성자", actorSummary(data, "Analyst", "-")),
+                row("검토자", actorSummary(data, "Reviewer", "미배정")),
+                row("검토 결과", reviewStatusLabel(data.value("Review Status").orElse("NONE"))),
+                row("승인 정보", approvalInfo),
+                row("분석 완료", data.value("Analyzed At").orElse(data.value("Created At").orElse("-"))),
+                row("발행 상태", issued ? "기관 발행 등록 완료" : "미발행 · 미리보기")
+        ));
     }
 
     private static PdfPTable reportTable(float[] widths) {
@@ -613,18 +794,6 @@ public final class PdfDocumentWriter {
         PdfPCell right = noBorderCell(new Phrase(blankFallback(value, "-"), font(10, Font.NORMAL, INK)));
         right.setPaddingBottom(8);
         table.addCell(right);
-    }
-
-    private static void addSignatureCell(PdfPTable table, String text, boolean shaded, int align) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font(11, shaded ? Font.BOLD : Font.NORMAL, shaded ? INK : SLATE)));
-        cell.setBorder(Rectangle.BOX);
-        cell.setBorderColor(BORDER);
-        cell.setBackgroundColor(shaded ? SURFACE : Color.WHITE);
-        cell.setPadding(8);
-        cell.setMinimumHeight(30);
-        cell.setHorizontalAlignment(align);
-        cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        table.addCell(cell);
     }
 
     private static Paragraph verificationLine(String label, String value) {
@@ -723,26 +892,55 @@ public final class PdfDocumentWriter {
     }
 
     private static List<ModuleBlock> moduleRows(ReportData data) {
-        if (!data.modules.isEmpty()) {
-            return data.modules;
-        }
-
-        ModuleBlock fallback = new ModuleBlock("Late Fusion");
-        fallback.rows.add(new Row("Score", data.value("Risk Score").orElse("0")));
-        fallback.rows.add(new Row("Detected", percent(data.value("Risk Score").orElse("0")) >= THRESHOLD ? "true" : "false"));
-        fallback.rows.add(new Row("Confidence", data.value("Confidence").orElse("-")));
-        return List.of(fallback);
+        return data.modules;
     }
 
     private static String riskLabel(ReportData data) {
-        int score = percent(data.value("Risk Score").orElse("-"));
-        if (score >= 80) {
-            return "조작 가능성 높음";
+        return switch (data.value("Risk Level").orElse("").trim().toUpperCase(Locale.ROOT)) {
+            case "HIGH" -> "조작 가능성 관련 신호 높음";
+            case "MEDIUM" -> "추가 검토 필요";
+            case "LOW" -> "조작 가능성 관련 신호 낮음";
+            default -> "판정 정보 없음";
+        };
+    }
+
+    private static String detectedLabel(String value) {
+        if (value == null || value.isBlank() || "-".equals(value)) {
+            return "확인 필요";
         }
-        if (score >= THRESHOLD) {
-            return "추가 검토 필요";
+        if ("true".equalsIgnoreCase(value.trim())) {
+            return "탐지 신호 있음";
         }
-        return "조작 가능성 낮음";
+        if ("false".equalsIgnoreCase(value.trim())) {
+            return "탐지 신호 없음";
+        }
+        return "확인 필요";
+    }
+
+    private static String actorSummary(ReportData data, String prefix, String fallback) {
+        List<String> parts = new ArrayList<>();
+        data.value(prefix + " Name")
+                .filter(value -> !value.isBlank() && !"-".equals(value))
+                .ifPresent(parts::add);
+        data.value(prefix + " Department")
+                .filter(value -> !value.isBlank() && !"-".equals(value))
+                .ifPresent(parts::add);
+        data.value(prefix + " Position")
+                .filter(value -> !value.isBlank() && !"-".equals(value))
+                .ifPresent(parts::add);
+        return parts.isEmpty() ? fallback : String.join(" / ", parts);
+    }
+
+    private static String reviewStatusLabel(String value) {
+        return switch (blankFallback(value, "NONE").trim().toUpperCase(Locale.ROOT)) {
+            case "REPORT_APPROVED" -> "기관 내부 절차상 최종 승인";
+            case "REVIEW_COMPLETED" -> "검토 완료";
+            case "REVIEW_ASSIGNED" -> "검토 중";
+            case "REVIEW_REQUESTED" -> "검토자 배정 대기";
+            case "REVIEW_SUPPLEMENT_REQUESTED", "SUPPLEMENT_REQUESTED",
+                    "REVIEW_REVISION_REQUESTED", "REVISION_REQUESTED", "REVIEW_NEEDS_CHANGES" -> "보완 요청";
+            default -> "검토 전";
+        };
     }
 
     private static String compareVerdict(String value) {
@@ -768,6 +966,114 @@ public final class PdfDocumentWriter {
             return "제외";
         }
         return blankFallback(value, "-");
+    }
+
+    private static List<String> sectionValues(Section section, String label) {
+        if (section == null) {
+            return List.of();
+        }
+        return section.rows.stream()
+                .filter(row -> row.label.equals(label))
+                .map(Row::value)
+                .filter(value -> value != null && !value.isBlank())
+                .toList();
+    }
+
+    private static Map<String, String> parseFields(String value) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        if (value == null || value.isBlank()) {
+            return fields;
+        }
+        for (String part : value.split("\\|")) {
+            String trimmed = part.trim();
+            int separator = trimmed.indexOf('=');
+            if (separator <= 0) {
+                continue;
+            }
+            fields.put(trimmed.substring(0, separator).trim(), trimmed.substring(separator + 1).trim());
+        }
+        return fields;
+    }
+
+    private static String field(Map<String, String> fields, String key) {
+        return blankFallback(fields.get(key), "-");
+    }
+
+    private static String timelineKindLabel(String value) {
+        return switch (blankFallback(value, "-").trim().toUpperCase(Locale.ROOT)) {
+            case "FRAME" -> "프레임";
+            case "CLIP" -> "클립";
+            case "PAIR" -> "프레임쌍";
+            default -> blankFallback(value, "-");
+        };
+    }
+
+    private static String timeRange(String start, String end) {
+        String formattedStart = formatSeconds(start);
+        String formattedEnd = formatSeconds(end);
+        if (formattedStart.equals(formattedEnd)) {
+            return formattedStart;
+        }
+        return formattedStart + " - " + formattedEnd;
+    }
+
+    private static String formatSeconds(String raw) {
+        Double value = parseDouble(raw);
+        if (value == null) {
+            return "-";
+        }
+        double safe = Math.max(0.0, value);
+        int hours = (int) (safe / 3600.0);
+        int minutes = (int) ((safe % 3600.0) / 60.0);
+        double seconds = safe % 60.0;
+        if (hours > 0) {
+            return String.format(Locale.ROOT, "%02d:%02d:%05.2f", hours, minutes, seconds);
+        }
+        return String.format(Locale.ROOT, "%02d:%05.2f", minutes, seconds);
+    }
+
+    private static String percentageText(String raw) {
+        Double value = parseDouble(raw);
+        if (value == null) {
+            return "-";
+        }
+        if (Math.abs(value) <= 1.0) {
+            value *= 100.0;
+        }
+        double bounded = Math.max(0.0, Math.min(100.0, value));
+        return String.format(Locale.ROOT, "%.1f%%", bounded);
+    }
+
+    private static String booleanLabel(String raw, String trueLabel, String falseLabel) {
+        if ("true".equalsIgnoreCase(blankFallback(raw, ""))) {
+            return trueLabel;
+        }
+        if ("false".equalsIgnoreCase(blankFallback(raw, ""))) {
+            return falseLabel;
+        }
+        return "확인 필요";
+    }
+
+    private static Double parseDouble(String raw) {
+        if (raw == null || raw.isBlank() || "-".equals(raw)) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static int parseInteger(String raw, int fallback) {
+        if (raw == null || raw.isBlank() || "-".equals(raw)) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 
     private static String moduleLabel(String value) {
@@ -890,16 +1196,9 @@ public final class PdfDocumentWriter {
             canvas.rectangle(left, centerY - height / 2f, width, height);
             canvas.stroke();
 
-            canvas.setColorFill(score >= THRESHOLD ? INK : LIGHT);
+            canvas.setColorFill(INK);
             canvas.rectangle(left, centerY - height / 2f, width * score / 100f, height);
             canvas.fill();
-
-            float thresholdX = left + width * THRESHOLD / 100f;
-            canvas.setColorStroke(INK);
-            canvas.setLineDash(2f, 2f);
-            canvas.moveTo(thresholdX, centerY - 8f);
-            canvas.lineTo(thresholdX, centerY + 8f);
-            canvas.stroke();
             canvas.restoreState();
         }
     }
@@ -1062,14 +1361,21 @@ public final class PdfDocumentWriter {
             for (String part : parts) {
                 String trimmed = part.trim();
                 if (trimmed.startsWith("original=")) {
-                    original = trimmed.substring("original=".length()).trim();
+                    original = normalizeSerializedValue(trimmed.substring("original=".length()));
                 } else if (trimmed.startsWith("candidate=")) {
-                    candidate = trimmed.substring("candidate=".length()).trim();
+                    candidate = normalizeSerializedValue(trimmed.substring("candidate=".length()));
                 } else if (trimmed.startsWith("result=")) {
-                    result = trimmed.substring("result=".length()).trim();
+                    result = normalizeSerializedValue(trimmed.substring("result=".length()));
                 }
             }
             return new CompareRow(label, shorten(original, 18, 10), shorten(candidate, 18, 10), result);
+        }
+
+        private static String normalizeSerializedValue(String value) {
+            if (value == null || value.isBlank() || "null".equalsIgnoreCase(value.trim())) {
+                return "-";
+            }
+            return value.trim();
         }
     }
 

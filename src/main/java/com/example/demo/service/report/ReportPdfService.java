@@ -1,5 +1,6 @@
 package com.example.demo.service.report;
 
+import com.example.demo.config.ReportPublicUrlProperties;
 import com.example.demo.service.compare.CompareVerificationAssembler;
 import com.example.demo.service.compare.CompareVerificationService;
 import com.example.demo.service.custody.ReportCustodyLogService;
@@ -46,7 +47,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,12 +72,7 @@ public class ReportPdfService {
     private final ReportPdfPersistenceService reportPdfPersistenceService;
     private final EvidenceManifestService evidenceManifestService;
     private final BlockchainAnchorRepository blockchainAnchorRepository;
-
-    @Value("${report.public-view-base-url:https://forensheildjangdochi.com/public-report}")
-    private String publicViewBaseUrl;
-
-    @Value("${report.public-access-ttl-days:7}")
-    private long publicAccessTtlDays;
+    private final ReportPublicUrlProperties reportPublicUrlProperties;
 
     public ReportPdfPayload generateEvidenceReport(User user, Long evidenceId) {
         return generateEvidenceReport(user, evidenceId, false);
@@ -215,6 +210,10 @@ public class ReportPdfService {
         }
 
         Report report = optionalReport.get();
+        if (!report.isIssued()) {
+            return pendingPublicationResponse(report);
+        }
+
         boolean hashMatched = reportPdfStorageService.verifyStoredFileHash(report);
         SignatureSnapshot signature = resolveSignature(report.getEvidenceId());
         BlockchainSnapshot blockchain = resolveBlockchain(report);
@@ -270,6 +269,13 @@ public class ReportPdfService {
                         "REPORT_VERIFICATION_NOT_FOUND",
                         "등록되지 않은 검증 정보입니다."
                 ));
+        if (!report.isIssued()) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "REPORT_NOT_ISSUED",
+                    "아직 발행되지 않은 보고서입니다."
+            );
+        }
 
         String normalizedHash = normalizeSha256(fileHash);
         boolean storedFileIntact = reportPdfStorageService.verifyStoredFileHash(report);
@@ -319,7 +325,7 @@ public class ReportPdfService {
 
         report.setPublicAccessEnabled(true);
         report.setPublicAccessIssuedAt(now);
-        report.setPublicAccessExpiresAt(now.plusDays(publicAccessTtlDays));
+        report.setPublicAccessExpiresAt(now.plusDays(reportPublicUrlProperties.getPublicAccessTtlDays()));
         Report saved = reportRepository.save(report);
         return toPublicAccessIssueResponse(saved);
     }
@@ -339,12 +345,36 @@ public class ReportPdfService {
 
     private Optional<Report> resolvePublicReport(String token, String code) {
         if (token != null && !token.isBlank()) {
-            return reportRepository.findByVerificationToken(token.trim()).filter(Report::isIssued);
+            return reportRepository.findByVerificationToken(token.trim());
         }
         if (code != null && !code.isBlank()) {
-            return reportRepository.findByVerificationCode(normalizeVerificationCode(code)).filter(Report::isIssued);
+            return reportRepository.findByVerificationCode(normalizeVerificationCode(code));
         }
         throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "token 또는 code는 필수입니다.");
+    }
+
+    private PublicReportVerifyResponse pendingPublicationResponse(Report report) {
+        return PublicReportVerifyResponse.builder()
+                .status("PENDING")
+                .valid(false)
+                .message("아직 발행되지 않은 보고서입니다. 검토 승인과 발행 등록이 완료된 후 다시 확인해 주세요.")
+                .reportId(report.getReportId())
+                .reportNo(report.getReportNo())
+                .reportType(report.getCompareId() == null ? "ANALYSIS" : "COMPARE")
+                .revision(report.getReportVersion())
+                .publicationStatus(report.getPublicationStatus().name())
+                .queriedAt(formatDateTime(LocalDateTime.now()))
+                .pdfSignatureApplied(false)
+                .evidenceId(report.getEvidenceId())
+                .reportFileName(report.getReportFileName())
+                .createdAt(formatDateTime(report.getCreatedAt()))
+                .hashMatched(false)
+                .storedFileIntact(false)
+                .signatureValid(null)
+                .signatureStatus("NOT_ISSUED")
+                .blockchainMatched(null)
+                .blockchainStatus("NOT_ISSUED")
+                .build();
     }
 
     private String normalizeVerificationCode(String code) {
@@ -481,8 +511,7 @@ public class ReportPdfService {
     }
 
     private String buildPublicViewUrl(String accessCode) {
-        String separator = publicViewBaseUrl.contains("?") ? "&" : "?";
-        return publicViewBaseUrl + separator + "code=" + URLEncoder.encode(accessCode, StandardCharsets.UTF_8);
+        return reportPublicUrlProperties.publicViewUrl(accessCode);
     }
 
     private AnalysisRequest requireCompletedAnalysis(Long evidenceId) {

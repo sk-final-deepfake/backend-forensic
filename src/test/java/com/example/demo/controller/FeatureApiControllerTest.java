@@ -35,6 +35,8 @@ import com.example.demo.service.notification.NotificationService;
 import com.example.demo.security.SignupRateLimitService;
 import com.example.demo.support.JwtTestSupport;
 import com.example.demo.support.StepUpTestSupport;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -327,6 +330,11 @@ class FeatureApiControllerTest {
                 .andExpect(jsonPath("$.fileName").value("candidate.mp4"))
                 .andExpect(jsonPath("$.compareId").value(compareId));
 
+        mockMvc.perform(get("/api/v1/compare/" + compareId + "/reports/pdf")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("REPORT_NOT_APPROVED"));
+
         approveCase();
 
         mockMvc.perform(get("/api/v1/compare/" + compareId + "/reports/pdf")
@@ -397,14 +405,58 @@ class FeatureApiControllerTest {
         result.setRiskLevel(RiskLevel.MEDIUM);
         result.setSummary("test summary");
         result.setAnalyzedAt(LocalDateTime.now());
-        analysisResultRepository.save(result);
+        result = analysisResultRepository.save(result);
 
-        mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf")
+        AnalysisModuleResult timeline = new AnalysisModuleResult();
+        timeline.setAnalysisResultId(result.getAnalysisResultId());
+        timeline.setModuleName("video_timeline");
+        timeline.setDetected(true);
+        timeline.setScore(0.0);
+        timeline.setConfidence(0.8);
+        timeline.setModelName("ForenShield-DF");
+        timeline.setModelVersion("1.2.0");
+        timeline.setDetailsJson("""
+                {
+                  "analysisReasons":["Deepfake face mismatch detected"],
+                  "frameRisks":[{"frameIndex":300,"timestampSec":12.0,"riskScore":0.82}],
+                  "suspiciousSegments":[{"startTime":12.0,"endTime":15.0,"maxRiskScore":0.82,"reason":"high risk"}],
+                  "moduleTimelines":[{
+                    "module":"temporal",
+                    "modelName":"TimeSFormer",
+                    "modelVersion":"1.2.0",
+                    "videoScore":0.72,
+                    "threshold":0.6,
+                    "detected":true,
+                    "frameRisks":[],
+                    "clipRisks":[{"clipIndex":3,"startFrameIndex":288,"endFrameIndex":360,"startTimeSec":12.0,"endTimeSec":15.0,"riskScore":0.82}],
+                    "pairRisks":[],
+                    "suspiciousSegments":[{"startTime":12.0,"endTime":15.0,"maxRiskScore":0.82,"reason":"temporal high risk"}]
+                  }],
+                  "representativeFrames":[{"timeSec":12.4,"timestamp":"00:12","frameNumber":310,"score":0.82,"imageUrl":"s3://bucket/frame-310.jpg"}]
+                }
+                """);
+        timeline.setCreatedAt(LocalDateTime.now());
+        analysisModuleResultRepository.save(timeline);
+
+        MvcResult previewResult = mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/pdf")
                         .param("preview", "true")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
-                .andExpect(header().string("X-Report-Preview", "true"));
+                .andExpect(header().string("X-Report-Preview", "true"))
+                .andReturn();
+
+        PdfReader previewPdf = new PdfReader(previewResult.getResponse().getContentAsByteArray());
+        try {
+            String previewText = new PdfTextExtractor(previewPdf).getTextFromPage(4);
+            assertThat(previewText)
+                    .contains("검증 QR과 URL은 발행 등록 후 생성됩니다.")
+                    .contains("미발행 · 미리보기")
+                    .contains("미리보기 - 검증 불가")
+                    .doesNotContain("vrf_");
+        } finally {
+            previewPdf.close();
+        }
 
         Report previewReport = reportRepository.findTopByEvidenceIdOrderByCreatedAtDesc(evidence.getEvidenceId())
                 .orElseThrow();
@@ -421,6 +473,28 @@ class FeatureApiControllerTest {
                 .orElseThrow();
         assertThat(previewReport.getPublicationStatus()).isEqualTo(ReportPublicationStatus.DRAFT);
         assertThat(previewReport.getVerificationToken()).isNull();
+
+        previewReport.setVerificationToken("vrf_legacy_unissued_report");
+        previewReport.setVerificationCode("VF-UNIS-SUED");
+        reportRepository.save(previewReport);
+
+        mockMvc.perform(get("/api/v1/public/reports/verify")
+                        .param("token", "vrf_legacy_unissued_report"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.message").value("아직 발행되지 않은 보고서입니다. 검토 승인과 발행 등록이 완료된 후 다시 확인해 주세요."));
+
+        mockMvc.perform(post("/api/v1/public/reports/verify-file-hash")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "token": "vrf_legacy_unissued_report",
+                                  "fileHash": "%s"
+                                }
+                                """.formatted(previewReport.getReportHash())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("REPORT_NOT_ISSUED"));
 
         mockMvc.perform(post("/api/v1/reports/" + previewReport.getReportId() + "/public-access")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
@@ -447,6 +521,21 @@ class FeatureApiControllerTest {
                 .orElseThrow();
         assertThat(report.getPublicationStatus()).isEqualTo(ReportPublicationStatus.ISSUED);
         assertThat(report.getVerificationToken()).isNotBlank();
+        PdfReader issuedPdf = new PdfReader(Files.readAllBytes(Path.of(report.getStoragePath())));
+        try {
+            assertThat(issuedPdf.getNumberOfPages()).isEqualTo(4);
+            assertThat(new PdfTextExtractor(issuedPdf).getTextFromPage(3))
+                    .contains("AI 상세 근거")
+                    .contains("TimeSFormer")
+                    .contains("전체 프레임")
+                    .contains("00:12.00 - 00:15.00")
+                    .contains("temporal high risk")
+                    .contains("프레임 300")
+                    .contains("310")
+                    .contains("등록됨");
+        } finally {
+            issuedPdf.close();
+        }
         String reportHash = report.getReportHash();
 
         mockMvc.perform(get("/api/v1/evidences/" + evidence.getEvidenceId() + "/reports/verify")
@@ -477,6 +566,37 @@ class FeatureApiControllerTest {
                 .andExpect(jsonPath("$.valid").value(true))
                 .andExpect(jsonPath("$.reportNo").value(report.getReportNo()))
                 .andExpect(jsonPath("$.reportHash").value(reportHash));
+
+        mockMvc.perform(post("/api/v1/public/reports/verify-file-hash")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "token": "%s",
+                                  "fileHash": "%s"
+                                }
+                                """.formatted(report.getVerificationToken(), reportHash)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("MATCH"))
+                .andExpect(jsonPath("$.matched").value(true))
+                .andExpect(jsonPath("$.storedFileIntact").value(true))
+                .andExpect(jsonPath("$.reportNo").value(report.getReportNo()))
+                .andExpect(jsonPath("$.submittedHash").value(reportHash))
+                .andExpect(jsonPath("$.registeredHash").value(reportHash));
+
+        String differentPdfHash = "0".repeat(64);
+        mockMvc.perform(post("/api/v1/public/reports/verify-file-hash")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "token": "%s",
+                                  "fileHash": "%s"
+                                }
+                                """.formatted(report.getVerificationToken(), differentPdfHash)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("MISMATCH"))
+                .andExpect(jsonPath("$.matched").value(false))
+                .andExpect(jsonPath("$.submittedHash").value(differentPdfHash))
+                .andExpect(jsonPath("$.registeredHash").value(reportHash));
 
         mockMvc.perform(post("/api/v1/reports/" + report.getReportId() + "/public-access")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
