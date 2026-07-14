@@ -70,7 +70,7 @@ class ReadinessThresholds:
     caution_min_pixels: int = 640 * 480
     poor_min_pixels: int = 426 * 240
 
-    # Aggregate gates for tiering (blur min across sampled frames)
+    # Aggregate gates for tiering (blur mean across sampled frames)
     poor_blur_min_lt: float = 80.0
     caution_blur_min_lt: float = 100.0
 
@@ -270,7 +270,7 @@ def _evaluate_readiness_tier(
     height: int | None,
     fps: float | None,
     duration_sec: float | None,
-    blur_min: float | None,
+    blur_mean: float | None,
     blockiness_max: float | None,
     fft_peak_max: float | None,
     thresholds: ReadinessThresholds,
@@ -301,16 +301,16 @@ def _evaluate_readiness_tier(
         tier = _max_tier(tier, "CAUTION")
         reasons.append(f"FPS {fps:.1f} (권장 {thresholds.min_fps:.0f} 이상)")
 
-    if blur_min is not None:
-        if blur_min < thresholds.poor_blur_min_lt:
+    if blur_mean is not None:
+        if blur_mean < thresholds.poor_blur_min_lt:
             tier = "POOR"
             reasons.append(
-                f"선명도(blur) 최저값 {blur_min:.1f} (권장 {thresholds.blur_low_lt:.0f} 이상)"
+                f"선명도(blur) 평균값 {blur_mean:.1f} (권장 {thresholds.blur_low_lt:.0f} 이상)"
             )
-        elif blur_min < thresholds.caution_blur_min_lt:
+        elif blur_mean < thresholds.caution_blur_min_lt:
             tier = _max_tier(tier, "CAUTION")
             reasons.append(
-                f"선명도(blur) 최저값 {blur_min:.1f} (권장 {thresholds.blur_low_lt:.0f} 이상)"
+                f"선명도(blur) 평균값 {blur_mean:.1f} (권장 {thresholds.blur_low_lt:.0f} 이상)"
             )
 
     if blockiness_max is not None and blockiness_max > thresholds.blockiness_high_gt:
@@ -474,7 +474,7 @@ def analyze_video_readiness(
         height=height,
         fps=fps,
         duration_sec=result.duration_sec,
-        blur_min=blur_min,
+        blur_mean=blur_mean,
         blockiness_max=blockiness_max,
         fft_peak_max=fft_max,
         thresholds=thresholds,
