@@ -67,6 +67,35 @@
 | `errorCode` | String | 예: `MODEL_INFERENCE_FAILED` |
 | `message` | String | 사용자/운영용 요약 (시크릿 금지) |
 
+### 3.3 On-demand Overlay Job (선택)
+
+분석 완료 후 FE가 모듈별 baked 오버레이를 요청할 때 사용합니다.
+
+**Job (BE → AI)** queue `forenshield.overlay.queue`, routing key `overlay.video`
+
+| 필드 | 타입 | 설명 |
+| :--- | :--- | :--- |
+| `jobType` | String | `OVERLAY` |
+| `overlayJobId` | Long | BE job id |
+| `analysisRequestId` | Long | |
+| `evidenceId` | Long | |
+| `module` | String | `cnn` \| `temporal` \| `optical` \| `forgery_spatial` |
+| `filePath` / S3 / presign | | 분석 job과 동일 |
+| `frameRisks` / `clipRisks` / `pairRisks` | Array | 모듈에 맞는 점수 페이로드 |
+
+**Result (AI → BE)** routing key `result.overlay`
+
+| 필드 | 타입 | 설명 |
+| :--- | :--- | :--- |
+| `jobType` | String | `OVERLAY` |
+| `overlayJobId` | Long | |
+| `status` | String | `IN_PROGRESS` \| `COMPLETED` \| `FAILED` |
+| `progressPercent` | Integer | 0~100 |
+| `overlayVideoUrl` | String | COMPLETED 시 필수 |
+| `module` | String | |
+
+본 분석 경로에서는 오버레이 MP4를 만들지 않고, TruFor 점수·대표 프레임만 포함합니다.
+
 ---
 
 ## 4. 영상(Video) results[] 항목

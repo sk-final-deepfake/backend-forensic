@@ -22,7 +22,9 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitMqConfig {
 
     public static final String ANALYSIS_QUEUE = "forenshield.analysis.queue";
+    public static final String OVERLAY_QUEUE = "forenshield.overlay.queue";
     public static final String RESULT_QUEUE = "backend.ai.result.queue";
+    public static final String OVERLAY_RESULT_QUEUE = "backend.ai.overlay.result.queue";
     public static final String ANALYSIS_DLQ = "forenshield.analysis.dlq";
 
     @Bean
@@ -49,8 +51,21 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    Queue overlayQueue(AnalysisMessagingProperties properties) {
+        return QueueBuilder.durable(OVERLAY_QUEUE)
+                .withArgument("x-dead-letter-exchange", properties.getDeadLetterExchange())
+                .withArgument("x-dead-letter-routing-key", ANALYSIS_DLQ)
+                .build();
+    }
+
+    @Bean
     Queue analysisResultQueue() {
         return QueueBuilder.durable(RESULT_QUEUE).build();
+    }
+
+    @Bean
+    Queue overlayResultQueue() {
+        return QueueBuilder.durable(OVERLAY_RESULT_QUEUE).build();
     }
 
     @Bean
@@ -70,6 +85,17 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    Binding overlayQueueBinding(
+            Queue overlayQueue,
+            TopicExchange analysisExchange,
+            AnalysisMessagingProperties properties
+    ) {
+        return BindingBuilder.bind(overlayQueue)
+                .to(analysisExchange)
+                .with(properties.getOverlayRoutingKey());
+    }
+
+    @Bean
     Binding analysisResultQueueBinding(
             Queue analysisResultQueue,
             TopicExchange resultExchange,
@@ -78,6 +104,17 @@ public class RabbitMqConfig {
         return BindingBuilder.bind(analysisResultQueue)
                 .to(resultExchange)
                 .with(properties.getVideoResultRoutingKey());
+    }
+
+    @Bean
+    Binding overlayResultQueueBinding(
+            Queue overlayResultQueue,
+            TopicExchange resultExchange,
+            AnalysisMessagingProperties properties
+    ) {
+        return BindingBuilder.bind(overlayResultQueue)
+                .to(resultExchange)
+                .with(properties.getOverlayResultRoutingKey());
     }
 
     @Bean
