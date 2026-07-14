@@ -51,7 +51,8 @@
 | :--- | :--- | :--- |
 | `analysisRequestId` | Long | 분석 요청 ID |
 | `evidenceId` | Long | 증거 ID |
-| `status` | String | `COMPLETED` \| `FAILED` |
+| `status` | String | `IN_PROGRESS` \| `COMPLETED` \| `FAILED` |
+| `progressPercent` | Integer | `IN_PROGRESS` 시 0~99 권장. `COMPLETED`면 BE가 100으로 확정 |
 | `riskScore` | Double | 0.0 ~ 100.0 |
 | `confidenceScore` | Double | 0.0 ~ 1.0 |
 | `riskLevel` | String | `LOW` \| `MEDIUM` \| `HIGH` |

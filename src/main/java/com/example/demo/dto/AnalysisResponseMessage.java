@@ -20,6 +20,8 @@ public class AnalysisResponseMessage {
     private Long analysisRequestId;
     private Long evidenceId;
     private String status;
+    /** Mid-run progress 0~99 from AI IN_PROGRESS; optional on terminal messages. */
+    private Integer progressPercent;
     private Double riskScore;
     private Double confidenceScore;
     private String riskLevel;
