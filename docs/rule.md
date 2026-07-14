@@ -1,4 +1,4 @@
-# VeriForensics (ForenShield AI) 팀 개발 규칙
+# ForenShield AI 팀 개발 규칙
 
 > **문서 버전:** v1.1  
 > **기준 명세:** `요구사항명세서_최종 (1).xlsx` · `기능명세서_최종.xlsx`  
@@ -13,7 +13,7 @@
 
 | 항목 | 내용 |
 | :--- | :--- |
-| **서비스명** | VeriForensics (ForenShield AI) |
+| **서비스명** | ForenShield AI |
 | **목적** | 내부망 전용 디지털 포렌식 **영상** 증거 무결성 검증 및 AI 딥페이크 분석 |
 | **총 요구사항** | RQ **169건** (Excel 자동 추출) |
 | **총 기능(FN)** | 266건 (파트별: FE / BE / AI / INF) |

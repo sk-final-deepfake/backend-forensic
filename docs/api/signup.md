@@ -1,4 +1,4 @@
-# VeriForensics — 회원가입(Signup) API 명세서
+# ForenShield — 회원가입(Signup) API 명세서
 
 > **전체 API:** [specification.md](../api/specification.md) · **회원가입 파트:** 본 문서  
 > **공통 API 규칙:** [convention.md](./convention.md)

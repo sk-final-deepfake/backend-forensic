@@ -1,4 +1,4 @@
-# VeriForensics E2E 테스트 계획 (FE + BE)
+# ForenShield E2E 테스트 계획 (FE + BE)
 
 > **작성일:** 2026-07-07  
 > **범위:** `frontend-deepfake` (Next.js) ↔ `backend-forensic` (Spring Boot)  
