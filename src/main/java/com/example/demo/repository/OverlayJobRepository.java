@@ -9,8 +9,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface OverlayJobRepository extends JpaRepository<OverlayJob, Long> {
 
-    Optional<OverlayJob> findFirstByEvidenceIdAndModuleAndStatusInOrderByRequestedAtDesc(
+    Optional<OverlayJob> findFirstByEvidenceIdAndAnalysisRequestIdAndModuleAndStatusInOrderByRequestedAtDesc(
             Long evidenceId,
+            Long analysisRequestId,
             String module,
             Collection<OverlayJobStatus> statuses
     );

@@ -74,9 +74,13 @@ public class OverlayJobService {
             throw new IllegalStateException("분석이 완료된 증거만 오버레이를 생성할 수 있습니다.");
         }
 
+        Long analysisRequestId = analysisRequest.getAnalysisRequestId();
+
+        // Scope reuse to this analysis only — re-analysis must not return an older MP4 job.
         OverlayJob existing = overlayJobRepository
-                .findFirstByEvidenceIdAndModuleAndStatusInOrderByRequestedAtDesc(
+                .findFirstByEvidenceIdAndAnalysisRequestIdAndModuleAndStatusInOrderByRequestedAtDesc(
                         evidenceId,
+                        analysisRequestId,
                         normalizedModule,
                         ACTIVE_STATUSES
                 )
@@ -86,8 +90,9 @@ public class OverlayJobService {
         }
 
         OverlayJob completed = overlayJobRepository
-                .findFirstByEvidenceIdAndModuleAndStatusInOrderByRequestedAtDesc(
+                .findFirstByEvidenceIdAndAnalysisRequestIdAndModuleAndStatusInOrderByRequestedAtDesc(
                         evidenceId,
+                        analysisRequestId,
                         normalizedModule,
                         List.of(OverlayJobStatus.COMPLETED)
                 )
@@ -96,7 +101,7 @@ public class OverlayJobService {
             return toResponse(completed);
         }
 
-        Map<String, Object> timelineDetails = loadTimelineDetails(analysisRequest.getAnalysisRequestId());
+        Map<String, Object> timelineDetails = loadTimelineDetails(analysisRequestId);
         OverlayJobMessage messagePayload = buildJobMessage(
                 evidence,
                 analysisRequest,
@@ -106,7 +111,7 @@ public class OverlayJobService {
 
         OverlayJob job = new OverlayJob();
         job.setEvidenceId(evidenceId);
-        job.setAnalysisRequestId(analysisRequest.getAnalysisRequestId());
+        job.setAnalysisRequestId(analysisRequestId);
         job.setModule(normalizedModule);
         job.setStatus(OverlayJobStatus.QUEUED);
         job.setProgressPercent(0);
