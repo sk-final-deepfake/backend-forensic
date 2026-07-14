@@ -7,6 +7,7 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.OverlayJob;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.AnalysisStatus;
+import com.example.demo.domain.enums.CopyStatus;
 import com.example.demo.domain.enums.OverlayJobStatus;
 import com.example.demo.dto.OverlayJobMessage;
 import com.example.demo.dto.OverlayJobStatusResponse;
@@ -313,19 +314,16 @@ public class OverlayJobService {
             String module,
             Map<String, Object> timelineDetails
     ) {
-        String copyKey = evidence.getCopyStoragePath();
-        if (copyKey == null || copyKey.isBlank()) {
-            copyKey = evidence.getOriginalStoragePath();
-        }
-        String downloadUrl = s3AnalysisAccessService.createGpuDownloadUrl(copyKey);
+        String videoKey = resolveOverlayVideoKey(evidence);
+        String downloadUrl = s3AnalysisAccessService.createGpuDownloadUrl(videoKey);
 
         OverlayJobMessage.OverlayJobMessageBuilder builder = OverlayJobMessage.builder()
                 .jobType("OVERLAY")
                 .analysisRequestId(analysisRequest.getAnalysisRequestId())
                 .evidenceId(evidence.getEvidenceId())
                 .module(module)
-                .filePath(copyKey)
-                .s3ObjectKey(copyKey)
+                .filePath(videoKey)
+                .s3ObjectKey(videoKey)
                 .s3Bucket(s3AnalysisAccessService.getEvidenceBucket())
                 .s3Region(s3AnalysisAccessService.getAwsRegion())
                 .presignedDownloadUrl(downloadUrl);
@@ -339,6 +337,21 @@ public class OverlayJobService {
         }
 
         return builder.build();
+    }
+
+    /** Analysis deletes the S3 copy after COMPLETED; on-demand overlay must use original. */
+    private String resolveOverlayVideoKey(Evidence evidence) {
+        if (evidence.getCopyStatus() == CopyStatus.ACTIVE) {
+            String copyKey = evidence.getCopyStoragePath();
+            if (copyKey != null && !copyKey.isBlank()) {
+                return copyKey;
+            }
+        }
+        String original = evidence.getOriginalStoragePath();
+        if (original == null || original.isBlank()) {
+            throw new IllegalStateException("원본 영상 경로가 없습니다.");
+        }
+        return original;
     }
 
     private List<OverlayJobMessage.FrameRiskItem> readFrameRisks(Map<String, Object> details, String module) {
