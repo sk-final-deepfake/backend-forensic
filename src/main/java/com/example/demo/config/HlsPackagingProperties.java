@@ -22,6 +22,12 @@ public class HlsPackagingProperties {
     /** 1건 패키징 타임아웃 (분) */
     private int timeoutMinutes = 30;
 
+    /**
+     * 재생용 HLS 최대 세로 해상도. 원본이 더 크면 다운스케일한다.
+     * 8K/4K 원본을 그대로 libx264 하면 패키징이 수십 분~타임아웃까지 갈 수 있다.
+     */
+    private int maxHeight = 1080;
+
     /** HLS 세그먼트 길이 (초) */
     private int segmentDurationSec = 6;
 

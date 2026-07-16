@@ -170,6 +170,9 @@ public class EvidenceHlsPackagingService {
 
     private void runFfmpeg(Path input, Path workDir, Path keyInfo, Path playlist) throws IOException, InterruptedException {
         String ffmpeg = resolveFfmpegPath();
+        // Preview stream only — cap height so 4K/8K HEVC does not encode at native resolution.
+        int maxHeight = Math.max(360, properties.getMaxHeight());
+        String scaleFilter = "scale=-2:'min(" + maxHeight + ",ih)'";
         List<String> command = List.of(
                 ffmpeg,
                 "-hide_banner",
@@ -178,12 +181,16 @@ public class EvidenceHlsPackagingService {
                 "-y",
                 "-i",
                 input.toAbsolutePath().toString(),
+                "-vf",
+                scaleFilter,
                 "-c:v",
                 "libx264",
                 "-preset",
                 "veryfast",
                 "-crf",
                 "23",
+                "-pix_fmt",
+                "yuv420p",
                 "-c:a",
                 "aac",
                 "-b:a",
