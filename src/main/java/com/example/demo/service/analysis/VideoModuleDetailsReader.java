@@ -6,6 +6,7 @@ import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.PairRiskDto;
 import com.example.demo.dto.RepresentativeFrameDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.dto.TamperBBoxDto;
 import com.example.demo.dto.detail.ModuleTimelineDto;
 import com.example.demo.dto.detail.ModelOverlayArtifactDto;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -257,8 +258,30 @@ public class VideoModuleDetailsReader {
                             .frameIndex(asInt(map.get("frameIndex")))
                             .timestampSec(asDouble(map.get("timestampSec")))
                             .riskScore(asDouble(map.get("riskScore")))
+                            .bboxes(readTamperBboxes(map.get("bboxes")))
                             .build();
                 })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<TamperBBoxDto> readTamperBboxes(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return TamperBBoxDto.builder()
+                            .x(asInt(map.get("x")))
+                            .y(asInt(map.get("y")))
+                            .w(asInt(map.get("w")))
+                            .h(asInt(map.get("h")))
+                            .score(map.get("score") == null ? null : asDouble(map.get("score")))
+                            .build();
+                })
+                .filter(box -> box.getW() > 0 && box.getH() > 0)
                 .toList();
     }
 
