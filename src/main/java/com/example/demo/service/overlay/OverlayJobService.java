@@ -48,7 +48,8 @@ public class OverlayJobService {
             "cnn",
             "temporal",
             "optical",
-            "forgery_spatial"
+            "forgery_spatial",
+            "forgery_temporal"
     );
 
     private static final Set<OverlayJobStatus> ACTIVE_STATUSES = Set.of(
@@ -358,11 +359,12 @@ public class OverlayJobService {
                 .s3Region(s3AnalysisAccessService.getAwsRegion())
                 .presignedDownloadUrl(downloadUrl);
 
-        if ("temporal".equals(module)) {
+        if ("temporal".equals(module) || "forgery_temporal".equals(module)) {
             builder.clipRisks(readClipRisks(timelineDetails, module));
         } else if ("optical".equals(module)) {
             builder.pairRisks(readPairRisks(timelineDetails, module));
         } else {
+            // cnn + forgery_spatial (TruFor localization bboxes live in frameRisks)
             builder.frameRisks(readFrameRisks(timelineDetails, module));
         }
 
@@ -526,6 +528,7 @@ public class OverlayJobService {
             case "temporal" -> "deepfake:temporal";
             case "optical" -> "deepfake:optical";
             case "forgery_spatial" -> "forgery:forgery_spatial";
+            case "forgery_temporal" -> "forgery:forgery_temporal";
             default -> module;
         };
     }
@@ -536,6 +539,7 @@ public class OverlayJobService {
             case "temporal" -> "TimeSformer";
             case "optical" -> "GMFlow";
             case "forgery_spatial" -> "TruFor";
+            case "forgery_temporal" -> "TimeSformer";
             default -> module;
         };
     }
