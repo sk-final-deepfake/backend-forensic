@@ -459,15 +459,41 @@ def calculate_fft_grid_peak(gray_frame: np.ndarray) -> float:
     return min(peak_strength, 1.0)
 
 
+def _effective_blur_gates(
+    width: int | None,
+    height: int | None,
+    thresholds: ReadinessThresholds,
+) -> tuple[float, float, float]:
+    """
+    Returns (poor_lt, caution_lt, recommend_gte).
+
+    High-res (4K/8K) clips often land lower on Laplacian even when subjectively sharp
+    (grading, denoise, center-crop window). Keep measured scores, relax absolute gates.
+    """
+    pixels = (width or 0) * (height or 0)
+    if pixels >= 7680 * 4320:  # 8K-class
+        return 20.0, 35.0, 35.0
+    if pixels >= 3840 * 2160:  # 4K-class
+        return 40.0, 60.0, 60.0
+    return (
+        thresholds.poor_blur_min_lt,
+        thresholds.caution_blur_min_lt,
+        thresholds.blur_low_lt,
+    )
+
+
 def _frame_flags(
     blur: float,
     blockiness: float,
     fft_peak: float,
     worst_region_score: float,
     thresholds: ReadinessThresholds,
+    *,
+    blur_low_lt: float | None = None,
 ) -> dict[str, bool]:
+    blur_gate = thresholds.blur_low_lt if blur_low_lt is None else blur_low_lt
     return {
-        "blurLow": blur < thresholds.blur_low_lt,
+        "blurLow": blur < blur_gate,
         "blockinessHigh": blockiness > thresholds.blockiness_high_gt,
         "fftPeakHigh": fft_peak > thresholds.fft_peak_high_gt,
         "worstRegionAlert": worst_region_score > thresholds.worst_region_alert_gt,
@@ -511,16 +537,21 @@ def _evaluate_readiness_tier(
         tier = _max_tier(tier, "CAUTION")
         reasons.append(f"FPS {fps:.1f} (권장 {thresholds.min_fps:.0f} 이상)")
 
+    poor_blur_lt, caution_blur_lt, blur_recommend = _effective_blur_gates(
+        width, height, thresholds
+    )
     if blur_mean is not None:
-        if blur_mean < thresholds.poor_blur_min_lt:
+        if blur_mean < poor_blur_lt:
             tier = "POOR"
             reasons.append(
-                f"선명도(blur) 평균값 {blur_mean:.1f} (권장 {thresholds.blur_low_lt:.0f} 이상)"
+                f"선명도(blur) 평균값 {blur_mean:.1f} "
+                f"(권장 {blur_recommend:.0f} 이상 · 해상도 보정 기준)"
             )
-        elif blur_mean < thresholds.caution_blur_min_lt:
+        elif blur_mean < caution_blur_lt:
             tier = _max_tier(tier, "CAUTION")
             reasons.append(
-                f"선명도(blur) 평균값 {blur_mean:.1f} (권장 {thresholds.blur_low_lt:.0f} 이상)"
+                f"선명도(blur) 평균값 {blur_mean:.1f} "
+                f"(권장 {blur_recommend:.0f} 이상 · 해상도 보정 기준)"
             )
 
     if blockiness_max is not None and blockiness_max > thresholds.blockiness_high_gt:
@@ -592,6 +623,7 @@ def analyze_video_readiness(
     sample_every = _adaptive_sample_every(sample_every, width, height)
     result.sample_every = sample_every
     metric_limit = _adaptive_max_metric_frames(max_metric_frames, width, height)
+    _, _, blur_recommend = _effective_blur_gates(width, height, thresholds)
 
     blur_values: list[float] = []
     blockiness_values: list[float] = []
@@ -648,6 +680,7 @@ def analyze_video_readiness(
                             fft_score,
                             region_score,
                             thresholds,
+                            blur_low_lt=blur_recommend,
                         ),
                     )
                 )
@@ -710,6 +743,7 @@ def analyze_video_readiness(
                                 fft_score,
                                 region_score,
                                 thresholds,
+                                blur_low_lt=blur_recommend,
                             ),
                         )
                     )
