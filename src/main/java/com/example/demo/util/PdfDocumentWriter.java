@@ -387,25 +387,33 @@ public final class PdfDocumentWriter {
         addVerificationBlock(document, qrContent, issued);
 
         addSectionTitle(document, 4, "검증 범위 및 AI 분석 한계");
-        Paragraph verificationScope = new Paragraph(
+        List<String> scopeClauses = new ArrayList<>();
+        scopeClauses.add(
+                "본 보고서는 발행 시점에 기록된 AI 모델 출력과 시스템 처리 결과를 요약한 기술 참고자료이며, 법적 판단을 대신하지 않는다."
+        );
+        scopeClauses.add(
+                "'의심 신호 확인'은 조작 사실을 확정하지 않으며, '의심 신호 미확인'은 영상이 원본이거나 조작되지 않았음을 보증하지 않는다."
+        );
+        scopeClauses.add(
                 issued
-                        ? "QR 검증 페이지에서는 보고서 발행 등록상태를 조회하고, 업로드한 PDF가 발행 등록본과 바이트 단위로 동일한지 확인할 수 있다. "
-                                + "원영상의 촬영 원본성, 수집의 적법성, 수집·인계·보관 이력 또는 AI 분석 결론의 정확성을 검증하는 페이지는 아니다."
-                        : "미리보기 문서는 발행 등록 전 상태이므로 QR 조회와 PDF 파일 동일성 검증을 제공하지 않는다.",
-                font(9.5f, Font.NORMAL, SLATE)
+                        ? "QR 검증 페이지는 본 보고서의 발행 등록 상태 조회와, 업로드한 PDF가 발행 등록본과 동일한 파일인지(바이트 단위 일치 여부)의 확인 기능만을 제공한다. "
+                                + "원본 영상의 촬영 원본성, 증거 수집의 적법성, 수집·인계·보관의 연속성, AI 분석 결론의 정확성은 검증 범위에 포함되지 않는다."
+                        : "본 문서는 발행 등록 전 미리보기이므로 QR 조회 및 PDF 파일 동일성 검증 기능을 제공하지 않는다."
         );
-        verificationScope.setLeading(15);
-        verificationScope.setSpacingAfter(8);
-        document.add(verificationScope);
+        scopeClauses.add(
+                "최종 판단은 사건 맥락, 수집·보관 절차, 그 밖의 증거자료 및 전문가 검토를 종합하여 이루어져야 한다."
+        );
+        addClauseList(document, scopeClauses);
+    }
 
-        Paragraph limitation = new Paragraph(
-                "본 보고서는 발행 시점의 AI 모델 출력과 시스템 처리 결과를 요약한 기술 참고자료이다. "
-                        + "'의심 신호 미확인'은 영상의 원본성 또는 비조작을 보증하지 않으며, '의심 신호 확인'은 조작 사실을 확정하지 않는다. "
-                        + "최종 판단은 사건 맥락, 수집·보관 절차, 다른 자료 및 전문가 검토를 함께 고려해야 한다.",
-                font(10, Font.NORMAL, INK)
-        );
-        limitation.setLeading(16);
-        document.add(limitation);
+    private static void addClauseList(Document document, List<String> clauses) throws DocumentException {
+        for (int i = 0; i < clauses.size(); i++) {
+            Paragraph clause = new Paragraph((i + 1) + ". " + clauses.get(i), font(10, Font.NORMAL, INK));
+            clause.setLeading(16);
+            clause.setIndentationLeft(12);
+            clause.setSpacingAfter(i == clauses.size() - 1 ? 0 : 6);
+            document.add(clause);
+        }
     }
 
     private static void addCompareReportPage(
