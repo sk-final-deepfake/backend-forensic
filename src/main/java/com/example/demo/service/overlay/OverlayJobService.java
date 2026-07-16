@@ -123,7 +123,12 @@ public class OverlayJobService {
                         List.of(OverlayJobStatus.COMPLETED)
                 )
                 .orElse(null);
-        if (completed != null && completed.getOverlayVideoUrl() != null && !completed.getOverlayVideoUrl().isBlank()) {
+        // forgery_spatial: never reuse old border-style MP4s — always rebuild once bbox pipeline is live.
+        boolean reuseCompleted = completed != null
+                && completed.getOverlayVideoUrl() != null
+                && !completed.getOverlayVideoUrl().isBlank()
+                && !"forgery_spatial".equals(normalizedModule);
+        if (reuseCompleted) {
             return toResponse(completed);
         }
 
