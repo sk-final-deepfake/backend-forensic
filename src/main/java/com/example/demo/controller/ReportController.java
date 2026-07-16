@@ -26,19 +26,13 @@ public class ReportController {
     private final ReportPdfService reportPdfService;
     private final AuthUserResolver authUserResolver;
 
-    @Operation(
-            summary = "보고서 목록",
-            description = "사용자가 생성했거나 검토자로 배정된 사건의 발행된 분석·비교 PDF 보고서 목록을 조회합니다. "
-                    + "type(ANALYSIS|COMPARE)으로 보고서 유형을 필터링하고, query로 파일명·사건명·증거 ID를 검색합니다."
-    )
+    @Operation(summary = "보고서 목록", description = "사용자가 생성했거나 검토자로 배정된 사건의 발행된 PDF 보고서 목록을 조회합니다.")
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
     public ReportListPageResponse listReports(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String type,
-            @RequestParam(required = false) String query
+            @RequestParam(defaultValue = "10") int size
     ) {
-        return reportListService.listReports(authUserResolver.requireCurrentUser(), page, size, type, query);
+        return reportListService.listReports(authUserResolver.requireCurrentUser(), page, size);
     }
 
     @Operation(summary = "외부 보고서 열람코드 발급", description = "보고서 내용을 외부에 공유하기 위한 RV 열람코드를 발급합니다.")
