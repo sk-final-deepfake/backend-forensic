@@ -290,6 +290,75 @@ def _ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
+def _ffprobe_available() -> bool:
+    return shutil.which("ffprobe") is not None
+
+
+def _probe_video_meta(path: Path) -> tuple[int | None, int | None, float | None, int, float | None]:
+    """
+    Returns (width, height, fps, total_frames, duration_sec).
+    Prefer ffprobe so we never open an OpenCV HEVC decoder just for metadata.
+    """
+    if _ffprobe_available():
+        command = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height,avg_frame_rate,nb_frames:format=duration,size",
+            "-of",
+            "json",
+            str(path),
+        ]
+        try:
+            completed = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if completed.returncode == 0 and completed.stdout:
+                payload = json.loads(completed.stdout)
+                stream = (payload.get("streams") or [{}])[0]
+                fmt = payload.get("format") or {}
+                width = int(stream["width"]) if stream.get("width") else None
+                height = int(stream["height"]) if stream.get("height") else None
+                fps = None
+                rate = stream.get("avg_frame_rate") or "0/0"
+                if isinstance(rate, str) and "/" in rate:
+                    num_s, den_s = rate.split("/", 1)
+                    num, den = float(num_s), float(den_s)
+                    if den > 0:
+                        fps = num / den
+                total = 0
+                if stream.get("nb_frames"):
+                    total = int(stream["nb_frames"])
+                duration = float(fmt["duration"]) if fmt.get("duration") else None
+                if total <= 0 and duration and fps and fps > 0:
+                    total = int(duration * fps)
+                return width, height, fps, total, duration
+        except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired):
+            pass
+
+    cap = cv2.VideoCapture(str(path))
+    if not cap.isOpened():
+        return None, None, None, 0, None
+    try:
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or None
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or None
+        fps = float(cap.get(cv2.CAP_PROP_FPS)) or None
+        if fps is not None and fps <= 0:
+            fps = None
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+        duration = (total / fps) if fps and total > 0 else None
+        return width, height, fps, total, duration
+    finally:
+        cap.release()
+
+
 def _score_gray_frame(
     gray: np.ndarray,
     thresholds: ReadinessThresholds,
@@ -328,6 +397,8 @@ def _iter_metric_grays_via_ffmpeg(
         "-hide_banner",
         "-loglevel",
         "error",
+        "-threads",
+        "1",
         "-i",
         str(video_path),
         "-vf",
@@ -510,21 +581,14 @@ def analyze_video_readiness(
         sample_every=sample_every,
     )
 
-    cap = cv2.VideoCapture(str(path))
-    if not cap.isOpened():
+    width, height, fps, reported_total, probed_duration = _probe_video_meta(path)
+    if width is None or height is None:
         result.error = f"Cannot open video: {path}"
         result.readiness_tier = "BLOCK"
         result.reasons = ["영상 파일을 열 수 없습니다."]
         result.requires_acknowledgement = False
         return result
 
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or None
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or None
-    fps = float(cap.get(cv2.CAP_PROP_FPS)) or None
-    if fps is not None and fps <= 0:
-        fps = None
-
-    reported_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
     sample_every = _adaptive_sample_every(sample_every, width, height)
     result.sample_every = sample_every
     metric_limit = _adaptive_max_metric_frames(max_metric_frames, width, height)
@@ -538,16 +602,10 @@ def analyze_video_readiness(
     worst_region_score = 0.0
     frame_idx = 0
 
-    use_ffmpeg = (
-        width is not None
-        and height is not None
-        and width * height >= 3840 * 2160
-        and _ffmpeg_available()
-    )
+    # 4K+: never open OpenCV VideoCapture — HEVC DPB alone OOMs beside Java heap.
+    use_ffmpeg = width * height >= 3840 * 2160 and _ffmpeg_available()
 
     if use_ffmpeg:
-        # Drop OpenCV decoder before ffmpeg path — 8K HEVC decode buffers alone can OOM.
-        cap.release()
         for gray in _iter_metric_grays_via_ffmpeg(
             path,
             sample_every=sample_every,
@@ -594,72 +652,81 @@ def analyze_video_readiness(
                     )
                 )
     else:
-        while True:
-            # grab() skips full decode on non-sampled frames (important for HEVC memory).
-            if not cap.grab():
-                break
+        cap = cv2.VideoCapture(str(path))
+        if not cap.isOpened():
+            result.error = f"Cannot open video: {path}"
+            result.readiness_tier = "BLOCK"
+            result.reasons = ["영상 파일을 열 수 없습니다."]
+            result.requires_acknowledgement = False
+            return result
+        try:
+            while True:
+                if not cap.grab():
+                    break
 
-            frame_idx += 1
-            if frame_idx % sample_every != 0:
-                continue
+                frame_idx += 1
+                if frame_idx % sample_every != 0:
+                    continue
 
-            ret, frame = cap.retrieve()
-            if not ret or frame is None:
-                continue
+                ret, frame = cap.retrieve()
+                if not ret or frame is None:
+                    continue
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            del frame
-            gray = _prepare_gray_for_metrics(gray)
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                del frame
+                gray = _prepare_gray_for_metrics(gray)
 
-            (
-                blur_score,
-                blockiness_score,
-                fft_score,
-                region_name,
-                region_score,
-            ) = _score_gray_frame(gray, thresholds)
-            del gray
+                (
+                    blur_score,
+                    blockiness_score,
+                    fft_score,
+                    region_name,
+                    region_score,
+                ) = _score_gray_frame(gray, thresholds)
+                del gray
 
-            blur_values.append(blur_score)
-            blockiness_values.append(blockiness_score)
-            fft_values.append(fft_score)
+                blur_values.append(blur_score)
+                blockiness_values.append(blockiness_score)
+                fft_values.append(fft_score)
 
-            if region_score > worst_region_score:
-                worst_region_score = region_score
-                worst_region = region_name
+                if region_score > worst_region_score:
+                    worst_region_score = region_score
+                    worst_region = region_name
 
-            if include_frame_samples and (
-                max_frame_samples is None or len(frame_samples) < max_frame_samples
-            ):
-                frame_samples.append(
-                    FrameSample(
-                        frame_index=frame_idx,
-                        blur=round(blur_score, 2),
-                        blockiness=round(blockiness_score, 2),
-                        fft_peak=round(fft_score, 4),
-                        worst_region=region_name,
-                        worst_region_score=round(region_score, 2),
-                        flags=_frame_flags(
-                            blur_score,
-                            blockiness_score,
-                            fft_score,
-                            region_score,
-                            thresholds,
-                        ),
+                if include_frame_samples and (
+                    max_frame_samples is None or len(frame_samples) < max_frame_samples
+                ):
+                    frame_samples.append(
+                        FrameSample(
+                            frame_index=frame_idx,
+                            blur=round(blur_score, 2),
+                            blockiness=round(blockiness_score, 2),
+                            fft_peak=round(fft_score, 4),
+                            worst_region=region_name,
+                            worst_region_score=round(region_score, 2),
+                            flags=_frame_flags(
+                                blur_score,
+                                blockiness_score,
+                                fft_score,
+                                region_score,
+                                thresholds,
+                            ),
+                        )
                     )
-                )
 
-            if len(blur_values) >= metric_limit:
-                break
-
-        cap.release()
+                if len(blur_values) >= metric_limit:
+                    break
+        finally:
+            cap.release()
 
     result.total_frames = reported_total if reported_total > 0 else frame_idx
     result.sampled_frames = len(blur_values)
     result.width = width
     result.height = height
     result.fps = fps
-    if fps and result.total_frames > 0:
+    if probed_duration is not None:
+        result.duration_sec = probed_duration
+    elif fps and result.total_frames > 0:
         result.duration_sec = result.total_frames / fps
     elif fps and frame_idx > 0:
         result.duration_sec = frame_idx / fps
