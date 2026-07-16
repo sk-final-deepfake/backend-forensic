@@ -93,22 +93,21 @@ public class AnalysisResponseMessage {
             private Integer frameIndex;
             private Double timestampSec;
             private Double riskScore;
-            /** TruFor localization boxes in video pixel space. */
             private List<TamperBBoxItem> bboxes;
-        }
 
-        @Getter
-        @Setter
-        @Builder
-        @NoArgsConstructor
-        @AllArgsConstructor
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        public static class TamperBBoxItem {
-            private Integer x;
-            private Integer y;
-            private Integer w;
-            private Integer h;
-            private Double score;
+            @Getter
+            @Setter
+            @Builder
+            @NoArgsConstructor
+            @AllArgsConstructor
+            @JsonIgnoreProperties(ignoreUnknown = true)
+            public static class TamperBBoxItem {
+                private Integer x;
+                private Integer y;
+                private Integer w;
+                private Integer h;
+                private Double score;
+            }
         }
 
         @Getter

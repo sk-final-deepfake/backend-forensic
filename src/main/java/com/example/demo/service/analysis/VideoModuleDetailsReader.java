@@ -11,7 +11,6 @@ import com.example.demo.dto.detail.ModuleTimelineDto;
 import com.example.demo.dto.detail.ModelOverlayArtifactDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -259,37 +258,31 @@ public class VideoModuleDetailsReader {
                             .frameIndex(asInt(map.get("frameIndex")))
                             .timestampSec(asDouble(map.get("timestampSec")))
                             .riskScore(asDouble(map.get("riskScore")))
-                            .bboxes(readTamperBBoxes(map.get("bboxes")))
+                            .bboxes(readTamperBboxes(map.get("bboxes")))
                             .build();
                 })
                 .toList();
     }
 
     @SuppressWarnings("unchecked")
-    private List<TamperBBoxDto> readTamperBBoxes(Object raw) {
+    private List<TamperBBoxDto> readTamperBboxes(Object raw) {
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
-        List<TamperBBoxDto> boxes = new ArrayList<>();
-        for (Object item : list) {
-            if (!(item instanceof Map<?, ?> map)) {
-                continue;
-            }
-            Map<String, Object> box = (Map<String, Object>) map;
-            int w = asInt(box.get("w"));
-            int h = asInt(box.get("h"));
-            if (w <= 0 || h <= 0) {
-                continue;
-            }
-            boxes.add(TamperBBoxDto.builder()
-                    .x(asInt(box.get("x")))
-                    .y(asInt(box.get("y")))
-                    .w(w)
-                    .h(h)
-                    .score(asDouble(box.get("score")))
-                    .build());
-        }
-        return boxes;
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    return TamperBBoxDto.builder()
+                            .x(asInt(map.get("x")))
+                            .y(asInt(map.get("y")))
+                            .w(asInt(map.get("w")))
+                            .h(asInt(map.get("h")))
+                            .score(map.get("score") == null ? null : asDouble(map.get("score")))
+                            .build();
+                })
+                .filter(box -> box.getW() > 0 && box.getH() > 0)
+                .toList();
     }
 
     @SuppressWarnings("unchecked")

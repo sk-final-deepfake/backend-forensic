@@ -11,5 +11,5 @@ public class TamperBBoxDto {
     private int y;
     private int w;
     private int h;
-    private double score;
+    private Double score;
 }

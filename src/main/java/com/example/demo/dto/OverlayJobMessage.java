@@ -41,7 +41,7 @@ public class OverlayJobMessage {
         private Integer frameIndex;
         private Double timestampSec;
         private Double riskScore;
-        /** TruFor localization boxes — required for forgery_spatial overlay bake. */
+        /** TruFor localization boxes (video pixel space). */
         private List<TamperBBoxItem> bboxes;
     }
 

@@ -48,7 +48,8 @@ public class OverlayJobService {
             "cnn",
             "temporal",
             "optical",
-            "forgery_spatial"
+            "forgery_spatial",
+            "forgery_temporal"
     );
 
     private static final Set<OverlayJobStatus> ACTIVE_STATUSES = Set.of(
@@ -123,7 +124,12 @@ public class OverlayJobService {
                         List.of(OverlayJobStatus.COMPLETED)
                 )
                 .orElse(null);
-        if (completed != null && completed.getOverlayVideoUrl() != null && !completed.getOverlayVideoUrl().isBlank()) {
+        // forgery_spatial: never reuse old border-style MP4s — always rebuild once bbox pipeline is live.
+        boolean reuseCompleted = completed != null
+                && completed.getOverlayVideoUrl() != null
+                && !completed.getOverlayVideoUrl().isBlank()
+                && !"forgery_spatial".equals(normalizedModule);
+        if (reuseCompleted) {
             return toResponse(completed);
         }
 
@@ -353,11 +359,12 @@ public class OverlayJobService {
                 .s3Region(s3AnalysisAccessService.getAwsRegion())
                 .presignedDownloadUrl(downloadUrl);
 
-        if ("temporal".equals(module)) {
+        if ("temporal".equals(module) || "forgery_temporal".equals(module)) {
             builder.clipRisks(readClipRisks(timelineDetails, module));
         } else if ("optical".equals(module)) {
             builder.pairRisks(readPairRisks(timelineDetails, module));
         } else {
+            // cnn + forgery_spatial (TruFor localization bboxes live in frameRisks)
             builder.frameRisks(readFrameRisks(timelineDetails, module));
         }
 
@@ -390,37 +397,36 @@ public class OverlayJobService {
                     .frameIndex(asInt(row.get("frameIndex")))
                     .timestampSec(asDouble(row.get("timestampSec")))
                     .riskScore(asDouble(row.get("riskScore")))
-                    .bboxes(readTamperBBoxes(row.get("bboxes")))
+                    .bboxes(readTamperBboxes(row.get("bboxes")))
                     .build());
         }
         return out;
     }
 
     @SuppressWarnings("unchecked")
-    private List<OverlayJobMessage.TamperBBoxItem> readTamperBBoxes(Object raw) {
+    private List<OverlayJobMessage.TamperBBoxItem> readTamperBboxes(Object raw) {
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
-        List<OverlayJobMessage.TamperBBoxItem> boxes = new ArrayList<>();
+        List<OverlayJobMessage.TamperBBoxItem> out = new ArrayList<>();
         for (Object item : list) {
             if (!(item instanceof Map<?, ?> map)) {
                 continue;
             }
-            Map<String, Object> box = (Map<String, Object>) map;
-            Integer w = asInt(box.get("w"));
-            Integer h = asInt(box.get("h"));
+            Integer w = asInt(map.get("w"));
+            Integer h = asInt(map.get("h"));
             if (w == null || h == null || w <= 0 || h <= 0) {
                 continue;
             }
-            boxes.add(OverlayJobMessage.TamperBBoxItem.builder()
-                    .x(asInt(box.get("x")))
-                    .y(asInt(box.get("y")))
+            out.add(OverlayJobMessage.TamperBBoxItem.builder()
+                    .x(asInt(map.get("x")))
+                    .y(asInt(map.get("y")))
                     .w(w)
                     .h(h)
-                    .score(asDouble(box.get("score")))
+                    .score(map.get("score") == null ? null : asDouble(map.get("score")))
                     .build());
         }
-        return boxes;
+        return out;
     }
 
     private List<OverlayJobMessage.ClipRiskItem> readClipRisks(Map<String, Object> details, String module) {
@@ -522,6 +528,7 @@ public class OverlayJobService {
             case "temporal" -> "deepfake:temporal";
             case "optical" -> "deepfake:optical";
             case "forgery_spatial" -> "forgery:forgery_spatial";
+            case "forgery_temporal" -> "forgery:forgery_temporal";
             default -> module;
         };
     }
@@ -532,6 +539,7 @@ public class OverlayJobService {
             case "temporal" -> "TimeSformer";
             case "optical" -> "GMFlow";
             case "forgery_spatial" -> "TruFor";
+            case "forgery_temporal" -> "TimeSformer";
             default -> module;
         };
     }

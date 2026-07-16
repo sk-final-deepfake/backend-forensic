@@ -4,9 +4,9 @@ import com.example.demo.dto.AnalysisResponseMessage;
 import com.example.demo.dto.ClipRiskDto;
 import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.PairRiskDto;
+import com.example.demo.dto.TamperBBoxDto;
 import com.example.demo.dto.RepresentativeFrameDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
-import com.example.demo.dto.TamperBBoxDto;
 import com.example.demo.dto.VideoDeepfakeTimelineDto;
 import com.example.demo.dto.detail.ModuleTimelineDto;
 import com.example.demo.dto.detail.ModelOverlayArtifactDto;
@@ -136,29 +136,22 @@ public class AnalysisResponseResolver {
         return converted;
     }
 
-    public List<TamperBBoxDto> toTamperBBoxDtos(
-            List<AnalysisResponseMessage.AnalysisVideoResultItem.TamperBBoxItem> bboxes
+    private List<TamperBBoxDto> toTamperBBoxDtos(
+            List<AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.TamperBBoxItem> bboxes
     ) {
         if (bboxes == null || bboxes.isEmpty()) {
             return List.of();
         }
-        List<TamperBBoxDto> converted = new ArrayList<>();
-        for (AnalysisResponseMessage.AnalysisVideoResultItem.TamperBBoxItem box : bboxes) {
-            if (box == null || box.getX() == null || box.getY() == null || box.getW() == null || box.getH() == null) {
-                continue;
-            }
-            if (box.getW() <= 0 || box.getH() <= 0) {
-                continue;
-            }
-            converted.add(TamperBBoxDto.builder()
-                    .x(box.getX())
-                    .y(box.getY())
-                    .w(box.getW())
-                    .h(box.getH())
-                    .score(defaultDouble(box.getScore()))
-                    .build());
-        }
-        return converted;
+        return bboxes.stream()
+                .filter(box -> box.getX() != null && box.getY() != null && box.getW() != null && box.getH() != null)
+                .map(box -> TamperBBoxDto.builder()
+                        .x(box.getX())
+                        .y(box.getY())
+                        .w(box.getW())
+                        .h(box.getH())
+                        .score(box.getScore())
+                        .build())
+                .toList();
     }
 
     public List<ClipRiskDto> toClipRiskDtos(
@@ -278,29 +271,24 @@ public class AnalysisResponseResolver {
     }
 
     public AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem toFrameRiskItem(FrameRiskDto frameRisk) {
+        List<AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.TamperBBoxItem> bboxes = List.of();
+        if (frameRisk.getBboxes() != null && !frameRisk.getBboxes().isEmpty()) {
+            bboxes = frameRisk.getBboxes().stream()
+                    .map(box -> AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.TamperBBoxItem.builder()
+                            .x(box.getX())
+                            .y(box.getY())
+                            .w(box.getW())
+                            .h(box.getH())
+                            .score(box.getScore())
+                            .build())
+                    .toList();
+        }
         return AnalysisResponseMessage.AnalysisVideoResultItem.FrameRiskItem.builder()
                 .frameIndex(frameRisk.getFrameIndex())
                 .timestampSec(frameRisk.getTimestampSec())
                 .riskScore(frameRisk.getRiskScore())
-                .bboxes(toTamperBBoxItems(frameRisk.getBboxes()))
+                .bboxes(bboxes)
                 .build();
-    }
-
-    public List<AnalysisResponseMessage.AnalysisVideoResultItem.TamperBBoxItem> toTamperBBoxItems(
-            List<TamperBBoxDto> bboxes
-    ) {
-        if (bboxes == null || bboxes.isEmpty()) {
-            return List.of();
-        }
-        return bboxes.stream()
-                .map(box -> AnalysisResponseMessage.AnalysisVideoResultItem.TamperBBoxItem.builder()
-                        .x(box.getX())
-                        .y(box.getY())
-                        .w(box.getW())
-                        .h(box.getH())
-                        .score(box.getScore())
-                        .build())
-                .toList();
     }
 
     public AnalysisResponseMessage.AnalysisVideoResultItem.SuspiciousSegmentItem toSuspiciousSegmentItem(
