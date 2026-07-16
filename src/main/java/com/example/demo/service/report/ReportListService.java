@@ -17,6 +17,7 @@ import com.example.demo.util.ApiDateTimeFormatter;
 import com.example.demo.util.EvidenceCaseIdResolver;
 import com.example.demo.util.UserRoleSupport;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -38,11 +39,14 @@ public class ReportListService {
     private final AnalysisResultRepository analysisResultRepository;
     private final CompareVerificationRepository compareVerificationRepository;
 
-    public ReportListPageResponse listReports(User user, int page, int size) {
+    public ReportListPageResponse listReports(User user, int page, int size, String type, String query) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Boolean compareOnly = resolveCompareOnly(type);
+        String normalizedQuery = normalizeQuery(query);
         Page<Report> reportPage = UserRoleSupport.isReviewer(user.getRole())
-                ? reportRepository.findIssuedByReviewerAssignment(user.getUserId(), pageable)
-                : reportRepository.findByCreatedByOrderByCreatedAtDesc(user.getUserId(), pageable);
+                ? reportRepository.searchIssuedByReviewerAssignment(
+                        user.getUserId(), compareOnly, normalizedQuery, pageable)
+                : reportRepository.searchByCreator(user.getUserId(), compareOnly, normalizedQuery, pageable);
 
         List<Long> evidenceIds = reportPage.getContent().stream()
                 .map(Report::getEvidenceId)
@@ -86,6 +90,28 @@ public class ReportListService {
                 .totalElements(reportPage.getTotalElements())
                 .totalPages(reportPage.getTotalPages())
                 .build();
+    }
+
+    private static Boolean resolveCompareOnly(String type) {
+        if (type == null) {
+            return null;
+        }
+        String normalized = type.trim().toUpperCase(Locale.ROOT);
+        if ("COMPARE".equals(normalized)) {
+            return Boolean.TRUE;
+        }
+        if ("ANALYSIS".equals(normalized)) {
+            return Boolean.FALSE;
+        }
+        return null;
+    }
+
+    private static String normalizeQuery(String query) {
+        if (query == null) {
+            return null;
+        }
+        String trimmed = query.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private ReportSummaryDto toSummary(
