@@ -112,9 +112,8 @@ public class FileService {
             Files.createDirectories(this.root);
             String storedFileName = UUID.randomUUID() + "_" + originalFilename;
             Path savedPath = this.root.resolve(storedFileName);
-            Files.copy(file.getInputStream(), savedPath);
-
-            String hashValue = hashService.generateSha256(savedPath);
+            // 저장(Write)과 SHA-256 계산을 한 패스로 수행 — 디스크 재읽기 없이 해시 확정
+            String hashValue = hashService.saveAndGenerateSha256(file, savedPath);
 
             MediaMetadata extracted = null;
             ExtractionStatus extractionStatus = ExtractionStatus.SUCCESS;
