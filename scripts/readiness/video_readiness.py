@@ -170,11 +170,16 @@ class VideoReadinessResult:
         return payload
 
 
-def calculate_blockiness_heatmap(gray_frame: np.ndarray) -> tuple[np.ndarray, float, str, float]:
+def calculate_blockiness_heatmap(
+    gray_frame: np.ndarray,
+    *,
+    return_heatmap: bool = True,
+) -> tuple[np.ndarray | None, float, str, float]:
     """
     8x8 block-boundary energy heatmap with global and 3x3 regional scores.
 
-    Returns (color_heatmap_bgr, global_score, worst_region_name, worst_region_score).
+    Returns (color_heatmap_bgr|None, global_score, worst_region_name, worst_region_score).
+    Set return_heatmap=False in production readiness checks to avoid large colormap allocations.
     """
     h, w = gray_frame.shape
     mask = np.zeros((h, w), dtype=np.float32)
@@ -219,11 +224,30 @@ def calculate_blockiness_heatmap(gray_frame: np.ndarray) -> tuple[np.ndarray, fl
                 max_grid_score = grid_score
                 max_grid_loc = name
 
+    if not return_heatmap:
+        return None, current_score, max_grid_loc, max_grid_score
+
     heatmap_blurred = cv2.GaussianBlur(mask, (15, 15), 0)
     heatmap_absolute = np.clip(heatmap_blurred * 10.0, 0, 255).astype(np.uint8)
     color_map = cv2.applyColorMap(heatmap_absolute, cv2.COLORMAP_JET)
 
     return color_map, current_score, max_grid_loc, max_grid_score
+
+
+# Backend pods are ~1Gi. Avoid full-video decode + unused heatmaps; keep metric
+# resolution native so blur/blockiness/FFT absolute scales stay comparable.
+_DEFAULT_MAX_METRIC_FRAMES = 48
+
+
+def _adaptive_sample_every(sample_every: int, width: int | None, height: int | None) -> int:
+    """Sparse sampling for high-res / HEVC-heavy clips to keep decoder pressure down."""
+    every = max(1, sample_every)
+    pixels = (width or 0) * (height or 0)
+    if pixels >= 1920 * 1080:
+        every = max(every, 30)
+    elif pixels >= 1280 * 720:
+        every = max(every, 20)
+    return every
 
 
 def calculate_blur_score(gray_frame: np.ndarray) -> float:
@@ -347,6 +371,7 @@ def analyze_video_readiness(
     *,
     sample_every: int = 10,
     max_frame_samples: int | None = 120,
+    max_metric_frames: int = _DEFAULT_MAX_METRIC_FRAMES,
     thresholds: ReadinessThresholds | None = None,
     include_frame_samples: bool = True,
 ) -> VideoReadinessResult:
@@ -357,6 +382,8 @@ def analyze_video_readiness(
         video_path: Local path to a video file readable by OpenCV.
         sample_every: Process every Nth frame (notebook default: 10).
         max_frame_samples: Cap stored per-frame samples (None = keep all).
+        max_metric_frames: Stop metric computation after this many sampled frames
+            (keeps HEVC/OpenCV memory bounded on small backend pods).
         thresholds: Tiering thresholds; defaults to notebook UI values.
         include_frame_samples: When False, omit per-frame list from result.
     """
@@ -382,6 +409,11 @@ def analyze_video_readiness(
     if fps is not None and fps <= 0:
         fps = None
 
+    reported_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    sample_every = _adaptive_sample_every(sample_every, width, height)
+    result.sample_every = sample_every
+    metric_limit = max(1, max_metric_frames)
+
     blur_values: list[float] = []
     blockiness_values: list[float] = []
     fft_values: list[float] = []
@@ -392,18 +424,28 @@ def analyze_video_readiness(
 
     frame_idx = 0
     while True:
-        ret, frame = cap.read()
-        if not ret:
+        # grab() skips full decode on non-sampled frames (important for HEVC memory).
+        if not cap.grab():
             break
 
         frame_idx += 1
         if frame_idx % sample_every != 0:
             continue
 
+        ret, frame = cap.retrieve()
+        if not ret or frame is None:
+            continue
+
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        _, blockiness_score, region_name, region_score = calculate_blockiness_heatmap(gray)
+        del frame
+
+        _, blockiness_score, region_name, region_score = calculate_blockiness_heatmap(
+            gray,
+            return_heatmap=False,
+        )
         blur_score = calculate_blur_score(gray)
         fft_score = calculate_fft_grid_peak(gray)
+        del gray
 
         blur_values.append(blur_score)
         blockiness_values.append(blockiness_score)
@@ -434,14 +476,22 @@ def analyze_video_readiness(
                 )
             )
 
+        if len(blur_values) >= metric_limit:
+            break
+
     cap.release()
 
-    result.total_frames = frame_idx
+    result.total_frames = reported_total if reported_total > 0 else frame_idx
     result.sampled_frames = len(blur_values)
     result.width = width
     result.height = height
     result.fps = fps
-    result.duration_sec = (frame_idx / fps) if fps and frame_idx > 0 else None
+    if fps and result.total_frames > 0:
+        result.duration_sec = result.total_frames / fps
+    elif fps and frame_idx > 0:
+        result.duration_sec = frame_idx / fps
+    else:
+        result.duration_sec = None
     result.worst_region = worst_region
     result.worst_region_score = worst_region_score
     result.is_spatially_uniform = worst_region_score <= thresholds.worst_region_alert_gt
@@ -504,6 +554,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Max per-frame samples in JSON output (default: 120)",
     )
     parser.add_argument(
+        "--max-metric-frames",
+        type=int,
+        default=_DEFAULT_MAX_METRIC_FRAMES,
+        help=f"Max frames to score before stopping (default: {_DEFAULT_MAX_METRIC_FRAMES})",
+    )
+    parser.add_argument(
         "--no-frame-samples",
         action="store_true",
         help="Omit per-frame sample list from JSON output",
@@ -523,6 +579,7 @@ def main(argv: list[str] | None = None) -> int:
         args.video,
         sample_every=max(1, args.sample_every),
         max_frame_samples=args.max_samples,
+        max_metric_frames=max(1, args.max_metric_frames),
         include_frame_samples=not args.no_frame_samples,
     )
 
