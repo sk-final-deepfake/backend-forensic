@@ -6,10 +6,12 @@ import com.example.demo.dto.FrameRiskDto;
 import com.example.demo.dto.PairRiskDto;
 import com.example.demo.dto.RepresentativeFrameDto;
 import com.example.demo.dto.SuspiciousSegmentDto;
+import com.example.demo.dto.TamperBBoxDto;
 import com.example.demo.dto.detail.ModuleTimelineDto;
 import com.example.demo.dto.detail.ModelOverlayArtifactDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -257,9 +259,37 @@ public class VideoModuleDetailsReader {
                             .frameIndex(asInt(map.get("frameIndex")))
                             .timestampSec(asDouble(map.get("timestampSec")))
                             .riskScore(asDouble(map.get("riskScore")))
+                            .bboxes(readTamperBBoxes(map.get("bboxes")))
                             .build();
                 })
                 .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<TamperBBoxDto> readTamperBBoxes(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<TamperBBoxDto> boxes = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Map<String, Object> box = (Map<String, Object>) map;
+            int w = asInt(box.get("w"));
+            int h = asInt(box.get("h"));
+            if (w <= 0 || h <= 0) {
+                continue;
+            }
+            boxes.add(TamperBBoxDto.builder()
+                    .x(asInt(box.get("x")))
+                    .y(asInt(box.get("y")))
+                    .w(w)
+                    .h(h)
+                    .score(asDouble(box.get("score")))
+                    .build());
+        }
+        return boxes;
     }
 
     @SuppressWarnings("unchecked")

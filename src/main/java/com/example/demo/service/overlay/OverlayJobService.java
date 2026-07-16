@@ -390,9 +390,37 @@ public class OverlayJobService {
                     .frameIndex(asInt(row.get("frameIndex")))
                     .timestampSec(asDouble(row.get("timestampSec")))
                     .riskScore(asDouble(row.get("riskScore")))
+                    .bboxes(readTamperBBoxes(row.get("bboxes")))
                     .build());
         }
         return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<OverlayJobMessage.TamperBBoxItem> readTamperBBoxes(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<OverlayJobMessage.TamperBBoxItem> boxes = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Map<String, Object> box = (Map<String, Object>) map;
+            Integer w = asInt(box.get("w"));
+            Integer h = asInt(box.get("h"));
+            if (w == null || h == null || w <= 0 || h <= 0) {
+                continue;
+            }
+            boxes.add(OverlayJobMessage.TamperBBoxItem.builder()
+                    .x(asInt(box.get("x")))
+                    .y(asInt(box.get("y")))
+                    .w(w)
+                    .h(h)
+                    .score(asDouble(box.get("score")))
+                    .build());
+        }
+        return boxes;
     }
 
     private List<OverlayJobMessage.ClipRiskItem> readClipRisks(Map<String, Object> details, String module) {
