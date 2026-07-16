@@ -390,6 +390,33 @@ public class OverlayJobService {
                     .frameIndex(asInt(row.get("frameIndex")))
                     .timestampSec(asDouble(row.get("timestampSec")))
                     .riskScore(asDouble(row.get("riskScore")))
+                    .bboxes(readTamperBboxes(row.get("bboxes")))
+                    .build());
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<OverlayJobMessage.TamperBBoxItem> readTamperBboxes(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<OverlayJobMessage.TamperBBoxItem> out = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Integer w = asInt(map.get("w"));
+            Integer h = asInt(map.get("h"));
+            if (w == null || h == null || w <= 0 || h <= 0) {
+                continue;
+            }
+            out.add(OverlayJobMessage.TamperBBoxItem.builder()
+                    .x(asInt(map.get("x")))
+                    .y(asInt(map.get("y")))
+                    .w(w)
+                    .h(h)
+                    .score(map.get("score") == null ? null : asDouble(map.get("score")))
                     .build());
         }
         return out;
