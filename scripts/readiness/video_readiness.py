@@ -43,10 +43,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Iterator, Literal
 
 import cv2
 import numpy as np
@@ -70,7 +72,7 @@ class ReadinessThresholds:
     caution_min_pixels: int = 640 * 480
     poor_min_pixels: int = 426 * 240
 
-    # Aggregate gates for tiering (blur min across sampled frames)
+    # Aggregate gates for tiering (blur mean across sampled frames)
     poor_blur_min_lt: float = 80.0
     caution_blur_min_lt: float = 100.0
 
@@ -170,11 +172,16 @@ class VideoReadinessResult:
         return payload
 
 
-def calculate_blockiness_heatmap(gray_frame: np.ndarray) -> tuple[np.ndarray, float, str, float]:
+def calculate_blockiness_heatmap(
+    gray_frame: np.ndarray,
+    *,
+    return_heatmap: bool = True,
+) -> tuple[np.ndarray | None, float, str, float]:
     """
     8x8 block-boundary energy heatmap with global and 3x3 regional scores.
 
-    Returns (color_heatmap_bgr, global_score, worst_region_name, worst_region_score).
+    Returns (color_heatmap_bgr|None, global_score, worst_region_name, worst_region_score).
+    Set return_heatmap=False in production readiness checks to avoid large colormap allocations.
     """
     h, w = gray_frame.shape
     mask = np.zeros((h, w), dtype=np.float32)
@@ -219,11 +226,214 @@ def calculate_blockiness_heatmap(gray_frame: np.ndarray) -> tuple[np.ndarray, fl
                 max_grid_score = grid_score
                 max_grid_loc = name
 
+    if not return_heatmap:
+        return None, current_score, max_grid_loc, max_grid_score
+
     heatmap_blurred = cv2.GaussianBlur(mask, (15, 15), 0)
     heatmap_absolute = np.clip(heatmap_blurred * 10.0, 0, 255).astype(np.uint8)
     color_map = cv2.applyColorMap(heatmap_absolute, cv2.COLORMAP_JET)
 
     return color_map, current_score, max_grid_loc, max_grid_score
+
+
+# Backend pods are ~1Gi. 8K/HEVC full-frame FFT OOMs; keep native pixel scale via
+# center-crop (no resize) when the frame exceeds the analysis window.
+_DEFAULT_MAX_METRIC_FRAMES = 48
+_METRIC_MAX_WIDTH = 1920
+_METRIC_MAX_HEIGHT = 1080
+
+
+def _adaptive_sample_every(sample_every: int, width: int | None, height: int | None) -> int:
+    """Sparse sampling for high-res / HEVC-heavy clips to keep decoder pressure down."""
+    every = max(1, sample_every)
+    pixels = (width or 0) * (height or 0)
+    if pixels >= 3840 * 2160:
+        every = max(every, 60)
+    elif pixels >= 1920 * 1080:
+        every = max(every, 30)
+    elif pixels >= 1280 * 720:
+        every = max(every, 20)
+    return every
+
+
+def _adaptive_max_metric_frames(max_metric_frames: int, width: int | None, height: int | None) -> int:
+    limit = max(1, max_metric_frames)
+    pixels = (width or 0) * (height or 0)
+    if pixels >= 3840 * 2160:
+        return min(limit, 12)
+    if pixels >= 1920 * 1080:
+        return min(limit, 24)
+    return limit
+
+
+def _prepare_gray_for_metrics(
+    gray_frame: np.ndarray,
+    *,
+    max_width: int = _METRIC_MAX_WIDTH,
+    max_height: int = _METRIC_MAX_HEIGHT,
+) -> np.ndarray:
+    """
+    Keep native pixel scale (no resize) so blur/blockiness thresholds stay comparable.
+    Oversized frames (4K/8K) use a center crop within max_width x max_height.
+    """
+    height, width = gray_frame.shape[:2]
+    if width <= max_width and height <= max_height:
+        return gray_frame
+    crop_w = min(width, max_width)
+    crop_h = min(height, max_height)
+    x0 = (width - crop_w) // 2
+    y0 = (height - crop_h) // 2
+    return gray_frame[y0 : y0 + crop_h, x0 : x0 + crop_w]
+
+
+def _ffmpeg_available() -> bool:
+    return shutil.which("ffmpeg") is not None
+
+
+def _ffprobe_available() -> bool:
+    return shutil.which("ffprobe") is not None
+
+
+def _probe_video_meta(path: Path) -> tuple[int | None, int | None, float | None, int, float | None]:
+    """
+    Returns (width, height, fps, total_frames, duration_sec).
+    Prefer ffprobe so we never open an OpenCV HEVC decoder just for metadata.
+    """
+    if _ffprobe_available():
+        command = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height,avg_frame_rate,nb_frames:format=duration,size",
+            "-of",
+            "json",
+            str(path),
+        ]
+        try:
+            completed = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if completed.returncode == 0 and completed.stdout:
+                payload = json.loads(completed.stdout)
+                stream = (payload.get("streams") or [{}])[0]
+                fmt = payload.get("format") or {}
+                width = int(stream["width"]) if stream.get("width") else None
+                height = int(stream["height"]) if stream.get("height") else None
+                fps = None
+                rate = stream.get("avg_frame_rate") or "0/0"
+                if isinstance(rate, str) and "/" in rate:
+                    num_s, den_s = rate.split("/", 1)
+                    num, den = float(num_s), float(den_s)
+                    if den > 0:
+                        fps = num / den
+                total = 0
+                if stream.get("nb_frames"):
+                    total = int(stream["nb_frames"])
+                duration = float(fmt["duration"]) if fmt.get("duration") else None
+                if total <= 0 and duration and fps and fps > 0:
+                    total = int(duration * fps)
+                return width, height, fps, total, duration
+        except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired):
+            pass
+
+    cap = cv2.VideoCapture(str(path))
+    if not cap.isOpened():
+        return None, None, None, 0, None
+    try:
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or None
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or None
+        fps = float(cap.get(cv2.CAP_PROP_FPS)) or None
+        if fps is not None and fps <= 0:
+            fps = None
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+        duration = (total / fps) if fps and total > 0 else None
+        return width, height, fps, total, duration
+    finally:
+        cap.release()
+
+
+def _score_gray_frame(
+    gray: np.ndarray,
+    thresholds: ReadinessThresholds,
+) -> tuple[float, float, float, str, float]:
+    _, blockiness_score, region_name, region_score = calculate_blockiness_heatmap(
+        gray,
+        return_heatmap=False,
+    )
+    blur_score = calculate_blur_score(gray)
+    fft_score = calculate_fft_grid_peak(gray)
+    return blur_score, blockiness_score, fft_score, region_name, region_score
+
+
+def _iter_metric_grays_via_ffmpeg(
+    video_path: Path,
+    *,
+    sample_every: int,
+    metric_limit: int,
+    src_width: int,
+    src_height: int,
+) -> Iterator[np.ndarray]:
+    """
+    Decode only cropped gray frames via ffmpeg so Python never materializes full 8K BGR.
+    Crop keeps native pixel scale (no scale filter).
+    """
+    crop_w = min(_METRIC_MAX_WIDTH, src_width)
+    crop_h = min(_METRIC_MAX_HEIGHT, src_height)
+    # n is 0-based in ffmpeg select.
+    vf = (
+        f"select=not(mod(n\\,{max(1, sample_every)})),"
+        f"crop={crop_w}:{crop_h},"
+        f"format=gray"
+    )
+    command = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-threads",
+        "1",
+        "-i",
+        str(video_path),
+        "-vf",
+        vf,
+        "-vsync",
+        "vfr",
+        "-frames:v",
+        str(max(1, metric_limit)),
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "gray",
+        "pipe:1",
+    ]
+    frame_bytes = crop_w * crop_h
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert process.stdout is not None
+    try:
+        produced = 0
+        while produced < metric_limit:
+            raw = process.stdout.read(frame_bytes)
+            if not raw or len(raw) < frame_bytes:
+                break
+            gray = np.frombuffer(raw, dtype=np.uint8).reshape((crop_h, crop_w))
+            produced += 1
+            yield gray
+    finally:
+        process.stdout.close()
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=30)
 
 
 def calculate_blur_score(gray_frame: np.ndarray) -> float:
@@ -249,15 +459,41 @@ def calculate_fft_grid_peak(gray_frame: np.ndarray) -> float:
     return min(peak_strength, 1.0)
 
 
+def _effective_blur_gates(
+    width: int | None,
+    height: int | None,
+    thresholds: ReadinessThresholds,
+) -> tuple[float, float, float]:
+    """
+    Returns (poor_lt, caution_lt, recommend_gte).
+
+    High-res (4K/8K) clips often land lower on Laplacian even when subjectively sharp
+    (grading, denoise, center-crop window). Keep measured scores, relax absolute gates.
+    """
+    pixels = (width or 0) * (height or 0)
+    if pixels >= 7680 * 4320:  # 8K-class
+        return 20.0, 35.0, 35.0
+    if pixels >= 3840 * 2160:  # 4K-class
+        return 40.0, 60.0, 60.0
+    return (
+        thresholds.poor_blur_min_lt,
+        thresholds.caution_blur_min_lt,
+        thresholds.blur_low_lt,
+    )
+
+
 def _frame_flags(
     blur: float,
     blockiness: float,
     fft_peak: float,
     worst_region_score: float,
     thresholds: ReadinessThresholds,
+    *,
+    blur_low_lt: float | None = None,
 ) -> dict[str, bool]:
+    blur_gate = thresholds.blur_low_lt if blur_low_lt is None else blur_low_lt
     return {
-        "blurLow": blur < thresholds.blur_low_lt,
+        "blurLow": blur < blur_gate,
         "blockinessHigh": blockiness > thresholds.blockiness_high_gt,
         "fftPeakHigh": fft_peak > thresholds.fft_peak_high_gt,
         "worstRegionAlert": worst_region_score > thresholds.worst_region_alert_gt,
@@ -270,7 +506,7 @@ def _evaluate_readiness_tier(
     height: int | None,
     fps: float | None,
     duration_sec: float | None,
-    blur_min: float | None,
+    blur_mean: float | None,
     blockiness_max: float | None,
     fft_peak_max: float | None,
     thresholds: ReadinessThresholds,
@@ -301,16 +537,21 @@ def _evaluate_readiness_tier(
         tier = _max_tier(tier, "CAUTION")
         reasons.append(f"FPS {fps:.1f} (권장 {thresholds.min_fps:.0f} 이상)")
 
-    if blur_min is not None:
-        if blur_min < thresholds.poor_blur_min_lt:
+    poor_blur_lt, caution_blur_lt, blur_recommend = _effective_blur_gates(
+        width, height, thresholds
+    )
+    if blur_mean is not None:
+        if blur_mean < poor_blur_lt:
             tier = "POOR"
             reasons.append(
-                f"선명도(blur) 최저값 {blur_min:.1f} (권장 {thresholds.blur_low_lt:.0f} 이상)"
+                f"선명도(blur) 평균값 {blur_mean:.1f} "
+                f"(권장 {blur_recommend:.0f} 이상 · 해상도 보정 기준)"
             )
-        elif blur_min < thresholds.caution_blur_min_lt:
+        elif blur_mean < caution_blur_lt:
             tier = _max_tier(tier, "CAUTION")
             reasons.append(
-                f"선명도(blur) 최저값 {blur_min:.1f} (권장 {thresholds.blur_low_lt:.0f} 이상)"
+                f"선명도(blur) 평균값 {blur_mean:.1f} "
+                f"(권장 {blur_recommend:.0f} 이상 · 해상도 보정 기준)"
             )
 
     if blockiness_max is not None and blockiness_max > thresholds.blockiness_high_gt:
@@ -347,6 +588,7 @@ def analyze_video_readiness(
     *,
     sample_every: int = 10,
     max_frame_samples: int | None = 120,
+    max_metric_frames: int = _DEFAULT_MAX_METRIC_FRAMES,
     thresholds: ReadinessThresholds | None = None,
     include_frame_samples: bool = True,
 ) -> VideoReadinessResult:
@@ -357,6 +599,8 @@ def analyze_video_readiness(
         video_path: Local path to a video file readable by OpenCV.
         sample_every: Process every Nth frame (notebook default: 10).
         max_frame_samples: Cap stored per-frame samples (None = keep all).
+        max_metric_frames: Stop metric computation after this many sampled frames
+            (keeps HEVC/OpenCV memory bounded on small backend pods).
         thresholds: Tiering thresholds; defaults to notebook UI values.
         include_frame_samples: When False, omit per-frame list from result.
     """
@@ -368,19 +612,18 @@ def analyze_video_readiness(
         sample_every=sample_every,
     )
 
-    cap = cv2.VideoCapture(str(path))
-    if not cap.isOpened():
+    width, height, fps, reported_total, probed_duration = _probe_video_meta(path)
+    if width is None or height is None:
         result.error = f"Cannot open video: {path}"
         result.readiness_tier = "BLOCK"
         result.reasons = ["영상 파일을 열 수 없습니다."]
         result.requires_acknowledgement = False
         return result
 
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or None
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or None
-    fps = float(cap.get(cv2.CAP_PROP_FPS)) or None
-    if fps is not None and fps <= 0:
-        fps = None
+    sample_every = _adaptive_sample_every(sample_every, width, height)
+    result.sample_every = sample_every
+    metric_limit = _adaptive_max_metric_frames(max_metric_frames, width, height)
+    _, _, blur_recommend = _effective_blur_gates(width, height, thresholds)
 
     blur_values: list[float] = []
     blockiness_values: list[float] = []
@@ -389,59 +632,140 @@ def analyze_video_readiness(
 
     worst_region = ""
     worst_region_score = 0.0
-
     frame_idx = 0
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
 
-        frame_idx += 1
-        if frame_idx % sample_every != 0:
-            continue
+    # 4K+: never open OpenCV VideoCapture — HEVC DPB alone OOMs beside Java heap.
+    use_ffmpeg = width * height >= 3840 * 2160 and _ffmpeg_available()
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        _, blockiness_score, region_name, region_score = calculate_blockiness_heatmap(gray)
-        blur_score = calculate_blur_score(gray)
-        fft_score = calculate_fft_grid_peak(gray)
-
-        blur_values.append(blur_score)
-        blockiness_values.append(blockiness_score)
-        fft_values.append(fft_score)
-
-        if region_score > worst_region_score:
-            worst_region_score = region_score
-            worst_region = region_name
-
-        if include_frame_samples and (
-            max_frame_samples is None or len(frame_samples) < max_frame_samples
+    if use_ffmpeg:
+        for gray in _iter_metric_grays_via_ffmpeg(
+            path,
+            sample_every=sample_every,
+            metric_limit=metric_limit,
+            src_width=width,
+            src_height=height,
         ):
-            frame_samples.append(
-                FrameSample(
-                    frame_index=frame_idx,
-                    blur=round(blur_score, 2),
-                    blockiness=round(blockiness_score, 2),
-                    fft_peak=round(fft_score, 4),
-                    worst_region=region_name,
-                    worst_region_score=round(region_score, 2),
-                    flags=_frame_flags(
-                        blur_score,
-                        blockiness_score,
-                        fft_score,
-                        region_score,
-                        thresholds,
-                    ),
+            frame_idx += sample_every
+            (
+                blur_score,
+                blockiness_score,
+                fft_score,
+                region_name,
+                region_score,
+            ) = _score_gray_frame(gray, thresholds)
+            del gray
+
+            blur_values.append(blur_score)
+            blockiness_values.append(blockiness_score)
+            fft_values.append(fft_score)
+
+            if region_score > worst_region_score:
+                worst_region_score = region_score
+                worst_region = region_name
+
+            if include_frame_samples and (
+                max_frame_samples is None or len(frame_samples) < max_frame_samples
+            ):
+                frame_samples.append(
+                    FrameSample(
+                        frame_index=frame_idx,
+                        blur=round(blur_score, 2),
+                        blockiness=round(blockiness_score, 2),
+                        fft_peak=round(fft_score, 4),
+                        worst_region=region_name,
+                        worst_region_score=round(region_score, 2),
+                        flags=_frame_flags(
+                            blur_score,
+                            blockiness_score,
+                            fft_score,
+                            region_score,
+                            thresholds,
+                            blur_low_lt=blur_recommend,
+                        ),
+                    )
                 )
-            )
+    else:
+        cap = cv2.VideoCapture(str(path))
+        if not cap.isOpened():
+            result.error = f"Cannot open video: {path}"
+            result.readiness_tier = "BLOCK"
+            result.reasons = ["영상 파일을 열 수 없습니다."]
+            result.requires_acknowledgement = False
+            return result
+        try:
+            while True:
+                if not cap.grab():
+                    break
 
-    cap.release()
+                frame_idx += 1
+                if frame_idx % sample_every != 0:
+                    continue
 
-    result.total_frames = frame_idx
+                ret, frame = cap.retrieve()
+                if not ret or frame is None:
+                    continue
+
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                del frame
+                gray = _prepare_gray_for_metrics(gray)
+
+                (
+                    blur_score,
+                    blockiness_score,
+                    fft_score,
+                    region_name,
+                    region_score,
+                ) = _score_gray_frame(gray, thresholds)
+                del gray
+
+                blur_values.append(blur_score)
+                blockiness_values.append(blockiness_score)
+                fft_values.append(fft_score)
+
+                if region_score > worst_region_score:
+                    worst_region_score = region_score
+                    worst_region = region_name
+
+                if include_frame_samples and (
+                    max_frame_samples is None or len(frame_samples) < max_frame_samples
+                ):
+                    frame_samples.append(
+                        FrameSample(
+                            frame_index=frame_idx,
+                            blur=round(blur_score, 2),
+                            blockiness=round(blockiness_score, 2),
+                            fft_peak=round(fft_score, 4),
+                            worst_region=region_name,
+                            worst_region_score=round(region_score, 2),
+                            flags=_frame_flags(
+                                blur_score,
+                                blockiness_score,
+                                fft_score,
+                                region_score,
+                                thresholds,
+                                blur_low_lt=blur_recommend,
+                            ),
+                        )
+                    )
+
+                if len(blur_values) >= metric_limit:
+                    break
+        finally:
+            cap.release()
+
+    result.total_frames = reported_total if reported_total > 0 else frame_idx
     result.sampled_frames = len(blur_values)
     result.width = width
     result.height = height
     result.fps = fps
-    result.duration_sec = (frame_idx / fps) if fps and frame_idx > 0 else None
+    if probed_duration is not None:
+        result.duration_sec = probed_duration
+    elif fps and result.total_frames > 0:
+        result.duration_sec = result.total_frames / fps
+    elif fps and frame_idx > 0:
+        result.duration_sec = frame_idx / fps
+    else:
+        result.duration_sec = None
     result.worst_region = worst_region
     result.worst_region_score = worst_region_score
     result.is_spatially_uniform = worst_region_score <= thresholds.worst_region_alert_gt
@@ -474,7 +798,7 @@ def analyze_video_readiness(
         height=height,
         fps=fps,
         duration_sec=result.duration_sec,
-        blur_min=blur_min,
+        blur_mean=blur_mean,
         blockiness_max=blockiness_max,
         fft_peak_max=fft_max,
         thresholds=thresholds,
@@ -504,6 +828,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Max per-frame samples in JSON output (default: 120)",
     )
     parser.add_argument(
+        "--max-metric-frames",
+        type=int,
+        default=_DEFAULT_MAX_METRIC_FRAMES,
+        help=f"Max frames to score before stopping (default: {_DEFAULT_MAX_METRIC_FRAMES})",
+    )
+    parser.add_argument(
         "--no-frame-samples",
         action="store_true",
         help="Omit per-frame sample list from JSON output",
@@ -523,6 +853,7 @@ def main(argv: list[str] | None = None) -> int:
         args.video,
         sample_every=max(1, args.sample_every),
         max_frame_samples=args.max_samples,
+        max_metric_frames=max(1, args.max_metric_frames),
         include_frame_samples=not args.no_frame_samples,
     )
 

@@ -1,4 +1,4 @@
-# 🧬 ForenShield / VeriForensics — AI·개발자 진입점
+# 🧬 ForenShield — AI·개발자 진입점
 
 ## ★ 먼저 읽을 문서
 

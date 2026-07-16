@@ -1,4 +1,4 @@
-# VeriForensics 문서 (docs/)
+# ForenShield 문서 (docs/)
 
 > **진행 상황:** **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** · **AI 진입점:** [AGENTS.md](./AGENTS.md)  
 > **배포 기준 브랜치:** `main` (2026-06-18 — `develop` 머지 반영)
@@ -79,6 +79,7 @@ docs/
 | 구현 했는지 추적 | [requirements/traceability.md](./requirements/traceability.md) |
 | API 경로·Body | [api/specification.md §2](./api/specification.md) |
 | errorCode·예외 JSON | [guides/implementation-standards.md](./guides/implementation-standards.md) |
+| PDF·공개 검증 단계별 개선 | [guides/report-pdf-public-verification-phase-plan.md](./guides/report-pdf-public-verification-phase-plan.md) |
 | DB 테이블 | [database/erd.md](./database/erd.md) |
 | BE↔AI JSON | [integrations/ai-json.md](./integrations/ai-json.md) |
 
@@ -123,7 +124,7 @@ docs/
 
 ---
 
-## 팀 진행 상태 (2026-06-18)
+## 팀 진행 상태 (2026-07-14)
 
 | 항목 | 상태 |
 | :--- | :---: |
@@ -134,6 +135,7 @@ docs/
 | `.env` 추적 해제 · pre-commit | ✅ |
 | `develop` → `main` 릴리스 | ✅ |
 | Excel source (`requirements/source/`) | ✅ RQ·FN xlsx · 재생성 스크립트 |
-| PDF / Compare / Notifications API | ⬜ | [PROJECT_STATUS.md §8](./PROJECT_STATUS.md) |
+| PDF / Compare / Notifications / Settings | ✅ | [api/specification.md §6](./api/specification.md) |
+| RBAC 검토 플로우 · HLS · step-up | ✅ |
 
-**BE RQ 진행 (추정):** 핵심 MVP ✅ · 고급 기능(PDF·Compare·블록체인 등) ⬜ — 상세는 [PROJECT_STATUS.md §2](./PROJECT_STATUS.md)
+**BE RQ 진행:** 핵심 MVP·고급 REST(PDF·Compare·알림·검토) ✅ · 블록체인 운영 환경 의존 🟡 — 상세는 [PROJECT_STATUS.md](./PROJECT_STATUS.md) · [api/specification.md](./api/specification.md)

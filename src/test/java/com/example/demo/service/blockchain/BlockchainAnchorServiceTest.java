@@ -279,6 +279,64 @@ class BlockchainAnchorServiceTest {
     }
 
     @Test
+    void anchorReportHash_includesForgeryModelMetadata() {
+        when(properties.isEnabled()).thenReturn(true);
+        when(properties.getNetwork()).thenReturn("local-simulated");
+        when(properties.getClientId()).thenReturn("forenshield-be");
+        when(anchorRepository.findTopByReportIdAndAnchorTypeOrderByCreatedAtDesc(any(), eq(BlockchainAnchorType.REPORT_HASH)))
+                .thenReturn(Optional.empty());
+        when(anchorClient.anchor(any(BlockchainAnchorRequest.class)))
+                .thenReturn(new BlockchainAnchorResult("0xreport-forgery", 4L, true, null));
+        when(anchorRepository.save(any(BlockchainAnchor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Report report = new Report();
+        report.setReportId(23L);
+        report.setEvidenceId(8L);
+        report.setAnalysisResultId(56L);
+        report.setReportHash("report-hash-forgery");
+        report.setStoragePath("reports/23.pdf");
+
+        Evidence evidence = Evidence.builder()
+                .originalStoragePath("evidence/original-forgery.mp4")
+                .build();
+        when(evidenceRepository.findById(8L)).thenReturn(Optional.of(evidence));
+        when(offchainLogHashService.hashReportBundle(report)).thenReturn("report-offchain-forgery");
+
+        com.example.demo.domain.AnalysisModuleResult fusion = new com.example.demo.domain.AnalysisModuleResult();
+        fusion.setModuleName("deepfake");
+        fusion.setModelName("Late Fusion");
+        fusion.setModelVersion("late-fusion-v4-ts-gated");
+
+        com.example.demo.domain.AnalysisModuleResult spatial = new com.example.demo.domain.AnalysisModuleResult();
+        spatial.setModuleName("forgery_spatial");
+        spatial.setModelName("TruFor");
+        spatial.setModelVersion("trufor-videocof-v2-20260710-0800");
+
+        com.example.demo.domain.AnalysisModuleResult temporal = new com.example.demo.domain.AnalysisModuleResult();
+        temporal.setModuleName("forgery_temporal");
+        temporal.setModelName("TimeSformer-Forgery");
+        temporal.setModelVersion("timesformer-forgery-v1.9-hardneg-20260714-0342");
+
+        when(analysisModuleResultRepository.findByAnalysisResultIdOrderByCreatedAtAsc(56L))
+                .thenReturn(List.of(fusion, spatial, temporal));
+
+        BlockchainAnchor result = blockchainAnchorService.anchorReportHash(report, 5L);
+
+        assertThat(result.getStatus()).isEqualTo(BlockchainAnchorStatus.ANCHORED);
+        assertThat(result.getAnalysisModulesJson()).contains("forgery_spatial");
+        assertThat(result.getAnalysisModulesJson()).contains("trufor-videocof-v2-20260710-0800");
+        assertThat(result.getAnalysisModulesJson()).contains("forgery_temporal");
+        assertThat(result.getAnalysisModulesJson()).contains("timesformer-forgery-v1.9-hardneg-20260714-0342");
+
+        ArgumentCaptor<BlockchainAnchorRequest> requestCaptor = ArgumentCaptor.forClass(BlockchainAnchorRequest.class);
+        verify(anchorClient).anchor(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().analysisModules()).hasSize(3);
+        assertThat(requestCaptor.getValue().analysisModules())
+                .extracting(BlockchainAnchorRequest.AnalysisModuleRef::module)
+                .containsExactly("deepfake", "forgery_spatial", "forgery_temporal");
+    }
+
+    @Test
     void getEvidenceBlockchainInfo_reportsHashIntegrityAndExplorerUrl() {
         when(properties.getExplorerUrlTemplate()).thenReturn("https://explorer.test/tx/{txHash}");
 

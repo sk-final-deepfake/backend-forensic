@@ -1,5 +1,6 @@
 package com.example.demo.service.report;
 
+import com.example.demo.config.ReportPublicUrlProperties;
 import com.example.demo.domain.Report;
 import com.example.demo.domain.enums.ReportPublicationStatus;
 import com.example.demo.exception.BusinessException;
@@ -9,11 +10,9 @@ import com.example.demo.service.custody.ReportCustodyLogService;
 import com.example.demo.service.evidence.HashService;
 import com.example.demo.util.PdfDocumentWriter;
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -35,12 +34,11 @@ public class ReportPdfStorageService {
     private final HashService hashService;
     private final BlockchainAnchorService blockchainAnchorService;
     private final ReportCustodyLogService reportCustodyLogService;
+    private final ReportPublicUrlProperties reportPublicUrlProperties;
+    private final ReportPublicationSnapshotService reportPublicationSnapshotService;
 
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
-
-    @Value("${report.public-verify-base-url:https://forensheildjangdochi.com/verify}")
-    private String publicVerifyBaseUrl;
 
     public Report persistAnalysisReport(
             Long analysisResultId,
@@ -119,6 +117,7 @@ public class ReportPdfStorageService {
         report.setFileSize((long) pdfBytes.length);
         report.markIssued(userId, LocalDateTime.now());
         Report saved = reportRepository.save(report);
+        reportPublicationSnapshotService.createIfAbsent(saved, lines);
         supersedeOlderAnalysisReports(saved);
         recordReportSideEffects(saved, userId);
         return saved;
@@ -204,21 +203,23 @@ public class ReportPdfStorageService {
     }
 
     private String buildVerifyUrl(String token) {
-        String separator = publicVerifyBaseUrl.contains("?") ? "&" : "?";
-        return publicVerifyBaseUrl + separator + "token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
+        return reportPublicUrlProperties.verificationUrl(token);
     }
 
     private byte[] renderReportBytes(Report report, List<String> lines, String title) {
+        List<String> renderLines = report.isIssued()
+                ? reportPublicationSnapshotService.findReportLines(report).orElse(lines)
+                : lines;
         if (report.isIssued() && report.getVerificationToken() != null && !report.getVerificationToken().isBlank()) {
             return buildPdfWithQr(
                     title,
-                    lines,
+                    renderLines,
                     report.getReportNo(),
                     buildVerifyUrl(report.getVerificationToken()),
                     report.getVerificationCode()
             );
         }
-        return PdfDocumentWriter.writeDraftReport(title, lines);
+        return PdfDocumentWriter.writeDraftReport(title, renderLines);
     }
 
     private void persistReportBytes(Report report, byte[] pdfBytes) {

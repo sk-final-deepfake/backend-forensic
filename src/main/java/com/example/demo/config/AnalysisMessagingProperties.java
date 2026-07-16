@@ -16,5 +16,7 @@ public class AnalysisMessagingProperties {
     private String deadLetterExchange = "ai.dead.exchange";
     private String videoAnalysisRoutingKey = "analyze.video";
     private String videoResultRoutingKey = "result.video";
+    private String overlayRoutingKey = "overlay.video";
+    private String overlayResultRoutingKey = "result.overlay";
     private int presignDurationMinutes = 120;
 }

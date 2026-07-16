@@ -3,9 +3,12 @@ package com.example.demo.service.evidence;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,5 +58,25 @@ class HashServiceTest {
 		String hashValue = hashService.generateSha256(file);
 
 		assertThat(hashValue).matches("[0-9a-f]{64}");
+	}
+
+	@Test
+	@DisplayName("저장과 동시 해시는 저장 후 재해시와 동일하고 파일 내용도 보존한다")
+	void saveAndGenerateSha256_matchesPostSaveHash(@TempDir Path tempDir) throws Exception {
+		byte[] content = "digest-stream-evidence-bytes".getBytes(StandardCharsets.UTF_8);
+		MockMultipartFile file = new MockMultipartFile(
+				"file",
+				"evidence.mp4",
+				"video/mp4",
+				content
+		);
+		Path destination = tempDir.resolve("saved-evidence.mp4");
+
+		String streamedHash = hashService.saveAndGenerateSha256(file, destination);
+		String rereadHash = hashService.generateSha256(destination);
+
+		assertThat(streamedHash).isEqualTo(rereadHash);
+		assertThat(streamedHash).isEqualTo(hashService.generateSha256(content));
+		assertThat(Files.readAllBytes(destination)).isEqualTo(content);
 	}
 }

@@ -112,9 +112,8 @@ public class User {
         this.inviteCode = inviteCode;
     }
 
-    public void updateProfile(String loginId, String department) {
+    public void updateProfile(String loginId) {
         this.loginId = loginId;
-        this.department = department;
     }
 
     public void updateAccountInfo(String name, String email, String department) {

@@ -1,4 +1,4 @@
-# VeriForensics 개발 가이드
+# ForenShield 개발 가이드
 
 > **대상:** 프론트 · 백엔드 · AI · 인프라 전체  
 > **상위 규칙:** [../rule.md](../rule.md)

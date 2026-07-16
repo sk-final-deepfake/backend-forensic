@@ -1,8 +1,9 @@
-# VeriForensics API Specification
+# ForenShield API Specification
 
-> **버전:** v1.8 (RBAC · 검토 워크플로우 — §0.11)  
-> **기준:** `기능명세서_최종.xlsx` · `요구사항명세서_최종 (1).xlsx`  
-> **관련:** [convention.md](./convention.md) · [../guides/implementation-standards.md](../guides/implementation-standards.md) · [signup.md](./signup.md)
+> **버전:** v1.9 (2026-07-14 — Controller·FE 연동 전면 동기화)  
+> **기준:** `기능명세서_최종.xlsx` · `요구사항명세서_최종 (1).xlsx` · 실제 Controller  
+> **관련:** [convention.md](./convention.md) · [../guides/implementation-standards.md](../guides/implementation-standards.md) · [signup.md](./signup.md)  
+> **읽는 법:** Gap·세부 계약은 §0~§2 · **현재 엔드포인트 한눈 목록은 §6**
 
 ---
 
@@ -88,21 +89,23 @@
 | GET | `/api/v1/auth/username/check` | 아이디 중복 확인 ([signup.md](./signup.md)) |
 | GET | `/api/v1/organizations/departments` | 부서 자동완성 |
 | GET | `/api/v1/cases/me` | 분석 이력 alias |
-| GET | `/api/evidences/{evidenceId}/detail` | 증거 상세 |
-| GET | `/api/evidences/{evidenceId}/analysis-status` | 분석 진행률 polling |
-| DELETE | `/api/evidences/{evidenceId}` | 증거 삭제 |
-| DELETE | `/api/evidences/{evidenceId}/reset` | 증거+분석 초기화 |
-| DELETE | `/api/evidences/{evidenceId}/analysis` | 분석 중단 |
-| GET | `/api/evidences/{evidenceId}/coc/verify` | CoC 해시 체인 검증 (RQ-HIS-107) |
+| GET | `/api/v1/evidences/{evidenceId}/detail` | 증거 상세 |
+| GET | `/api/v1/evidences/{evidenceId}/analysis-status` | 분석 진행률 polling |
+| DELETE | `/api/v1/evidences/{evidenceId}` | 업로드 취소 |
+| DELETE | `/api/v1/evidences/{evidenceId}/reset` | 증거+분석 초기화 |
+| DELETE | `/api/v1/evidences/{evidenceId}/analysis` | 분석 중단 |
+| GET | `/api/v1/evidences/{evidenceId}/coc/verify` | CoC 해시 체인 검증 (RQ-HIS-107) |
 | POST | `/api/v1/evidences/{evidenceId}/access-events` | 증거 열람·캡처 시도 감사 로그 |
-| GET | `/api/evidences/{evidenceId}/reports/pdf` | PDF 리포트 |
+| GET | `/api/v1/evidences/{evidenceId}/reports/pdf` | PDF 리포트 |
 | GET/DELETE | `/api/v1/admin/evidences/**` | 관리자 증거 관리 |
 | DELETE | `/api/v1/admin/users/{userId}` | 관리자 계정 삭제 |
+| GET | `/api/v1/admin/reviewers` | 검토자 목록 |
+| POST/PATCH | `/api/v1/cases/review-*` · `/reviewer` | 검토 요청·배정·결정 (§0.12) |
 | GET | `/api/v1/compare/originals` | 비교용 원본 증거 목록 (RQ-CMP-091) |
 | GET | `/api/v1/compare/originals/{evidenceId}` | 원본 파일 기본정보 (SK-954) |
 | GET | `/api/v1/compare/{compareId}/candidate` | 대조본 파일 기본정보 (SK-955) |
 
-→ **유지 권장** (실사용·테스트 존재). 명세 Excel FE 시트에 경로 추가 반영 필요.
+→ **유지 권장** (실사용·테스트 존재). 명세 Excel FE 시트에 경로 추가 반영 필요. 전체 목록은 [§6](#6-quick-reference--현재-구현-전체-controller-기준-2026-07-14).
 
 ---
 
@@ -116,27 +119,37 @@
 
 ---
 
-### 0.7 FE 연동 범위 vs BE 전용 API (2026-06)
+### 0.7 FE 연동 범위 vs BE 전용 API (2026-07-14 갱신)
 
-현재 **Next.js FE**(`frontend-deepfake`)가 직접 호출하는 증거 API는 [§2.3 `/api/v1/evidences`](#23-증거--분석-apiv1evidences)의 업로드·분석·상세·대시보드·리포트입니다.
+현재 **Next.js FE**(`frontend-deepfake`) 연동 여부. 전체 목록은 [§6](#6-quick-reference--현재-구현-전체).
 
 | API | FE 사용 | 비고 |
 | :--- | :---: | :--- |
 | `POST /api/v1/evidences/upload` | ✅ | |
-| `POST /api/v1/evidences/analyze` | ✅ | upload-only 모드 제외 시 |
-| `GET /api/v1/evidences/{id}/detail` | ✅ | |
-| `GET /api/v1/evidences/stats*` | ✅ | |
+| `POST /api/v1/evidences/analyze` | ✅ | |
+| `GET /api/v1/evidences/{id}/detail` | ✅ | step-up 헤더 |
+| `GET /api/v1/evidences/stats*` | ✅ | 분석관 대시보드 (`/main`) |
 | `GET /api/v1/evidences/{id}/analysis-status` | ✅ | polling |
-| `GET /api/v1/evidences/{id}/reports/pdf` | ✅ | |
-| `GET /api/v1/evidences/{id}/integrity/verify` | ❌ | BE 전용 · Postman · 향후 보안 UI |
-| `GET /api/v1/evidences/{id}/coc/verify` | ❌ | BE 전용 · 상세의 `cocLogs`로 대체 가능 |
-| `GET /api/v1/evidences/{id}/blockchain` | ❌ | BE 전용 · detail `blockchainInfo`에 요약 포함 |
-| `GET/PATCH /api/v1/notifications` | ❌ | BE 구현 완료 · FE 미연동 |
-| `GET/PATCH /api/v1/users/me/settings` | ❌ | BE 구현 완료 · FE 미연동 |
+| `GET /api/v1/evidences/{id}/readiness` · `POST …/readiness-check` | ✅ | 화질 soft-gate |
+| `DELETE /api/v1/evidences/{id}` · `/reset` · `/analysis` | ✅ | 업로드/분석 취소·리셋 |
+| `GET /api/v1/evidences/{id}/reports/pdf` | ✅ | step-up · 미리보기 query |
+| `GET /api/v1/evidences/{id}/integrity/verify` | ✅ | `lib/api/evidence-verification.ts` |
+| `GET /api/v1/evidences/{id}/blockchain` | ✅ | `lib/api/blockchain.ts` |
+| `GET /api/v1/evidences/{id}/coc/verify` | ❌ | BE 전용 · 상세 `cocLogs`로 대체 |
+| `GET /api/v1/evidences/dashboard/intro` | ❌ | BE 전용 · FE 미사용 |
+| `GET /api/v1/evidences/{id}/reports/verify` | ❌ | BE 전용 · 공개 검증은 `/public/reports` |
+| `GET/PATCH /api/v1/notifications*` | ✅ | `lib/api/notifications.ts` |
+| `GET/PATCH /api/v1/users/me/settings` | ✅ | `lib/api/user-settings.ts` |
+| `POST /api/v1/cases/review-request` · `review-decision` | ✅ | 검토 플로우 |
+| `PATCH /api/v1/cases/reviewer` · `/{caseId}/reviewer` | ✅ | 관리자 배정 (`/admin/reviews`) |
+| `GET /api/v1/admin/reviewers` | ✅ | |
+| `GET /api/v1/mypage/analysis-history` | ✅ | 검토자 대시보드도 동일 API 재사용 |
+| `GET /api/v1/reports` · public report APIs | ✅ | `/reports`, `/verify` |
+| HLS `…/hls/master|key|segments` | ✅ | `streamToken` + step-up(key) |
 
-> **리팩터링 원칙:** FE가 쓰는 경로·JSON 필드는 변경하지 않습니다. 위 ❌ API는 **문서상 BE 전용**으로 분류하며, 삭제하지 않습니다.
+> **리팩터링 원칙:** FE가 쓰는 경로·JSON 필드는 변경하지 않습니다. ❌ API는 **BE 전용**으로 유지하며 삭제하지 않습니다.
 
-**Legacy 경로:** `/api/evidences/*` alias는 **제거됨** (2026-06). 신규·FE 연동은 `/api/v1/evidences/*`만 사용합니다. 로그인 `POST /api/auth/login` legacy는 유지합니다.
+**Legacy 경로:** `/api/evidences/*` alias는 **제거됨** (2026-06). 신규·FE는 `/api/v1/evidences/*`만 사용. 로그인 `POST /api/auth/login` legacy는 유지.
 
 ### 0.8 v2 사건 중심 증거 워크플로우 API (2026-07)
 
@@ -1139,48 +1152,153 @@ X-Step-Up-Token: <stepUpToken>
 
 ---
 
-## 6. Quick Reference — 현재 구현 전체 (38 endpoints)
+## 6. Quick Reference — 현재 구현 전체 (Controller 기준, 2026-07-14)
 
-| # | Method | Path | Auth |
-| :---: | :--- | :--- | :--- |
-| 1 | POST | `/api/auth/login` | Public |
-| 2 | POST | `/api/v1/auth/signup` | Public |
-| 3 | GET | `/api/v1/auth/username/check` | Public |
-| 4 | POST | `/api/v1/invite-codes/validate` | Public |
-| 5 | GET | `/api/v1/organizations/departments` | Public |
-| 6 | GET | `/api/v1/users/me` | User |
-| 7 | PATCH | `/api/v1/users/me` | User |
-| 8 | GET | `/api/v1/mypage/analysis-history` | User |
-| 9 | GET | `/api/v1/cases/me` | User |
-| 10 | GET | `/api/v1/cases/{caseId}` | User |
-| 11 | GET | `/api/evidences/stats` | User |
-| 12 | POST | `/api/evidences/upload` | User |
-| 13 | POST | `/api/evidences/analyze` | User |
-| 14 | GET | `/api/evidences/{evidenceId}/detail` | User |
-| 15 | GET | `/api/evidences/{evidenceId}/analysis-status` | User |
-| 16 | DELETE | `/api/evidences/{evidenceId}` | User |
-| 17 | DELETE | `/api/evidences/{evidenceId}/reset` | User |
-| 18 | DELETE | `/api/evidences/{evidenceId}/analysis` | User |
-| 19 | GET | `/api/v1/admin/dashboard/stats` | Admin |
-| 20 | GET | `/api/v1/admin/dashboard/analysis-stats` | Admin |
-| 21 | GET | `/api/v1/admin/users` | Admin |
-| 22 | POST | `/api/v1/admin/users/{userId}/approve` | Admin |
-| 23 | POST | `/api/v1/admin/users/{userId}/reject` | Admin |
-| 24 | POST | `/api/v1/admin/users/{userId}/suspend` | Admin |
-| 25 | PATCH | `/api/v1/admin/users/{userId}` | Admin |
-| 26 | PATCH | `/api/v1/admin/users/{userId}/password` | Admin |
-| 27 | DELETE | `/api/v1/admin/users/{userId}` | Admin |
-| 28 | GET | `/api/v1/admin/invite-codes` | Admin |
-| 29 | POST | `/api/v1/admin/invite-codes` | Admin |
-| 30 | GET | `/api/v1/admin/evidences` | Admin |
-| 31 | GET | `/api/v1/admin/evidences/{evidenceId}` | Admin |
-| 32 | DELETE | `/api/v1/admin/evidences/{evidenceId}` | Admin |
-| 33 | GET | `/api/v1/admin/logs` | Admin |
-| 34 | GET | `/api/v1/admin/logs/export` | Admin |
-| 35 | GET | `/api/v1/admin/me` | Admin |
-| 36 | PATCH | `/api/v1/admin/me` | Admin |
-| 37 | PATCH | `/api/v1/admin/me/password` | Admin |
-| 38 | POST | `/api/v1/admin/blockchain/merkle/anchor` | Admin |
+> 출처: `src/main/java/.../controller/*` · FE: `frontend-deepfake/lib/**`  
+> Auth: **Public** / **User**(JWT) / **Admin**(ORG_ADMIN·ADMIN) / **Step-up**(추가 헤더)  
+> FE: ✅ 연동 · ❌ BE 전용·미연동
+
+### 6.1 인증 · 가입 · Step-up
+
+| Method | Path | Auth | FE |
+| :--- | :--- | :--- | :---: |
+| POST | `/api/auth/login` | Public | ✅ |
+| POST | `/api/auth/refresh` | Cookie | ✅ |
+| POST | `/api/auth/logout` | User | ✅ |
+| POST | `/api/v1/auth/signup` | Public | ✅ |
+| GET | `/api/v1/auth/username/check` | Public | ✅ |
+| POST | `/api/v1/auth/step-up/verify` | User | ✅ |
+| POST | `/api/v1/auth/step-up/extend` | User | ✅ |
+| POST | `/api/v1/invite-codes/validate` | Public | ✅ |
+| GET | `/api/v1/organizations/departments` | Public | ✅ |
+
+### 6.2 사용자 · 마이페이지 · 알림
+
+| Method | Path | Auth | FE |
+| :--- | :--- | :--- | :---: |
+| GET | `/api/v1/users/me` | User | ✅ |
+| PATCH | `/api/v1/users/me` | User | ✅ |
+| GET | `/api/v1/users/me/settings` | User | ✅ |
+| PATCH | `/api/v1/users/me/settings` | User | ✅ |
+| GET | `/api/v1/mypage/analysis-history` | User | ✅ |
+| GET | `/api/v1/cases/me` | User | ✅ alias |
+| GET | `/api/v1/notifications` | User | ✅ |
+| PATCH | `/api/v1/notifications/{id}/read` | User | ✅ |
+| PATCH | `/api/v1/notifications/read-all` | User | ✅ |
+
+### 6.3 사건 · 검토 워크플로우
+
+| Method | Path | Auth | FE |
+| :--- | :--- | :--- | :---: |
+| GET | `/api/v1/cases` · `/api/v1/cases/{caseId}` (`?caseKey=`) | User | ✅ |
+| POST | `/api/v1/cases` | User | ✅ |
+| PATCH | `/api/v1/cases?caseKey=` | User | ✅ 사건명 |
+| PATCH | `/api/v1/cases/representative?caseKey=` | User | ✅ |
+| POST | `/api/v1/cases/review-request?caseKey=` | User | ✅ |
+| PATCH | `/api/v1/cases/reviewer?caseKey=` | Admin | ✅ |
+| PATCH | `/api/v1/cases/{caseId}/reviewer` | Admin | ✅ |
+| POST | `/api/v1/cases/review-decision?caseKey=` | Reviewer/Admin | ✅ |
+
+### 6.4 증거 · 분석 · 대시보드 · HLS · 리포트
+
+| Method | Path | Auth | FE |
+| :--- | :--- | :--- | :---: |
+| POST | `/api/v1/evidences/upload` | User | ✅ |
+| POST | `/api/v1/evidences/analyze` | User | ✅ |
+| GET | `/api/v1/evidences/{id}/detail` | User (+ Step-up) | ✅ |
+| GET | `/api/v1/evidences/{id}/analysis-status` | User | ✅ |
+| GET | `/api/v1/evidences/{id}/readiness` | User | ✅ |
+| POST | `/api/v1/evidences/{id}/readiness-check` | User | ✅ |
+| DELETE | `/api/v1/evidences/{id}` | User | ✅ 업로드 취소 |
+| DELETE | `/api/v1/evidences/{id}/reset` | User | ✅ |
+| DELETE | `/api/v1/evidences/{id}/analysis` | User | ✅ 분석 중단 |
+| PATCH | `/api/v1/evidences/{id}/exclude` | User | ✅ |
+| POST | `/api/v1/evidences/{id}/replace` | User | ✅ |
+| PATCH | `/api/v1/evidences/{id}/role` | User | ✅ |
+| POST | `/api/v1/evidences/{id}/access-events` | User | ✅ |
+| GET | `/api/v1/evidences/stats` | User | ✅ |
+| GET | `/api/v1/evidences/stats/trend` | User | ✅ |
+| GET | `/api/v1/evidences/stats/recent` | User | ✅ |
+| GET | `/api/v1/evidences/dashboard/intro` | User | ❌ |
+| GET | `/api/v1/evidences/{id}/reports/pdf` | User (+ Step-up) | ✅ |
+| GET | `/api/v1/evidences/{id}/reports/verify` | User | ❌ |
+| GET | `/api/v1/evidences/{id}/integrity/verify` | User | ✅ |
+| GET | `/api/v1/evidences/{id}/coc/verify` | User | ❌ |
+| GET | `/api/v1/evidences/{id}/blockchain` | User | ✅ |
+| GET | `/api/v1/evidences/{id}/hls/master.m3u8` | User + streamToken | ✅ |
+| GET | `/api/v1/evidences/{id}/hls/key` | User + streamToken + Step-up | ✅ |
+| GET | `/api/v1/evidences/{id}/hls/segments/{file}` | User + streamToken | ✅ |
+
+### 6.5 보고서 · 공개 검증
+
+| Method | Path | Auth | FE |
+| :--- | :--- | :--- | :---: |
+| GET | `/api/v1/reports` | User | ✅ |
+| POST | `/api/v1/reports/{reportId}/public-access` | User | ✅ |
+| GET | `/api/v1/public/reports/verify` | Public | ✅ |
+| POST | `/api/v1/public/reports/verify-file-hash` | Public | ✅ |
+| GET | `/api/v1/public/reports/view` | Public | ✅ |
+| GET | `/api/v1/public/reports/view/pdf` | Public | ✅ |
+
+발행된 보고서의 `GET /api/v1/public/reports/verify` 응답은 발행 레지스트리 정보에 다음 스냅샷 요약 필드를 포함합니다.
+
+| 필드 | 설명 |
+| :--- | :--- |
+| `analysisVerdict` | 발행 시점 범주형 결과 (`의심 신호 확인`, `의심 신호 미확인`, `판정 불가` 등) |
+| `analysisCompletedAt` | 발행 스냅샷에 기록된 분석 완료 시각 |
+| `snapshotSchemaVersion` | 공개 요약 데이터 계약 버전 |
+| `pdfTemplateVersion` | 발행에 사용된 PDF 템플릿 버전 |
+| `evidenceManifestSignatureValid` | 발행 시점 증거 매니페스트 서명 유효 여부. 기록 없음·미발행은 `null` |
+| `evidenceManifestSignatureStatus` | 발행 시점 증거 매니페스트 서명 상태 (`VALID`, `INVALID`, `NOT_FOUND`, `FAILED`) |
+| `evidenceManifestSignatureAlgorithm` | 발행 시점 서명 알고리즘. 기록이 없으면 `null` |
+| `evidenceManifestSignerCertificateSubject` | 발행 시점 서명 인증서 Subject. 기록이 없으면 `null` |
+| `blockchainStatus` | 최종 PDF SHA-256의 보고서 블록체인 등록 상태 |
+| `blockchainMatched` | 등록된 보고서 해시와 현재 발행 해시의 일치 여부 |
+| `blockchainNetwork` | 보고서 해시가 등록된 네트워크. `local-simulated`는 개발 검증용 |
+| `blockchainTxHash` | 보고서 해시 등록 트랜잭션 ID |
+| `blockchainAnchoredAt` | 보고서 해시 등록 완료 시각 |
+
+- 숫자 점수·기준값, 사건명, 원본 파일명, 담당자, 의심 구간 및 프레임은 공개 응답에 포함하지 않습니다.
+- 발행 후 현재 분석 결과가 변경되어도 공개 요약은 기존 `ReportPublicationSnapshots` 값을 유지합니다.
+- `signatureValid`, `signatureStatus`, `signatureAlgorithm`, `signerCertificateSubject`, `pdfSignatureApplied`는 이전 클라이언트 호환용 deprecated 필드입니다. 신규 화면은 사용하지 않습니다.
+- `signature*`는 과거 명칭과 달리 PDF 전자서명이 아니라 증거 매니페스트 서명을 뜻합니다. 신규 연동은 반드시 `evidenceManifestSignature*`를 사용합니다.
+- 아직 발행되지 않았거나 스냅샷이 없는 레거시 보고서는 위 스냅샷 요약 필드가 `null`일 수 있습니다.
+
+### 6.6 비교 검증
+
+| Method | Path | Auth | FE |
+| :--- | :--- | :--- | :---: |
+| GET | `/api/v1/compare/originals` | User | ✅ |
+| GET | `/api/v1/compare/originals/{evidenceId}` | User | ✅ |
+| POST | `/api/v1/compare/verify` | User | ✅ multipart |
+| POST | `/api/v1/compare/verify-registered` | User | ✅ |
+| POST | `/api/v1/compare/cancel` | User | ✅ |
+| GET | `/api/v1/compare/{compareId}` | User | ✅ |
+| GET | `/api/v1/compare/{compareId}/candidate` | User | △ 결과 UI 간접 |
+| GET | `/api/v1/compare/{compareId}/reports/pdf` | User | ✅ |
+
+### 6.7 관리자
+
+| Method | Path | Auth | FE |
+| :--- | :--- | :--- | :---: |
+| GET | `/api/v1/admin/dashboard/stats` | Admin | ✅ |
+| GET | `/api/v1/admin/dashboard/analysis-stats` | Admin | ✅ |
+| GET | `/api/v1/admin/users` | Admin | ✅ |
+| POST | `/api/v1/admin/users/{id}/approve` | Admin | ✅ |
+| POST | `/api/v1/admin/users/{id}/reject` | Admin | ✅ |
+| POST | `/api/v1/admin/users/{id}/suspend` | Admin | ✅ |
+| POST | `/api/v1/admin/users/{id}/reactivate` | Admin | ✅ |
+| PATCH | `/api/v1/admin/users/{id}` | Admin | ✅ |
+| PATCH | `/api/v1/admin/users/{id}/password` | Admin | ✅ |
+| DELETE | `/api/v1/admin/users/{id}` | Admin | ✅ |
+| GET | `/api/v1/admin/reviewers` | Admin | ✅ |
+| GET/POST | `/api/v1/admin/invite-codes` | Admin | ✅ |
+| GET | `/api/v1/admin/evidences` · `/{id}` | Admin | ✅ |
+| DELETE | `/api/v1/admin/evidences/{id}` | Admin | ✅ |
+| GET | `/api/v1/admin/logs` · `/export` | Admin | ✅ |
+| GET/PATCH | `/api/v1/admin/me` · `/password` | Admin | ✅ |
+| GET | `/api/v1/admin/coc/chains` | Admin | ✅ |
+| POST | `/api/v1/admin/blockchain/merkle/anchor` | Admin | △ 운영/도구 |
 
 ---
 
@@ -1188,6 +1306,8 @@ X-Step-Up-Token: <stepUpToken>
 
 | 날짜 | 버전 | 내용 |
 | :--- | :--- | :--- |
+| 2026-07-14 | v1.9 | **문서 동기화:** §6 Quick Reference를 Controller 전면 재작성(`/api/v1` only) · §0.7 FE 연동 표(알림·설정·무결성·블록체인·검토·HLS) 갱신 · v1.8 헤더 §번호 정리 |
+| 2026-07 | v1.8 | **RBAC·검토(§0.12):** review-request/reviewer/review-decision · admin reviewers · case/mypage 필드 · HLS(§0.14) · step-up · access-events(§0.11) · 보고서 목록·공개 검증 · v2 case workflow |
 | 2026-06-19 | v1.7 | **FE develop 연동:** analysis-history → **사건 단위 `CaseSummaryResponse`** · `POST /compare/cancel` · `evidenceInfo.caseId` · `CaseEvidenceSummaryDto` 미디어 URL 필드(nullable) |
 | 2026-06-19 | v1.6 | **Sprint 4·5:** `queuePosition`/`queueDepth` · `ANALYSIS_TIMEOUT` · `FILE_TOO_LARGE` 413 · admin Merkle 앵커 · PDF CoC `REPORT_*` · stats 캐시 |
 | 2026-06-19 | v1.5 | analysis-history **증거 단위 필드** · analyze `results[].queueRegistered` · status **`queueStatus`**(WAITING/ANALYZING) · detail CoC 검증 필드 |

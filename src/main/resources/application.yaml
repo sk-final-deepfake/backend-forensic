@@ -31,8 +31,9 @@ auth:
   refresh:
     # true(기본): HttpOnly refresh 쿠키 + /api/auth/refresh — XSS 대비 액세스 JWT 재발급
     enabled: ${AUTH_REFRESH_ENABLED:true}
-    # Redis idle TTL(분). 재발급 시 갱신. 20분 비활성 시 재로그인 필요
-    idle-timeout-minutes: ${AUTH_REFRESH_IDLE_TIMEOUT_MINUTES:20}
+    # Redis idle TTL(분). 재발급 시 갱신. Access JWT(기본 20분)보다 길게 두어
+    # 사용 중 첫 refresh 시점에 Redis RT가 이미 만료되는 레이스를 막는다.
+    idle-timeout-minutes: ${AUTH_REFRESH_IDLE_TIMEOUT_MINUTES:90}
   cookie:
     name: refreshToken
     path: /
@@ -145,8 +146,10 @@ readiness:
 
 # 공개 보고서 QR·외부 열람 URL
 report:
-  public-verify-base-url: ${REPORT_PUBLIC_VERIFY_BASE_URL:https://forensheildjangdochi.com/verify}
-  public-view-base-url: ${REPORT_PUBLIC_VIEW_BASE_URL:https://forensheildjangdochi.com/public-report}
+  # 운영에서는 검증 URL 환경 변수를 반드시 설정한다. 미리보기 PDF에는 URL을 넣지 않는다.
+  public-verify-base-url: ${REPORT_PUBLIC_VERIFY_BASE_URL}
+  # 외부 열람 화면을 운영할 때만 설정한다. QR 검증 URL 발행에는 사용하지 않는다.
+  public-view-base-url: ${REPORT_PUBLIC_VIEW_BASE_URL:}
   public-access-ttl-days: ${REPORT_PUBLIC_ACCESS_TTL_DAYS:7}
 
 springdoc:

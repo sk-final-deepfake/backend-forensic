@@ -308,4 +308,31 @@ class AnalysisAiResultIntegrationTest {
         assertThat(updated.getStatus()).isEqualTo(AnalysisStatus.FAILED);
         assertThat(updated.getErrorCode()).isEqualTo("GPU_OOM");
     }
+
+    @Test
+    void applyAiResult_updatesProgressWhenInProgress() {
+        analysisWorkerService.markDispatchedToAi(queuedRequest.getAnalysisRequestId());
+
+        analysisWorkerService.applyAiResult(AnalysisResponseMessage.builder()
+                .analysisRequestId(queuedRequest.getAnalysisRequestId())
+                .evidenceId(queuedRequest.getEvidenceId())
+                .status("IN_PROGRESS")
+                .progressPercent(35)
+                .message("Xception(CNN) 완료")
+                .build());
+
+        AnalysisRequest mid = analysisRequestRepository.findById(queuedRequest.getAnalysisRequestId()).orElseThrow();
+        assertThat(mid.getStatus()).isEqualTo(AnalysisStatus.ANALYZING);
+        assertThat(mid.getProgressPercent()).isEqualTo(35);
+
+        analysisWorkerService.applyAiResult(AnalysisResponseMessage.builder()
+                .analysisRequestId(queuedRequest.getAnalysisRequestId())
+                .evidenceId(queuedRequest.getEvidenceId())
+                .status("IN_PROGRESS")
+                .progressPercent(20)
+                .build());
+
+        AnalysisRequest unchanged = analysisRequestRepository.findById(queuedRequest.getAnalysisRequestId()).orElseThrow();
+        assertThat(unchanged.getProgressPercent()).isEqualTo(35);
+    }
 }

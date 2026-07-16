@@ -224,7 +224,7 @@ class MyPageControllerTest {
 	}
 
 	@Test
-	void updateMyProfile_withValidRequest_persistsDepartment() throws Exception {
+	void updateMyProfile_cannotChangeDepartment() throws Exception {
 		mockMvc.perform(patch("/api/v1/users/me")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
 						.contentType(MediaType.APPLICATION_JSON)
@@ -236,11 +236,11 @@ class MyPageControllerTest {
 								}
 								"""))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.department").value("변경된부서"));
+				.andExpect(jsonPath("$.department").value("로컬개발팀"));
 
 		mockMvc.perform(get("/api/v1/users/me")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
-				.andExpect(jsonPath("$.department").value("변경된부서"));
+				.andExpect(jsonPath("$.department").value("로컬개발팀"));
 	}
 
 	@Test
@@ -251,7 +251,6 @@ class MyPageControllerTest {
 						.content("""
 								{
 								  "loginId": "1111",
-								  "department": "디지털포렌식센터",
 								  "currentPassword": "wrong-password"
 								}
 								"""))

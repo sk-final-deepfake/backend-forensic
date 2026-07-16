@@ -1,4 +1,4 @@
-# VeriForensics 요구사항 추적 매트릭스 (RTM)
+# ForenShield 요구사항 추적 매트릭스 (RTM)
 
 > **기준:** `docs/requirements/source/기능명세서_최종.xlsx` · **백엔드(BE) 시트**
 > **미디어 스코프:** 영상(VIDEO) 전용 — Excel REQ·DTL·CMP는 영상 전제

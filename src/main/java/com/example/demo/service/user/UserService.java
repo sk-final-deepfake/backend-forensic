@@ -48,7 +48,7 @@ public class UserService {
 					HttpStatus.BAD_REQUEST, "DUPLICATE_LOGIN_ID", "이미 사용 중인 사용자 이름입니다.");
 		}
 
-		managedUser.updateProfile(request.getLoginId(), request.getDepartment());
+		managedUser.updateProfile(request.getLoginId());
 
 		if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
 			if (request.getNewPassword().length() < 8) {

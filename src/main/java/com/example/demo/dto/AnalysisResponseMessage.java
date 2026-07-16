@@ -20,6 +20,8 @@ public class AnalysisResponseMessage {
     private Long analysisRequestId;
     private Long evidenceId;
     private String status;
+    /** Mid-run progress 0~99 from AI IN_PROGRESS; optional on terminal messages. */
+    private Integer progressPercent;
     private Double riskScore;
     private Double confidenceScore;
     private String riskLevel;
@@ -91,6 +93,21 @@ public class AnalysisResponseMessage {
             private Integer frameIndex;
             private Double timestampSec;
             private Double riskScore;
+            private List<TamperBBoxItem> bboxes;
+
+            @Getter
+            @Setter
+            @Builder
+            @NoArgsConstructor
+            @AllArgsConstructor
+            @JsonIgnoreProperties(ignoreUnknown = true)
+            public static class TamperBBoxItem {
+                private Integer x;
+                private Integer y;
+                private Integer w;
+                private Integer h;
+                private Double score;
+            }
         }
 
         @Getter

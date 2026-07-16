@@ -26,7 +26,7 @@ public class ReportController {
     private final ReportPdfService reportPdfService;
     private final AuthUserResolver authUserResolver;
 
-    @Operation(summary = "보고서 목록", description = "사용자가 생성했거나 검토자로 배정된 사건의 발행된 분석·비교 PDF 보고서 목록을 조회합니다.")
+    @Operation(summary = "보고서 목록", description = "사용자가 생성했거나 검토자로 배정된 사건의 발행된 PDF 보고서 목록을 조회합니다.")
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
     public ReportListPageResponse listReports(
             @RequestParam(defaultValue = "0") int page,
