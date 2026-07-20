@@ -47,14 +47,9 @@ class CompareTrustMetadataAssemblerTest {
     }
 
     @Test
-    void buildSignatureInfo_withValidSignedManifest_mapsOriginalValid() {
+    void buildSignatureInfo_withValidSignedManifest_mapsOriginalValid_candidateUnsignedWhenNull() {
         Evidence evidence = evidence(2L);
-        EvidenceManifest manifest = new EvidenceManifest();
-        manifest.setEvidenceId(2L);
-        manifest.setSignatureStatus(SignatureStatus.SIGNED);
-        manifest.setSignatureAlgorithm("RSA-SHA256");
-        manifest.setSignerCertificateSubject("CN=ForenShield Evidence CA");
-        manifest.setSignedAt(LocalDateTime.of(2026, 6, 27, 3, 42));
+        EvidenceManifest manifest = signedManifest(2L);
 
         when(evidenceManifestService.findByEvidenceId(2L)).thenReturn(Optional.of(manifest));
         when(evidenceManifestService.isSignatureValid(manifest)).thenReturn(true);
@@ -66,6 +61,42 @@ class CompareTrustMetadataAssemblerTest {
         assertThat(result.getAlgorithm()).isEqualTo("RSA-SHA256");
         assertThat(result.getSignedBy()).isEqualTo("CN=ForenShield Evidence CA");
         assertThat(result.getSignedAt()).isNotBlank();
+    }
+
+    @Test
+    void buildSignatureInfo_withCandidateManifest_mapsBothStatuses() {
+        Evidence original = evidence(10L);
+        Evidence candidate = evidence(20L);
+        EvidenceManifest originalManifest = signedManifest(10L);
+        EvidenceManifest candidateManifest = signedManifest(20L);
+
+        when(evidenceManifestService.findByEvidenceId(10L)).thenReturn(Optional.of(originalManifest));
+        when(evidenceManifestService.findByEvidenceId(20L)).thenReturn(Optional.of(candidateManifest));
+        when(evidenceManifestService.isSignatureValid(originalManifest)).thenReturn(true);
+        when(evidenceManifestService.isSignatureValid(candidateManifest)).thenReturn(true);
+
+        var result = assembler.buildSignatureInfo(original, candidate);
+
+        assertThat(result.getOriginalStatus()).isEqualTo(CompareSignatureStatus.VALID);
+        assertThat(result.getCandidateStatus()).isEqualTo(CompareSignatureStatus.VALID);
+    }
+
+    @Test
+    void buildSignatureInfo_invalidCandidateSignature_mapsInvalid() {
+        Evidence original = evidence(11L);
+        Evidence candidate = evidence(21L);
+        EvidenceManifest originalManifest = signedManifest(11L);
+        EvidenceManifest candidateManifest = signedManifest(21L);
+
+        when(evidenceManifestService.findByEvidenceId(11L)).thenReturn(Optional.of(originalManifest));
+        when(evidenceManifestService.findByEvidenceId(21L)).thenReturn(Optional.of(candidateManifest));
+        when(evidenceManifestService.isSignatureValid(originalManifest)).thenReturn(true);
+        when(evidenceManifestService.isSignatureValid(candidateManifest)).thenReturn(false);
+
+        var result = assembler.buildSignatureInfo(original, candidate);
+
+        assertThat(result.getOriginalStatus()).isEqualTo(CompareSignatureStatus.VALID);
+        assertThat(result.getCandidateStatus()).isEqualTo(CompareSignatureStatus.INVALID);
     }
 
     @Test
@@ -125,6 +156,16 @@ class CompareTrustMetadataAssemblerTest {
 
         assertThat(result.getStatus()).isEqualTo(CompareBlockchainStatus.MISMATCH);
         assertThat(result.getAnchoredHash()).isEqualTo(anchor.getSubjectHash());
+    }
+
+    private EvidenceManifest signedManifest(Long evidenceId) {
+        EvidenceManifest manifest = new EvidenceManifest();
+        manifest.setEvidenceId(evidenceId);
+        manifest.setSignatureStatus(SignatureStatus.SIGNED);
+        manifest.setSignatureAlgorithm("RSA-SHA256");
+        manifest.setSignerCertificateSubject("CN=ForenShield Evidence CA");
+        manifest.setSignedAt(LocalDateTime.of(2026, 6, 27, 3, 42));
+        return manifest;
     }
 
     private Evidence evidence(Long id) {

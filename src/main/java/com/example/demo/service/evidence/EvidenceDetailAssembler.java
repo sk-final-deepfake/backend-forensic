@@ -20,6 +20,7 @@ import com.example.demo.dto.detail.HlsPlaybackDto;
 import com.example.demo.dto.detail.IntegrityInfoDto;
 import com.example.demo.dto.detail.ManifestInfoDto;
 import com.example.demo.dto.detail.RecoveryScoreDto;
+import com.example.demo.dto.detail.SecurityCheckDto;
 import com.example.demo.dto.detail.SignatureInfoDto;
 import com.example.demo.dto.detail.VideoMetadataDto;
 import com.example.demo.repository.EvidenceRepository;
@@ -61,10 +62,14 @@ public class EvidenceDetailAssembler {
             HlsPlaybackDto hlsPlayback
     ) {
         boolean isChainValid = resolveChainValid(verification, evidence.getEvidenceId());
+        boolean integrityValid = verification == null || verification.isValid();
+        List<SecurityCheckDto> failedChecks = toFailedChecks(verification);
+        String securityStatus = integrityValid ? "OK" : "SECURITY_ALERT";
 
         return EvidenceDetailResponse.builder()
                 .evidenceInfo(toEvidenceInfo(evidence, metadata))
-                .integrityInfo(toIntegrityInfo(evidence, isChainValid, recovery, custodyLogs.size()))
+                .integrityInfo(toIntegrityInfo(
+                        evidence, isChainValid, integrityValid, securityStatus, failedChecks, recovery, custodyLogs.size()))
                 .manifestInfo(toManifestInfo(evidence, manifest))
                 .signatureInfo(toSignatureInfo(manifest, verification))
                 .blockchainInfo(blockchainAnchorService.getEvidenceBlockchainInfo(evidence))
@@ -143,9 +148,21 @@ public class EvidenceDetailAssembler {
     private IntegrityInfoDto toIntegrityInfo(
             Evidence evidence,
             boolean isChainValid,
+            boolean integrityValid,
+            String securityStatus,
+            List<SecurityCheckDto> failedChecks,
             RecoveryScoreDto recovery,
             int cocLogCount
     ) {
+        String verificationStatus;
+        if (!integrityValid) {
+            verificationStatus = "SECURITY_ALERT";
+        } else if (isChainValid) {
+            verificationStatus = "VERIFIED";
+        } else {
+            verificationStatus = "CORRUPTED";
+        }
+
         return IntegrityInfoDto.builder()
                 .hashAlgorithm(evidence.getHashAlgorithm())
                 .originalHash(evidence.getOriginalHashValue())
@@ -153,7 +170,7 @@ public class EvidenceDetailAssembler {
                 .copyStatus(evidence.getCopyStatus() != null ? evidence.getCopyStatus().name() : null)
                 .chainValid(isChainValid)
                 .chainValidAlias(isChainValid)
-                .verificationStatus(isChainValid ? "VERIFIED" : "CORRUPTED")
+                .verificationStatus(verificationStatus)
                 .recoveryScore(recovery.getRecoveryScore())
                 .dataLossPercent(recovery.getDataLossPercent())
                 .recoveryGrade(recovery.getGrade())
@@ -162,7 +179,25 @@ public class EvidenceDetailAssembler {
                 .cocVerificationMessage(isChainValid
                         ? "CoC 해시 체인이 유효합니다."
                         : "CoC 해시 체인 검증에 실패했습니다.")
+                .integrityValid(integrityValid)
+                .securityStatus(securityStatus)
+                .failedChecks(failedChecks)
                 .build();
+    }
+
+    private List<SecurityCheckDto> toFailedChecks(IntegrityVerifyResponse verification) {
+        if (verification == null || verification.getChecks() == null) {
+            return List.of();
+        }
+        return verification.getChecks().stream()
+                .filter(check -> !check.isValid())
+                .map(check -> SecurityCheckDto.builder()
+                        .checkType(check.getCheckType())
+                        .valid(false)
+                        .errorCode(check.getErrorCode())
+                        .message(check.getMessage())
+                        .build())
+                .toList();
     }
 
     private ManifestInfoDto toManifestInfo(Evidence evidence, EvidenceManifest manifest) {

@@ -1,7 +1,7 @@
 package com.example.demo.service.notification;
 
-import com.example.demo.service.user.UserSettingsService;
 import com.example.demo.domain.Notification;
+import com.example.demo.domain.User;
 import com.example.demo.domain.enums.BlockchainAnchorType;
 import com.example.demo.domain.enums.NotificationType;
 import com.example.demo.domain.enums.SecurityAlertCode;
@@ -9,16 +9,21 @@ import com.example.demo.dto.notification.NotificationDto;
 import com.example.demo.dto.notification.NotificationListResponse;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.NotificationRepository;
+import com.example.demo.repository.UserRepository;
+import com.example.demo.service.user.UserSettingsService;
 import com.example.demo.util.ApiDateTimeFormatter;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
@@ -37,6 +42,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserSettingsService userSettingsService;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public NotificationListResponse listNotifications(Long userId, int limit) {
@@ -118,16 +124,11 @@ public class NotificationService {
 
     /**
      * RQ-SEC-153: 보안 경고는 분석 알림 설정과 무관하게 발송 (중복은 24h 억제).
+     * 소유자 + 승인된 ROLE_ADMIN 전원에게 전달해 관리자가 즉시 인지할 수 있게 한다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void notifySecurityAlertIfNeeded(Long userId, Long evidenceId, SecurityAlertCode alertCode) {
         String referenceType = securityReferenceType(alertCode);
-        LocalDateTime dedupSince = LocalDateTime.now().minusHours(SECURITY_ALERT_DEDUP_HOURS);
-        if (notificationRepository.existsByUserIdAndReferenceTypeAndReferenceIdAndCreatedAtAfter(
-                userId, referenceType, evidenceId, dedupSince)) {
-            return;
-        }
-
         String title = "보안 경고";
         String message = switch (alertCode) {
             case SIGNATURE_INVALID ->
@@ -140,16 +141,34 @@ public class NotificationService {
                     "증거(ID " + evidenceId + ") 블록체인 앵커 certVerified와 현재 서명 재검증 결과가 일치하지 않습니다.";
         };
 
-        Notification notification = new Notification();
-        notification.setUserId(userId);
-        notification.setType(NotificationType.SECURITY_ALERT);
-        notification.setTitle(title);
-        notification.setMessage(message);
-        notification.setReferenceType(referenceType);
-        notification.setReferenceId(evidenceId);
-        notification.setRead(false);
-        notification.setCreatedAt(LocalDateTime.now());
-        notificationRepository.save(notification);
+        log.warn("SECURITY_ALERT code={} evidenceId={} ownerUserId={} message={}",
+                alertCode, evidenceId, userId, message);
+
+        Set<Long> recipients = new HashSet<>();
+        if (userId != null) {
+            recipients.add(userId);
+        }
+        for (User admin : userRepository.findApprovedAdmins()) {
+            recipients.add(admin.getUserId());
+        }
+
+        LocalDateTime dedupSince = LocalDateTime.now().minusHours(SECURITY_ALERT_DEDUP_HOURS);
+        for (Long recipientId : recipients) {
+            if (notificationRepository.existsByUserIdAndReferenceTypeAndReferenceIdAndCreatedAtAfter(
+                    recipientId, referenceType, evidenceId, dedupSince)) {
+                continue;
+            }
+            Notification notification = new Notification();
+            notification.setUserId(recipientId);
+            notification.setType(NotificationType.SECURITY_ALERT);
+            notification.setTitle(title);
+            notification.setMessage(message);
+            notification.setReferenceType(referenceType);
+            notification.setReferenceId(evidenceId);
+            notification.setRead(false);
+            notification.setCreatedAt(LocalDateTime.now());
+            notificationRepository.save(notification);
+        }
     }
 
     private String shorten(String transactionHash) {

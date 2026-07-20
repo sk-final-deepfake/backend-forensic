@@ -124,6 +124,34 @@ class IntegrityVerificationServiceTest {
     }
 
     @Test
+    @DisplayName("RQ-SEC-153: 보안 경고는 소유자뿐 아니라 ROLE_ADMIN에게도 전달된다")
+    void verifyAndNotify_invalidSignature_notifiesAdmins() {
+        User admin = userRepository.save(User.builder()
+                .loginId("integrity-admin")
+                .email("integrity-admin@test.dev")
+                .password("encoded")
+                .name("Integrity Admin")
+                .organizationType(OrgType.ETC)
+                .department("ops")
+                .role(UserRole.ROLE_ADMIN)
+                .status(UserStatus.APPROVED)
+                .darkMode(false)
+                .build());
+
+        Evidence evidence = saveEvidenceWithCopy("admin-alert.mp4");
+        EvidenceManifest manifest = evidenceManifestRepository.findById(evidence.getEvidenceId()).orElseThrow();
+        manifest.setSignatureValue("invalid-signature");
+        evidenceManifestRepository.save(manifest);
+
+        integrityVerificationService.verifyAndNotifySecurityIssues(user, evidence.getEvidenceId());
+
+        assertThat(notificationRepository.findAll())
+                .filteredOn(n -> n.getType() == NotificationType.SECURITY_ALERT)
+                .extracting(com.example.demo.domain.Notification::getUserId)
+                .containsExactlyInAnyOrder(user.getUserId(), admin.getUserId());
+    }
+
+    @Test
     @DisplayName("RQ-SEC-153: 블록체인 해시 불일치 시 SECURITY_ALERT 알림을 생성한다")
     void verifyAndNotify_blockchainMismatch_createsSecurityAlert() {
         Evidence evidence = saveEvidenceWithCopy("blockchain-mismatch.mp4");

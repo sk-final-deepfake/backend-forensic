@@ -9,6 +9,7 @@ import com.example.demo.dto.compare.CompareFileInfoDto;
 import com.example.demo.dto.compare.CompareItemDto;
 import com.example.demo.dto.compare.CompareOriginalPageResponse;
 import com.example.demo.dto.compare.CompareResultResponse;
+import com.example.demo.dto.compare.CompareSignatureInfoDto;
 import com.example.demo.dto.compare.CompareSummaryDto;
 import com.example.demo.dto.compare.CompareVerifyResponse;
 import com.example.demo.exception.BusinessException;
@@ -18,6 +19,7 @@ import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.service.evidence.EvidenceAccessService;
 import com.example.demo.service.evidence.FileValidationService;
 import com.example.demo.service.evidence.HashService;
+import com.example.demo.service.manifest.EvidenceManifestService;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,6 +46,7 @@ public class CompareVerificationService {
     private final CompareItemEvaluator compareItemEvaluator;
     private final CompareVerificationAssembler compareVerificationAssembler;
     private final CompareTrustMetadataAssembler compareTrustMetadataAssembler;
+    private final EvidenceManifestService evidenceManifestService;
 
     @Transactional
     public CompareVerifyResponse verify(User user, Long evidenceId, MultipartFile candidateFile) {
@@ -52,6 +55,7 @@ public class CompareVerificationService {
 
     public CompareVerifyResponse verify(User user, Long evidenceId, MultipartFile candidateFile, String requestId) {
         Evidence original = evidenceAccessService.requireOwned(user, evidenceId);
+        evidenceManifestService.ensureManifest(original);
 
         fileValidationService.validate(candidateFile);
         EvidenceMetadata originalMetadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElse(null);
@@ -63,21 +67,31 @@ public class CompareVerificationService {
             var originalProbe = originalProbeExtractor.extract(original);
             var candidateProbe = candidateFileHandler.extractProbe(tempFile);
 
+            Evidence candidateEvidence = resolveCandidateByHash(user.getUserId(), candidateHash);
+            if (candidateEvidence != null) {
+                evidenceManifestService.ensureManifest(candidateEvidence);
+            }
+
             List<CompareItemDto> items = compareItemEvaluator.buildComparisonItems(
                     original, originalMetadata, candidateHash, candidateSize, originalProbe, candidateProbe);
             CompareSummaryDto summary = compareItemEvaluator.summarize(items);
             CompareVerdict verdict = compareItemEvaluator.determineVerdict(
                     items, candidateHash, original.getOriginalHashValue());
 
+            CompareSignatureInfoDto signatureInfo =
+                    compareTrustMetadataAssembler.buildSignatureInfo(original, candidateEvidence);
+
             CompareVerification saved = persistVerification(
                     user.getUserId(),
                     evidenceId,
+                    candidateEvidence != null ? candidateEvidence.getEvidenceId() : null,
                     candidateFile.getOriginalFilename(),
                     candidateHash,
                     candidateSize,
                     verdict,
                     summary,
-                    items
+                    items,
+                    signatureInfo
             );
 
             return compareVerificationAssembler.toVerifyResponse(
@@ -85,7 +99,7 @@ public class CompareVerificationService {
                     original,
                     items,
                     summary,
-                    compareTrustMetadataAssembler.buildSignatureInfo(original),
+                    signatureInfo,
                     compareTrustMetadataAssembler.buildBlockchainInfo(original)
             );
         } finally {
@@ -109,6 +123,9 @@ public class CompareVerificationService {
 
         Evidence original = evidenceAccessService.requireOwned(user, originalEvidenceId);
         Evidence candidate = evidenceAccessService.requireOwned(user, candidateEvidenceId);
+        evidenceManifestService.ensureManifest(original);
+        evidenceManifestService.ensureManifest(candidate);
+
         EvidenceMetadata originalMetadata = evidenceMetadataRepository
                 .findByEvidenceId(originalEvidenceId)
                 .orElse(null);
@@ -131,15 +148,20 @@ public class CompareVerificationService {
                 candidateHash,
                 original.getOriginalHashValue()
         );
+        CompareSignatureInfoDto signatureInfo =
+                compareTrustMetadataAssembler.buildSignatureInfo(original, candidate);
+
         CompareVerification saved = persistVerification(
                 user.getUserId(),
                 originalEvidenceId,
+                candidateEvidenceId,
                 candidate.getFileName(),
                 candidateHash,
                 candidateSize,
                 verdict,
                 summary,
-                items
+                items,
+                signatureInfo
         );
 
         return compareVerificationAssembler.toVerifyResponse(
@@ -147,7 +169,7 @@ public class CompareVerificationService {
                 original,
                 items,
                 summary,
-                compareTrustMetadataAssembler.buildSignatureInfo(original),
+                signatureInfo,
                 compareTrustMetadataAssembler.buildBlockchainInfo(original)
         );
     }
@@ -157,10 +179,26 @@ public class CompareVerificationService {
         CompareVerification verification = requireOwnedVerification(user, compareId);
         Evidence original = evidenceAccessService.requireOwned(user, verification.getOriginalEvidenceId());
         List<CompareItemDto> items = compareVerificationAssembler.deserializeItems(verification.getResultJson());
+
+        CompareSignatureInfoDto signatureInfo;
+        if (verification.getOriginalSignatureStatus() != null
+                || verification.getCandidateSignatureStatus() != null) {
+            signatureInfo = compareTrustMetadataAssembler.fromSnapshot(
+                    verification.getOriginalSignatureStatus(),
+                    verification.getCandidateSignatureStatus()
+            );
+        } else if (verification.getCandidateEvidenceId() != null) {
+            Evidence candidate = evidenceRepository.findByEvidenceId(verification.getCandidateEvidenceId())
+                    .orElse(null);
+            signatureInfo = compareTrustMetadataAssembler.buildSignatureInfo(original, candidate);
+        } else {
+            signatureInfo = compareTrustMetadataAssembler.buildSignatureInfo(original, null);
+        }
+
         return compareVerificationAssembler.toResultResponse(
                 verification,
                 items,
-                compareTrustMetadataAssembler.buildSignatureInfo(original),
+                signatureInfo,
                 compareTrustMetadataAssembler.buildBlockchainInfo(original)
         );
     }
@@ -211,19 +249,36 @@ public class CompareVerificationService {
         // acknowledged no-op for API compatibility
     }
 
+    private Evidence resolveCandidateByHash(Long uploaderId, String candidateHash) {
+        if (candidateHash == null || candidateHash.isBlank()) {
+            return null;
+        }
+        return evidenceRepository
+                .findFirstByUploaderIdAndOriginalHashValueAndDeletedAtIsNullOrderByEvidenceIdDesc(
+                        uploaderId, candidateHash)
+                .orElse(null);
+    }
+
     private CompareVerification persistVerification(
             Long userId,
             Long evidenceId,
+            Long candidateEvidenceId,
             String candidateFileName,
             String candidateHash,
             long candidateSize,
             CompareVerdict verdict,
             CompareSummaryDto summary,
-            List<CompareItemDto> items
+            List<CompareItemDto> items,
+            CompareSignatureInfoDto signatureInfo
     ) {
         CompareVerification verification = new CompareVerification();
         verification.setUserId(userId);
         verification.setOriginalEvidenceId(evidenceId);
+        verification.setCandidateEvidenceId(candidateEvidenceId);
+        verification.setOriginalSignatureStatus(
+                signatureInfo.getOriginalStatus() != null ? signatureInfo.getOriginalStatus().name() : null);
+        verification.setCandidateSignatureStatus(
+                signatureInfo.getCandidateStatus() != null ? signatureInfo.getCandidateStatus().name() : null);
         verification.setCandidateFileName(candidateFileName);
         verification.setCandidateHash(candidateHash);
         verification.setCandidateFileSize(candidateSize);

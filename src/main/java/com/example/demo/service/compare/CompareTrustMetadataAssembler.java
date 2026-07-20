@@ -26,21 +26,48 @@ public class CompareTrustMetadataAssembler {
     private final BlockchainAnchorRepository blockchainAnchorRepository;
 
     public CompareSignatureInfoDto buildSignatureInfo(Evidence original) {
-        Optional<EvidenceManifest> manifest = evidenceManifestService.findByEvidenceId(original.getEvidenceId());
-        if (manifest.isEmpty()) {
-            return CompareSignatureInfoDto.builder()
-                    .originalStatus(CompareSignatureStatus.UNSIGNED)
-                    .candidateStatus(CompareSignatureStatus.UNSIGNED)
-                    .build();
+        return buildSignatureInfo(original, null);
+    }
+
+    /**
+     * 원본·후보 Manifest 서명 상태를 각각 매핑한다.
+     * 후보가 없거나 Manifest가 없으면 candidateStatus=UNSIGNED.
+     */
+    public CompareSignatureInfoDto buildSignatureInfo(Evidence original, Evidence candidate) {
+        Optional<EvidenceManifest> originalManifest =
+                evidenceManifestService.findByEvidenceId(original.getEvidenceId());
+        CompareSignatureStatus originalStatus = originalManifest
+                .map(this::mapSignatureStatus)
+                .orElse(CompareSignatureStatus.UNSIGNED);
+
+        CompareSignatureStatus candidateStatus = CompareSignatureStatus.UNSIGNED;
+        if (candidate != null) {
+            candidateStatus = evidenceManifestService.findByEvidenceId(candidate.getEvidenceId())
+                    .map(this::mapSignatureStatus)
+                    .orElse(CompareSignatureStatus.UNSIGNED);
         }
 
-        EvidenceManifest evidenceManifest = manifest.get();
+        EvidenceManifest displayManifest = originalManifest.orElse(null);
+        if (displayManifest == null && candidate != null) {
+            displayManifest = evidenceManifestService.findByEvidenceId(candidate.getEvidenceId()).orElse(null);
+        }
+
+        CompareSignatureInfoDto.CompareSignatureInfoDtoBuilder builder = CompareSignatureInfoDto.builder()
+                .originalStatus(originalStatus)
+                .candidateStatus(candidateStatus);
+
+        if (displayManifest != null) {
+            builder.algorithm(displayManifest.getSignatureAlgorithm())
+                    .signedBy(displayManifest.getSignerCertificateSubject())
+                    .signedAt(ApiDateTimeFormatter.formatUtc(displayManifest.getSignedAt()));
+        }
+        return builder.build();
+    }
+
+    public CompareSignatureInfoDto fromSnapshot(String originalStatus, String candidateStatus) {
         return CompareSignatureInfoDto.builder()
-                .originalStatus(mapOriginalSignatureStatus(evidenceManifest))
-                .candidateStatus(CompareSignatureStatus.UNSIGNED)
-                .algorithm(evidenceManifest.getSignatureAlgorithm())
-                .signedBy(evidenceManifest.getSignerCertificateSubject())
-                .signedAt(ApiDateTimeFormatter.formatUtc(evidenceManifest.getSignedAt()))
+                .originalStatus(parseStatus(originalStatus))
+                .candidateStatus(parseStatus(candidateStatus))
                 .build();
     }
 
@@ -72,7 +99,7 @@ public class CompareTrustMetadataAssembler {
                 .build();
     }
 
-    private CompareSignatureStatus mapOriginalSignatureStatus(EvidenceManifest manifest) {
+    private CompareSignatureStatus mapSignatureStatus(EvidenceManifest manifest) {
         SignatureStatus status = manifest.getSignatureStatus() != null
                 ? manifest.getSignatureStatus()
                 : SignatureStatus.UNSIGNED;
@@ -83,5 +110,16 @@ public class CompareTrustMetadataAssembler {
                     ? CompareSignatureStatus.VALID
                     : CompareSignatureStatus.INVALID;
         };
+    }
+
+    private CompareSignatureStatus parseStatus(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return CompareSignatureStatus.UNSIGNED;
+        }
+        try {
+            return CompareSignatureStatus.valueOf(raw);
+        } catch (IllegalArgumentException ex) {
+            return CompareSignatureStatus.UNSIGNED;
+        }
     }
 }

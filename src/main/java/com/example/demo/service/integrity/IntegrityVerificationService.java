@@ -48,6 +48,12 @@ public class IntegrityVerificationService {
         return new EvidenceIntegrityResult(evidence, response);
     }
 
+    /** 관리자 상세 등 접근 제어 이후 호출 — 알림 없이 검증 결과만 산출 */
+    @Transactional(readOnly = true)
+    public IntegrityVerifyResponse evaluate(Evidence evidence) {
+        return buildVerification(evidence);
+    }
+
     /**
      * SK-632: 전용 검증 API — 실패 시 409 + errorCode.
      */

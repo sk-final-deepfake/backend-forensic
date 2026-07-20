@@ -2,6 +2,7 @@ package com.example.demo.service.admin;
 
 import com.example.demo.service.custody.CustodyLogService;
 import com.example.demo.service.custody.EvidenceCustodyTimelineService;
+import com.example.demo.service.integrity.IntegrityVerificationService;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
@@ -9,6 +10,8 @@ import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
 import com.example.demo.domain.enums.EvidenceStatus;
 import com.example.demo.domain.enums.FileType;
+import com.example.demo.dto.IntegrityCheckItem;
+import com.example.demo.dto.IntegrityVerifyResponse;
 import com.example.demo.dto.admin.AdminEvidenceAnalysisResponse;
 import com.example.demo.dto.admin.AdminEvidenceCustodyLogResponse;
 import com.example.demo.dto.admin.AdminEvidenceDetailResponse;
@@ -50,6 +53,7 @@ public class AdminEvidenceService {
     private final UserRepository userRepository;
     private final CustodyLogService custodyLogService;
     private final EvidenceCustodyTimelineService evidenceCustodyTimelineService;
+    private final IntegrityVerificationService integrityVerificationService;
 
     @Transactional(readOnly = true)
     public AdminEvidencePageResponse listEvidences(
@@ -90,6 +94,14 @@ public class AdminEvidenceService {
 
         List<CustodyLog> custodyLogs = evidenceCustodyTimelineService.loadTimelineDesc(evidenceId);
         Map<Long, User> actors = resolveActors(custodyLogs);
+        IntegrityVerifyResponse integrity = integrityVerificationService.evaluate(evidence);
+        boolean chainValid = findCheckValid(integrity, "COC_CHAIN", true);
+        Boolean signatureValid = findCheckNullable(integrity, "SIGNATURE");
+        Boolean blockchainHashValid = findCheckNullable(integrity, "BLOCKCHAIN_HASH");
+        List<String> alertCodes = integrity.getChecks().stream()
+                .filter(check -> !check.isValid() && check.getErrorCode() != null)
+                .map(IntegrityCheckItem::getErrorCode)
+                .toList();
 
         return AdminEvidenceDetailResponse.builder()
                 .id(String.valueOf(evidence.getEvidenceId()))
@@ -113,7 +125,29 @@ public class AdminEvidenceService {
                 .custodyLogs(custodyLogs.stream()
                         .map(log -> toCustodyLog(log, actors))
                         .toList())
+                .integrityValid(integrity.isValid())
+                .securityStatus(integrity.isValid() ? "OK" : "SECURITY_ALERT")
+                .signatureValid(signatureValid)
+                .chainValid(chainValid)
+                .blockchainHashValid(blockchainHashValid)
+                .securityAlertCodes(alertCodes)
                 .build();
+    }
+
+    private boolean findCheckValid(IntegrityVerifyResponse integrity, String checkType, boolean defaultValue) {
+        return integrity.getChecks().stream()
+                .filter(check -> checkType.equals(check.getCheckType()))
+                .findFirst()
+                .map(IntegrityCheckItem::isValid)
+                .orElse(defaultValue);
+    }
+
+    private Boolean findCheckNullable(IntegrityVerifyResponse integrity, String checkType) {
+        return integrity.getChecks().stream()
+                .filter(check -> checkType.equals(check.getCheckType()))
+                .findFirst()
+                .map(IntegrityCheckItem::isValid)
+                .orElse(null);
     }
 
     @Transactional
