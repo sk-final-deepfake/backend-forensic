@@ -2,6 +2,7 @@ package com.example.demo.service.evidence;
 
 import com.example.demo.service.evidence.hls.EvidenceHlsLookupService;
 import com.example.demo.service.evidence.hls.EvidenceHlsPlaybackService;
+import com.example.demo.service.custody.EvidenceCustodyTimelineService;
 import com.example.demo.service.custody.RecoveryScoreService;
 import com.example.demo.service.manifest.EvidenceManifestService;
 import com.example.demo.domain.AnalysisModuleResult;
@@ -13,7 +14,6 @@ import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceManifest;
 import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
-import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.UserRole;
 import com.example.demo.domain.enums.UserStatus;
 import com.example.demo.dto.IntegrityVerifyResponse;
@@ -25,7 +25,6 @@ import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.repository.CaseProfileRepository;
-import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
@@ -54,7 +53,7 @@ public class EvidenceDetailService {
     private final AnalysisRequestRepository analysisRequestRepository;
     private final AnalysisResultRepository analysisResultRepository;
     private final AnalysisModuleResultRepository analysisModuleResultRepository;
-    private final CustodyLogRepository custodyLogRepository;
+    private final EvidenceCustodyTimelineService evidenceCustodyTimelineService;
     private final EvidenceManifestService evidenceManifestService;
     private final RecoveryScoreService recoveryScoreService;
     private final CaseDetailAssembler caseDetailAssembler;
@@ -92,8 +91,8 @@ public class EvidenceDetailService {
                         result.getAnalysisResultId()
                 );
         EvidenceMetadata metadata = evidenceMetadataRepository.findByEvidenceId(evidenceId).orElse(null);
-        List<CustodyLog> custodyLogs = custodyLogRepository
-                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(CustodyTargetType.EVIDENCE, evidenceId);
+        // EVIDENCE + ANALYSIS_REQUEST/RESULT + REPORT 로그를 증거 상세 타임라인으로 합친다.
+        List<CustodyLog> custodyLogs = evidenceCustodyTimelineService.loadTimelineAsc(evidenceId);
         EvidenceManifest manifest = evidenceManifestService.findByEvidenceId(evidenceId).orElse(null);
         RecoveryScoreDto recovery = recoveryScoreService.calculate(metadata);
         var hlsPlayback = evidenceHlsPlaybackService.buildForDetail(user.getUserId(), evidence);

@@ -28,4 +28,12 @@ public class AdminEvidenceDetailResponse {
     private AdminEvidenceMetadataResponse metadata;
     private List<AdminEvidenceAnalysisResponse> analysisHistory;
     private List<AdminEvidenceCustodyLogResponse> custodyLogs;
+
+    /** RQ-SEC-153 */
+    private boolean integrityValid;
+    private String securityStatus;
+    private Boolean signatureValid;
+    private boolean chainValid;
+    private Boolean blockchainHashValid;
+    private List<String> securityAlertCodes;
 }

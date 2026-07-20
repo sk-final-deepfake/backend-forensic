@@ -5,6 +5,7 @@ import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.AnalysisResult;
 import com.example.demo.dto.detail.AnalysisInfoDto;
 import com.example.demo.util.AnalysisStatusMapper;
+import com.example.demo.util.IntegratedRiskCalculator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -97,15 +98,25 @@ public class AnalysisInfoAssembler {
         VideoModuleDetailsReader.VisualizationData visualization = videoModuleDetailsReader
                 .readVisualization(moduleResults);
 
+        IntegratedRiskCalculator.IntegratedRisk integrated = IntegratedRiskCalculator.fromModuleResults(
+                moduleResults,
+                request.getErrorCode(),
+                null
+        );
+        Double riskScore = integrated.method().equals("none") ? result.getRiskScore() : integrated.riskScore();
+        String riskLevel = integrated.method().equals("none") && result.getRiskLevel() != null
+                ? result.getRiskLevel().name()
+                : integrated.riskLevel().name();
+
         return AnalysisInfoDto.builder()
                 .status(status)
                 .queueStatus(queueStatus)
                 .analysisRequestId(request.getAnalysisRequestId())
                 .requestedAt(AnalysisDetailFormatters.formatUtc(request.getRequestedAt()))
                 .completedAt(AnalysisDetailFormatters.formatUtc(result.getAnalyzedAt()))
-                .riskScore(result.getRiskScore())
+                .riskScore(riskScore)
                 .confidenceScore(result.getConfidenceScore())
-                .riskLevel(result.getRiskLevel() != null ? result.getRiskLevel().name() : null)
+                .riskLevel(riskLevel)
                 .summary(result.getSummary() != null ? result.getSummary() : "분석이 완료되었습니다.")
                 .completed(true)
                 .moduleResults(moduleResults.stream().map(AnalysisDetailFormatters::toModuleResult).toList())

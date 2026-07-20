@@ -78,6 +78,11 @@ public interface EvidenceRepository extends JpaRepository<Evidence, Long>, JpaSp
             @Param("caseKey") String caseKey
     );
 
+    Optional<Evidence> findFirstByUploaderIdAndOriginalHashValueAndDeletedAtIsNullOrderByEvidenceIdDesc(
+            Long uploaderId,
+            String originalHashValue
+    );
+
     @Query("""
             SELECT e
             FROM Evidence e

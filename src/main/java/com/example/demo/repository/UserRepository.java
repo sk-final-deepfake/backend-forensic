@@ -93,4 +93,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("organizationType") OrgType organizationType,
             @Param("department") String department
     );
+
+    @Query("""
+            SELECT u FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.status = com.example.demo.domain.enums.UserStatus.APPROVED
+              AND u.role = com.example.demo.domain.enums.UserRole.ROLE_ADMIN
+            ORDER BY u.userId ASC
+            """)
+    List<User> findApprovedAdmins();
 }

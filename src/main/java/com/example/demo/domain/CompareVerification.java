@@ -35,6 +35,16 @@ public class CompareVerification {
     @Column(name = "original_evidence_id", nullable = false)
     private Long originalEvidenceId;
 
+    /** 등록 증거 간 비교 시 후보 evidenceId (업로드 후보는 null) */
+    @Column(name = "candidate_evidence_id")
+    private Long candidateEvidenceId;
+
+    @Column(name = "original_signature_status", length = 20)
+    private String originalSignatureStatus;
+
+    @Column(name = "candidate_signature_status", length = 20)
+    private String candidateSignatureStatus;
+
     @Column(name = "candidate_file_name", nullable = false, length = 500)
     private String candidateFileName;
 
