@@ -45,6 +45,16 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        // 시스템 관리자 전용
+                        .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "ORG_ADMIN")
+                        // 일반 사용자 화면(/main 등)용 API — ORG_ADMIN 차단 (관리자는 /api/v1/admin/** 사용)
+                        .requestMatchers(
+                                "/api/v1/evidences/dashboard/**",
+                                "/api/v1/evidences/stats",
+                                "/api/v1/evidences/stats/**",
+                                "/api/v1/mypage/**",
+                                "/api/v1/compare/**"
+                        ).hasAnyRole("INVESTIGATOR", "USER", "REVIEWER")
                         .requestMatchers("/api/v1/evidences/**").authenticated()
                         .anyRequest().authenticated()
                 )
