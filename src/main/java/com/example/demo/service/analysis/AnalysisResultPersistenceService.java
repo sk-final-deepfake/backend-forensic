@@ -13,6 +13,7 @@ import com.example.demo.repository.AnalysisModuleResultRepository;
 import com.example.demo.repository.AnalysisRequestRepository;
 import com.example.demo.repository.AnalysisResultRepository;
 import com.example.demo.util.ApiDateTimeFormatter;
+import com.example.demo.util.IntegratedRiskCalculator;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,9 +50,10 @@ public class AnalysisResultPersistenceService {
     }
 
     private Long updateFromAiResponse(AnalysisResult existing, AnalysisResponseMessage response) {
-        existing.setRiskScore(response.getRiskScore());
+        IntegratedRiskCalculator.IntegratedRisk integrated = IntegratedRiskCalculator.fromAiResponse(response);
+        existing.setRiskScore(integrated.riskScore());
         existing.setConfidenceScore(response.getConfidenceScore());
-        existing.setRiskLevel(parseRiskLevel(response.getRiskLevel()));
+        existing.setRiskLevel(integrated.riskLevel());
         existing.setSummary(buildSummary(response));
         if (response.getAnalyzedAt() != null) {
             existing.setAnalyzedAt(ApiDateTimeFormatter.parseUtc(response.getAnalyzedAt()));
@@ -72,11 +74,13 @@ public class AnalysisResultPersistenceService {
                 .orElseThrow(() -> new IllegalStateException(
                         "AnalysisRequest not found: " + response.getAnalysisRequestId()));
 
+        IntegratedRiskCalculator.IntegratedRisk integrated = IntegratedRiskCalculator.fromAiResponse(response);
+
         AnalysisResult savedResult = analysisResultRepository.save(buildResult(
                 request.getAnalysisRequestId(),
-                response.getRiskScore(),
+                integrated.riskScore(),
                 response.getConfidenceScore(),
-                parseRiskLevel(response.getRiskLevel()),
+                integrated.riskLevel(),
                 buildSummary(response),
                 ApiDateTimeFormatter.parseUtc(response.getAnalyzedAt())
         ));
