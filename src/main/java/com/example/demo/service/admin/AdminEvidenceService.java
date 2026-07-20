@@ -1,12 +1,12 @@
 package com.example.demo.service.admin;
 
 import com.example.demo.service.custody.CustodyLogService;
+import com.example.demo.service.custody.EvidenceCustodyTimelineService;
 import com.example.demo.domain.AnalysisRequest;
 import com.example.demo.domain.CustodyLog;
 import com.example.demo.domain.Evidence;
 import com.example.demo.domain.EvidenceMetadata;
 import com.example.demo.domain.User;
-import com.example.demo.domain.enums.CustodyTargetType;
 import com.example.demo.domain.enums.EvidenceStatus;
 import com.example.demo.domain.enums.FileType;
 import com.example.demo.dto.admin.AdminEvidenceAnalysisResponse;
@@ -17,7 +17,6 @@ import com.example.demo.dto.admin.AdminEvidenceMetadataResponse;
 import com.example.demo.dto.admin.AdminEvidencePageResponse;
 import com.example.demo.exception.AdminException;
 import com.example.demo.repository.AnalysisRequestRepository;
-import com.example.demo.repository.CustodyLogRepository;
 import com.example.demo.repository.EvidenceMetadataRepository;
 import com.example.demo.repository.EvidenceRepository;
 import com.example.demo.repository.UserRepository;
@@ -48,9 +47,9 @@ public class AdminEvidenceService {
     private final EvidenceRepository evidenceRepository;
     private final EvidenceMetadataRepository evidenceMetadataRepository;
     private final AnalysisRequestRepository analysisRequestRepository;
-    private final CustodyLogRepository custodyLogRepository;
     private final UserRepository userRepository;
     private final CustodyLogService custodyLogService;
+    private final EvidenceCustodyTimelineService evidenceCustodyTimelineService;
 
     @Transactional(readOnly = true)
     public AdminEvidencePageResponse listEvidences(
@@ -89,10 +88,7 @@ public class AdminEvidenceService {
                 analysisRequestRepository.findByEvidenceIdOrderByRequestedAtDesc(evidenceId);
         AnalysisRequest latestAnalysis = analysisHistory.isEmpty() ? null : analysisHistory.get(0);
 
-        List<CustodyLog> custodyLogs = custodyLogRepository.findByTargetTypeAndTargetIdOrderByCreatedAtDesc(
-                CustodyTargetType.EVIDENCE,
-                evidenceId
-        );
+        List<CustodyLog> custodyLogs = evidenceCustodyTimelineService.loadTimelineDesc(evidenceId);
         Map<Long, User> actors = resolveActors(custodyLogs);
 
         return AdminEvidenceDetailResponse.builder()
