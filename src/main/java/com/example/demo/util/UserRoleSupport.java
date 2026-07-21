@@ -71,9 +71,20 @@ public final class UserRoleSupport {
         }
         List<GrantedAuthority> authorities = new ArrayList<>();
         authorities.add(new SimpleGrantedAuthority(roleClaim));
-        if (UserRole.ROLE_ADMIN.name().equals(roleClaim) || UserRole.ROLE_ORG_ADMIN.name().equals(roleClaim)) {
-            authorities.add(new SimpleGrantedAuthority(UserRole.ROLE_ADMIN.name()));
-            authorities.add(new SimpleGrantedAuthority(UserRole.ROLE_ORG_ADMIN.name()));
+
+        String normalized = roleClaim.trim().toUpperCase(Locale.ROOT);
+        switch (normalized) {
+            case "ADMIN", "ORG_ADMIN", "ROLE_ADMIN", "ROLE_ORG_ADMIN" -> {
+                authorities.add(new SimpleGrantedAuthority(UserRole.ROLE_ADMIN.name()));
+                authorities.add(new SimpleGrantedAuthority(UserRole.ROLE_ORG_ADMIN.name()));
+            }
+            case "INVESTIGATOR", "USER", "ROLE_INVESTIGATOR", "ROLE_USER" ->
+                    authorities.add(new SimpleGrantedAuthority(UserRole.ROLE_INVESTIGATOR.name()));
+            case "REVIEWER", "ROLE_REVIEWER" ->
+                    authorities.add(new SimpleGrantedAuthority(UserRole.ROLE_REVIEWER.name()));
+            default -> {
+                // keep raw claim only
+            }
         }
         return authorities;
     }
